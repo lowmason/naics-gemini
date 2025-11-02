@@ -138,15 +138,19 @@ def train(
         ),
     ] = None,
 ):
+    
     '''
     Train the NAICS-Gemini model using a specified curriculum.
     '''
+    
     configure_logging()
+    
     console.rule(
         f"[bold green]Starting Training: Curriculum '[cyan]{curriculum}[/cyan]'[/bold green]"
     )
 
     try:
+        
         # 1. Initialize Hydra
         GlobalHydra.instance().clear()  # Clear global state
         initialize(config_path='../conf', job_name='naics_gemini_train')
