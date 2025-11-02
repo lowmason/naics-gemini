@@ -15,10 +15,9 @@ def configure_logging(level='INFO'):
     '''
     Configures logging to use RichHandler for beautiful output.
     '''
-
-    # Create a custom console with less padding
+    
     from rich.console import Console
-    console = Console(width=120)  # Optional: control width
+    console = Console(markup=False)
     
     logging.basicConfig(
         level=level,

@@ -1,13 +1,15 @@
 import json
+import logging
 from dataclasses import asdict, dataclass
 from typing import Tuple
-import logging
 
 import polars as pl
 from rich.console import Console
+from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
-from rich.progress import track
+
+from naics_gemini.utils.utilities import parquet_stats as _parquet_stats
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Config:
-    """Configuration for generating training triplets."""
+
     # Input
     distances_parquet: str = './data/naics_distances.parquet'
     descriptions_parquet: str = './data/naics_descriptions.parquet'
@@ -30,339 +32,406 @@ class Config:
 # Input
 # -------------------------------------------------------------------------------------------------
 
-def input_parquet_files(
+def _input_parquet_files(
     descriptions_parquet: str, 
     distances_parquet: str
 ) -> Tuple[pl.DataFrame, pl.DataFrame]:
-    """Load description and distance parquet files."""
-    
-    logger.info(f"Loading descriptions from {descriptions_parquet}")
-    descriptions = pl.read_parquet(descriptions_parquet)
 
-    logger.info(f"Loading distances from {distances_parquet}")
+    descriptions = (
+        pl
+        .read_parquet(
+            descriptions_parquet
+        )
+    )
+
     distances = (
-        pl.read_parquet(distances_parquet)
+        pl
+        .read_parquet(
+            distances_parquet
+        )
         .select(
             code_i=pl.col('code_i'),
             code_j=pl.col('code_j'),
-            distance=pl.col('distance').add(pl.col('lineal')) # Add lineal bonus
+            distance=pl.col('distance')
         )
     )
-    logger.info('Input data loaded.')
+    logger.info('Number of input observations:')
+    logger.info(f'  descriptions: {descriptions.height: ,}')
+    logger.info(f'  distances: {distances.height: ,}\n')
+
     return descriptions, distances
 
+
 # -------------------------------------------------------------------------------------------------
-# Get exclusions
+# Exclusions
 # -------------------------------------------------------------------------------------------------
 
-def get_exclusions(
-    descriptions: pl.DataFrame, 
-    distances: pl.DataFrame
+def _get_exclusions(
+    descriptions_df: pl.DataFrame,
+    distances_df: pl.DataFrame
 ) -> pl.DataFrame:
-    """Identify codes that are explicitly cross-referenced as exclusions."""
-    
-    logger.info("Processing exclusions...")
-    # Get codes from descriptions
-    codes = (
-        descriptions
-        .select(
-            code=pl.col('code'), 
-            excluded=pl.col('excluded').str.split(';')
-        )
-        .explode('excluded')
-        .with_columns(
-            excluded=pl.col('excluded')
-                        .str.extract(r'(\d{2,6})') # Extract code
-                        .str.strip()
-        )
-        .filter(pl.col('excluded').is_not_null())
-        .filter(pl.col('code') != pl.col('excluded'))
-        .select(
-            code_i=pl.col('code'),
-            code_j=pl.col('excluded')
-        )
-    )
-    
-    # Get codes from distances (symmetric)
-    codes_sym = codes.rename({'code_i': 'code_j', 'code_j': 'code_i'})
-    
-    # Combine and join with distances
-    exclusions = (
-        pl.concat([codes, codes_sym])
+
+    codes = set(
+        descriptions_df
+        .get_column('code')
         .unique()
-        .join(distances, on=['code_i', 'code_j'])
-        .select('code_i', 'code_j')
-        .with_columns(excluded=pl.lit(True))
+        .sort()
+        .to_list()
     )
-    
-    logger.info(f"Found {exclusions.height:,} explicit exclusion pairs.")
+
+    exclusions = (
+        descriptions_df
+        .filter(
+            pl.col('excluded').is_not_null()
+        )
+        .select(
+            positive_code=pl.col('code'),
+            negative_code=pl.col('excluded').str.extract_all(r'\b\d{2,6}\b'),
+        )
+        .explode('negative_code')
+        .sort('negative_code')
+        .filter(
+            pl.col('negative_code').is_not_null(), 
+            pl.col('negative_code').is_in(codes)
+        )
+        .join(
+            descriptions_df
+            .select(
+                negative_code=pl.col('code')
+            ),
+            on='negative_code',
+            how='inner',
+        )
+        .join(
+            distances_df
+            .select(
+                positive_code=pl.col('code_i'),
+                negative_code=pl.col('code_j')
+            ),
+            on=['positive_code', 'negative_code'],
+            how='inner',
+        )
+        .select(
+            positive_code=pl.col('positive_code'),
+            negative_code=pl.col('negative_code'),
+            excluded=pl.lit(True)
+        )
+        .unique()
+        .sort('positive_code', 'negative_code')
+    )
+
+    logger.info(f'Number of exclusions: {exclusions.height: ,}\n')
+
     return exclusions
 
+
 # -------------------------------------------------------------------------------------------------
-# Get distances
+# Distances
 # -------------------------------------------------------------------------------------------------
 
-def get_distances(distances: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
-    """Separate distances into positive (close) and negative (far)."""
-    
-    logger.info("Separating positive and negative distance pairs...")
-    # Positive distances
+def _get_distances(distances_df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
+
     positive_distances = (
-        distances
-        .filter(pl.col('distance') <= 8) # distance < 9 (i.e., not 9)
+        distances_df
+        .filter(
+            pl.col('distance')
+              .ne(pl.col('distance').max())
+        )
         .select(
-            code_i=pl.col('code_i'), 
-            code_j=pl.col('code_j'), 
+            anchor_code=pl.col('code_i'),
+            positive_code=pl.col('code_j'),
             positive_distance=pl.col('distance')
         )
+        .unique()
+        .sort('anchor_code', 'positive_code')
     )
-    
-    # Negative distances
+
     negative_distances = (
-        distances
-        .filter(pl.col('distance') >= 2) # distance > 1
+        distances_df
         .select(
-            code_i=pl.col('code_i'), 
-            code_j=pl.col('code_j'), 
+            anchor_code=pl.col('code_i'),
+            negative_code=pl.col('code_j'),
             negative_distance=pl.col('distance')
         )
+        .unique()
+        .sort('anchor_code', 'negative_code')
     )
-    
+
+    logger.info('Number of distances:')
+    logger.info(f'  positives: {positive_distances.height: ,}')
+    logger.info(f'  negatives: {negative_distances.height: ,}\n')
+
     return positive_distances, negative_distances
 
+
 # -------------------------------------------------------------------------------------------------
-# Get pairs
+# Pairs
 # -------------------------------------------------------------------------------------------------
 
-def get_pairs(
-    distances: pl.DataFrame, 
-    exclusions: pl.DataFrame
+def _get_pairs(
+    distances_df: pl.DataFrame,
+    exclusions_df: pl.DataFrame
 ) -> Tuple[pl.DataFrame, pl.DataFrame]:
-    """Get all valid positive and negative pairs, excluding explicit exclusions."""
-    
-    logger.info("Identifying valid positive and negative pairs...")
-    # Positive pairs
+
     positives = (
-        distances
-        .filter(pl.col('distance') <= 8) # distance < 9
-        .join(exclusions, on=['code_i', 'code_j'], how='anti') # Exclude
-        .select(
-            code_i=pl.col('code_i'),
-            code_j=pl.col('code_j')
+        distances_df
+        .filter(
+            pl.col('distance')
+              .ne(pl.col('distance').max())
         )
+        .select(
+            anchor_code=pl.col('code_i'),
+            positive_code=pl.col('code_j')
+        )
+        .unique()
+        .sort('anchor_code', 'positive_code')
     )
 
-    # Negative pairs
     negatives = (
-        distances
-        .filter(pl.col('distance') >= 2) # distance > 1
+        distances_df
         .select(
-            code_i=pl.col('code_i'), 
-            code_j=pl.col('code_j')
+            positive_code=pl.col('code_i'),
+            negative_code=pl.col('code_j'),
+            distance=pl.col('distance')
         )
+        .join(
+            exclusions_df,
+            on=['positive_code', 'negative_code'],
+            how='left'
+        )
+        .select(
+            positive_code=pl.col('positive_code'),
+            negative_code=pl.col('negative_code'),
+            excluded=pl.col('excluded')
+                       .fill_null(False),
+            unrelated=pl.col('distance')
+                        .eq(pl.col('distance').max())
+        )
+
+        .unique()
+        .sort('positive_code', 'negative_code')
     )
-    
-    logger.info(f"Found {positives.height:,} valid positive pairs.")
-    logger.info(f"Found {negatives.height:,} valid negative pairs.")
+
+    logger.info('Number of pairs:')
+    logger.info(f'  positives: {positives.height: ,}')
+    logger.info(f'  negatives: {negatives.height: ,}\n')
+
     return positives, negatives
 
+
 # -------------------------------------------------------------------------------------------------
-# Get triplets
+# Triplets
 # -------------------------------------------------------------------------------------------------
 
-def get_triplets(
-    positives: pl.DataFrame, 
-    negatives: pl.DataFrame, 
-    positive_distances: pl.DataFrame,
-    negative_distances: pl.DataFrame
+def _get_triplets(
+    positives_df: pl.DataFrame, 
+    negatives_df: pl.DataFrame,
+    positive_distances_df: pl.DataFrame,
+    negative_distances_df: pl.DataFrame
 ) -> pl.DataFrame:
-    """Create (anchor, positive, negative) triplets by joining pairs."""
-    
-    logger.info("Generating triplets...")
-    
-    # Join positives and negatives on the anchor (code_i)
-    triplets_df = (
-        positives
+
+    triplets = (
+        positives_df
         .join(
-            negatives, 
-            on='code_i'
-        )
-        .rename({
-            'code_i': 'anchor', 
-            'code_j': 'positive', 
-            'code_j_right': 'negative'
-        })
-        .filter(pl.col('positive') != pl.col('negative')) # Ensure pos != neg
-        .join(
-            positive_distances.rename({
-                'code_i': 'anchor', 
-                'code_j': 'positive'
-            }), 
-            on=['anchor', 'positive'], 
-            how='left'
-        )
-        .join(
-            negative_distances.rename({
-                'code_i': 'anchor', 
-                'code_j': 'negative'
-            }), 
-            on=['anchor', 'negative'], 
-            how='left'
-        )
-        .select(
-            'anchor', 
-            'positive', 
-            'negative', 
-            'positive_distance', 
-            'negative_distance'
+            negatives_df,
+            how='inner',
+            on='positive_code'
         )
     )
-    
-    logger.info(f"Generated {triplets_df.height:,} raw triplets.")
-    return triplets_df
+
+    triplets = (
+        triplets
+        .join(
+            positive_distances_df,
+            how='inner',
+            on=['anchor_code', 'positive_code']
+        )
+    )
+
+    triplets = (
+        triplets
+        .join(
+            negative_distances_df,
+            how='inner',
+            on=['anchor_code', 'negative_code']
+        )
+        .with_columns(
+            distance_diff=pl.col('negative_distance') - pl.col('positive_distance')
+        )
+        .filter(
+            pl.col('distance_diff').gt(0.0)
+        )
+    )
+
+    logger.info(f'Number of triplets: {triplets.height: ,}\n')
+
+    return triplets
+
 
 # -------------------------------------------------------------------------------------------------
-# Stats
+# Triplet stats
 # -------------------------------------------------------------------------------------------------
 
-def triplet_stats(triplets_df: pl.DataFrame) -> pl.DataFrame:
-    """Calculate and display statistics about the generated triplets."""
+def _triplet_stats(triplets_df: pl.DataFrame):       
     
-    logger.info("Calculating triplet statistics...")
-    # Add stats columns
-    triplets_stats = (
+    stats_df = (
         triplets_df
         .with_columns(
-            distance_diff=(
-                pl.col('negative_distance') - pl.col('positive_distance')
-            )
+            unrelated=pl.when(pl.col('excluded')).then(pl.lit(True))
+                        .otherwise(pl.col('unrelated')),
+            distance_diff=pl.when(pl.col('excluded')).then(pl.lit(None))
+                            .when(pl.col('unrelated')).then(pl.lit(7))
+                            .otherwise(pl.col('distance_diff')),
+            hardness=pl.when(pl.col('excluded')).then(pl.lit(8))
+                       .when(pl.col('unrelated')).then(pl.lit(1))
+                       .when(pl.col('distance_diff').le(0.5)).then(pl.lit(7))
+                       .when(pl.col('distance_diff').le(1)).then(pl.lit(6))
+                       .when(pl.col('distance_diff').le(2)).then(pl.lit(5))
+                       .when(pl.col('distance_diff').le(3)).then(pl.lit(4))
+                       .when(pl.col('distance_diff').le(4)).then(pl.lit(3))
+                       .otherwise(pl.lit(2))
         )
-        .with_columns(
-            unrelated=pl.col('negative_distance') == 10, # 9 (dist) + 1 (lineal) = 10
-            lineal=pl.col('positive_distance') % 1 != 0,
-            positive_distance=pl.col('positive_distance').floor(),
-            negative_distance=pl.col('negative_distance').floor(),
-            distance_diff=pl.col('distance_diff').floor()
-        )
-        .with_columns(
-            difficulty_bucket=pl.col('distance_diff').cast(pl.Int64)
-        )
-    )
-
-    # Stats table
-    console = Console()
-    table = Table(
-        title='Triplet Difficulty Stats', 
-        show_header=True, 
-        header_style='bold magenta'
-    )
-    table.add_column('Difficulty Bucket\n(Neg - Pos Dist)', style='cyan')
-    table.add_column('Lineal', style='green')
-    table.add_column('Unrelated', style='dim')
-    table.add_column('Example\nPos-Neg Dist', style='dim')
-    table.add_column('N', justify='right', style='bold')
-    table.add_column('Percent', justify='right')
-
-    stats = (
-        triplets_stats
-        .group_by('difficulty_bucket', 'lineal', 'unrelated')
+        .group_by('hardness', 'excluded', 'unrelated')
         .agg(
-            pl.col('distance_diff').min().alias('min_diff'),
-            pl.col('distance_diff').max().alias('max_diff'),
-            pl.count().alias('n')
+            distance_diff=pl.col('distance_diff'),
+            count=pl.col('distance_diff').len()
         )
-        .sort('difficulty_bucket', descending=True)
+        .with_columns(
+            distance_diff=pl.col('distance_diff')
+                            .list.drop_nulls()
+                            .list.unique()
+                            .list.sort(),
+            pct=pl.col('count')
+                .truediv(pl.col('count').sum())
+        )
+        .sort('hardness', descending=True)
     )
-    
-    total = stats['n'].sum()
 
-    for row in stats.iter_rows(named=True):
-        pct = f"{row['n'] / total:.2%}"
-        diff_range = (
-            f"{row['min_diff']}" 
-            if row['min_diff'] == row['max_diff'] 
-            else f"{row['min_diff']}-{row['max_diff']}"
+    dists = (
+        stats_df
+        .explode('distance_diff')
+        .filter(
+            pl.col('distance_diff').is_not_null()
         )
-        
-        table.add_row(
-            str(row['difficulty_bucket']),
-            str(row['lineal']),
-            str(row['unrelated']),
-            diff_range,
-            f"{row['n']:,}",
-            pct
+        .get_column('distance_diff')
+        .unique()
+        .sort()
+        .to_list()
+    )
+
+    logger.info(
+        'Observed differences in positive and negative distances: '
+        f"{', '.join(map(str, dists))}\n"
+    )
+
+    console = Console()
+
+    def _render_triplet_table(rows):
+
+        title = Text('Triplet Statistics: by hardness, exclusion, and unrelatedness', style='bold')
+        table = Table(
+            title=title,
+            title_justify='left',
+            show_lines=True
         )
-    
-    console.print(table)
-    return triplets_stats
+
+        table.add_column('Hardness', justify='center', style='bold cyan')
+        table.add_column('Exclusion', justify='center')
+        table.add_column('Unrelated', justify='center')
+        table.add_column('Distance Difference', justify='center')
+        table.add_column('Frequency', justify='right')
+        table.add_column('Percent', justify='right')
+
+        for row in rows:
+            hardness = str(row.get('hardness', ''))
+            excluded = 'True' if row.get('excluded', False) else 'False'
+            unrelated = 'True' if row.get('unrelated', False) else 'False'
+            
+            distance_diff = row.get('distance_diff', [])
+            match distance_diff:
+                case []:
+                    dd = 'N/A'
+                case [d]:
+                    dd = str(d)
+                case _:
+                    d_min = min(distance_diff)
+                    d_max = max(distance_diff)
+                    dd = f'{d_min}-{d_max}'
+
+            n = row.get('count', 0)
+            pct = row.get('pct', 0)
+
+            n_cell = Text(f'{n: ,}')
+            pct_cell = Text(f'{100 * pct: .2f}%', style='bold')
+
+            table.add_row(hardness, excluded, unrelated, dd, n_cell, pct_cell)
+
+        console.print(Padding(table, (0, 0, 0, 10)))   
+
+    _render_triplet_table(stats_df.to_dicts())
 
 
 # -------------------------------------------------------------------------------------------------
-# Parquet
+# Generate triplets
 # -------------------------------------------------------------------------------------------------
 
-def parquet_stats(parquet_df: pl.DataFrame, output_parquet: str) -> None:
-    """Log statistics about the final Parquet file."""
-    
-    rows = list(zip(parquet_df.columns, parquet_df.dtypes))
-    
-    logger.info('Parquet schema: Schema([')
-    for name, dtype in rows:
-        logger.info(f"    ('{name}', {dtype}),")
-    logger.info('])\n')
+def generate_training_triplets() -> pl.DataFrame:
 
-    logger.info(f'{parquet_df.height: ,} NAICS contrastive triplets written to:')
-    logger.info(f'  {output_parquet}\n')
-
-
-# -------------------------------------------------------------------------------------------------
-# Main
-# -------------------------------------------------------------------------------------------------
-
-def generate_training_triplets() -> None:
-    """
-    Main entry point for generating (anchor, positive, negative) triplets.
-    """
     # Configuration
     cfg = Config()
+
     logger.info('Configuration:')
     logger.info(json.dumps(asdict(cfg), indent=2))
+    logger.info('')
 
     # Load data
-    descriptions, distances = input_parquet_files(
+    descriptions, distances = _input_parquet_files(
         cfg.descriptions_parquet,
         cfg.distances_parquet
     )
 
     # Exclusions
-    exclusions = get_exclusions(descriptions, distances)
+    exclusions = _get_exclusions(
+        descriptions,
+        distances
+    )
 
     # All positive and negative distances
-    positive_distances, negative_distances = get_distances(distances)
+    positive_distances, negative_distances = _get_distances(distances)
 
     # All positive and negative pairs
-    positives, negatives = get_pairs(distances, exclusions)
+    positives, negatives = _get_pairs(distances, exclusions)
 
     # Combine positives and negatives into triplets
-    triplets_df = get_triplets(
+    triplets_df = _get_triplets(
         positives,
         negatives,
         positive_distances,
         negative_distances
     )
 
-    # Calculate stats
-    triplets_with_stats = triplet_stats(triplets_df)
-
-    # Write to parquet
-    logger.info(f"Writing triplets to {cfg.output_parquet}...")
     (
-        triplets_with_stats
-        .write_parquet(cfg.output_parquet)
+        triplets_df
+        .write_parquet(
+            cfg.output_parquet
+        )
     )
 
-    parquet_stats(triplets_with_stats, cfg.output_parquet)
+    _triplet_stats(triplets_df)  
+
+    _parquet_stats(
+        parquet_df=triplets_df,
+        message='NAICS triplets written to:',
+        output_parquet=cfg.output_parquet,
+        logger=logger
+    )
+
+    return triplets_df
+
+
+# -------------------------------------------------------------------------------------------------
+# Main
+# -------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    configure_logging()
     generate_training_triplets()

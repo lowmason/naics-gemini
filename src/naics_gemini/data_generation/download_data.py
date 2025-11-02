@@ -208,6 +208,8 @@ def _download_files(
 
             logger.info(f'  {col} observations: {df.height: ,}') # type: ignore
 
+        logger.info('')
+
         return dfs[0], dfs[1], dfs[2], dfs[3]
     
     else:
@@ -246,7 +248,7 @@ def _get_titles(
 
     logger.info('Titles:')
     logger.info(f'  Number of titles: {titles.height: ,}')
-    logger.info(f'  Number of codes: {len(codes): ,}')
+    logger.info(f'  Number of codes: {len(codes): ,}\n')
 
     return titles, codes
 
@@ -315,7 +317,7 @@ def _get_descriptions_1(descriptions_df: pl.DataFrame) -> Tuple[pl.DataFrame, pl
 
     logger.info('Descriptions:')
     logger.info(f'  Number: {descriptions_1.height: ,}')
-    logger.info(f'  Number (split on paragraphs): {descriptions_3.height: ,}')
+    logger.info(f'  Number (split on paragraphs): {descriptions_3.height: ,}\n')
 
     return descriptions_2, descriptions_3
 
@@ -433,7 +435,7 @@ def _get_exclusions(
     logger.info(f'    Cross-references: {exclusions_2.height: ,}')
     logger.info(f'    Extracted from descriptions: {exclusions_3.height: ,}')
     logger.info(f'    Final: {exclusions.height: ,}')
-    logger.info(f'  Excluded codes: {exclusions_cnt: ,}')
+    logger.info(f'  Excluded codes: {exclusions_cnt: ,}\n')
 
     return exclusions, descriptions_exclusions
 
@@ -537,7 +539,7 @@ def _get_examples(
     logger.info(f'    Cross-references: {examples_1.height: ,}')
     logger.info(f'    Extracted from descriptions: {examples_3.height: ,}')
     logger.info(f'    Final: {examples.height: ,}')
-    logger.info(f'  Number of examples: {examples_cnt: ,}')
+    logger.info(f'  Number of examples: {examples_cnt: ,}\n')
 
     return examples, descriptions_examples
 
@@ -724,7 +726,7 @@ def _get_descriptions_2(
     logger.info(f'  Filled missing (level 4): {description_4_complete.height: ,}')
     logger.info(f'  Missing (level 5): {description_5_missing.height: ,}')
     logger.info(f'  Filled missing (level 5): {description_5_complete.height: ,}')
-    logger.info(f'  Complete: {descriptions.height: ,}\n')
+    logger.info(f'  Complete: {descriptions.height: ,}')
 
     return descriptions
 
@@ -744,6 +746,7 @@ def download_preprocess_data() -> pl.DataFrame:
 
     logger.info('Configuration:')
     logger.info(json.dumps(config_dict, indent=2))
+    logger.info('')
     
     titles_df, descriptions_df, examples_df, exclusions_df = _download_files(config)
 
