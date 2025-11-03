@@ -1,3 +1,7 @@
+# -------------------------------------------------------------------------------------------------
+# Imports and settings
+# -------------------------------------------------------------------------------------------------
+
 import logging
 from typing import Tuple
 
@@ -7,6 +11,10 @@ import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
+
+# -------------------------------------------------------------------------------------------------
+# Class to enable Mixture of Experts (MoE) layer with Top-2 gating
+# -------------------------------------------------------------------------------------------------
 
 class MixtureOfExpertsLayer(nn.Module):
     
@@ -38,6 +46,7 @@ class MixtureOfExpertsLayer(nn.Module):
         ])
         
         self.load_balancing_loss_coef = 0.01
+    
     
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         

@@ -1,3 +1,7 @@
+# -------------------------------------------------------------------------------------------------
+# Imports and settings
+# -------------------------------------------------------------------------------------------------
+
 import logging
 from typing import Dict
 
@@ -10,6 +14,10 @@ from naics_gemini.model.moe import MixtureOfExpertsLayer
 
 logger = logging.getLogger(__name__)
 
+
+# -------------------------------------------------------------------------------------------------
+# Class to encode multiple text channels and fuse embeddings
+# -------------------------------------------------------------------------------------------------
 
 class MultiChannelEncoder(nn.Module):
     
@@ -24,6 +32,7 @@ class MultiChannelEncoder(nn.Module):
         top_k: int = 2,
         moe_hidden_dim: int = 1024
     ):
+        
         super().__init__()
         
         self.channels = ['title', 'description', 'excluded', 'examples']

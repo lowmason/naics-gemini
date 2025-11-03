@@ -1,15 +1,22 @@
+# -------------------------------------------------------------------------------------------------
+# Imports and settings
+# -------------------------------------------------------------------------------------------------
+
 import logging
-from typing import Any, Dict
+from typing import Dict
 
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 
 from naics_gemini.model.encoder import MultiChannelEncoder
 from naics_gemini.model.loss import HyperbolicInfoNCELoss
 
 logger = logging.getLogger(__name__)
 
+
+# -------------------------------------------------------------------------------------------------
+# Main NAICS Contrastive Learning Model: combining encoder, loss, MoE, and hyperbolic projections
+# -------------------------------------------------------------------------------------------------
 
 class NAICSContrastiveModel(pl.LightningModule):
     
@@ -52,10 +59,16 @@ class NAICSContrastiveModel(pl.LightningModule):
         )
         
         self.load_balancing_coef = load_balancing_coef
+
     
-    def forward(self, channel_inputs: Dict[str, Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+    def forward(
+        self, 
+        channel_inputs: Dict[str, Dict[str, torch.Tensor]]
+    ) -> Dict[str, torch.Tensor]:
+        
         return self.encoder(channel_inputs)
     
+
     def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
         
         anchor_output = self(batch['anchor'])
@@ -91,6 +104,7 @@ class NAICSContrastiveModel(pl.LightningModule):
         
         return total_loss
     
+
     def validation_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
         
         anchor_output = self(batch['anchor'])
@@ -116,6 +130,7 @@ class NAICSContrastiveModel(pl.LightningModule):
         
         return contrastive_loss
     
+
     def configure_optimizers(self):
         
         optimizer = torch.optim.AdamW(

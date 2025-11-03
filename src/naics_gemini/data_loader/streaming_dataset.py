@@ -43,7 +43,7 @@ class CurriculumConfig:
 
 
 # -------------------------------------------------------------------------------------------------
-# Configuration
+# Class to load and configure streaming dataset for curriculum learning
 # -------------------------------------------------------------------------------------------------
 
 class NAICSStreamingDataset(IterableDataset):

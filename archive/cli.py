@@ -16,7 +16,7 @@ from typing_extensions import Annotated
 from naics_gemini.data_generation.compute_distances import calculate_pairwise_distances
 from naics_gemini.data_generation.create_triplets import generate_training_triplets
 from naics_gemini.data_generation.download_data import download_preprocess_data
-from naics_gemini.utils.rich_setup import configure_logging
+from naics_gemini.utils.console import configure_logging
 
 # --- Model & Data Imports (to be created later) ---
 # from naics_gemini.data.datamodule import NAICSDataModule
