@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
 
-from naics_gemini.data.datamodule import NAICSDataModule
+from naics_gemini.data_loader.datamodule import NAICSDataModule
 from naics_gemini.data_generation.compute_distances import calculate_pairwise_distances
 from naics_gemini.data_generation.create_triplets import generate_training_triplets
 from naics_gemini.data_generation.download_data import download_preprocess_data

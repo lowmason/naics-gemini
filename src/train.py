@@ -9,7 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from naics_gemini.data.datamodule import NAICSDataModule
+from naics_gemini.data_loader.datamodule import NAICSDataModule
 from naics_gemini.model.naics_model import NAICSContrastiveModel
 from naics_gemini.utils.rich_setup import configure_logging
 
