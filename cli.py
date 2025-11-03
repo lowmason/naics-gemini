@@ -24,7 +24,6 @@ from naics_gemini.data_generation.download_data import download_preprocess_data
 from naics_gemini.model.naics_model import NAICSContrastiveModel
 from naics_gemini.utils.rich_setup import configure_logging
 
-
 # -------------------------------------------------------------------------------------------------
 # Setup Typer App
 # -------------------------------------------------------------------------------------------------
