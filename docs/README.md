@@ -21,6 +21,13 @@ Comprehensive documentation for the NAICS Gemini hierarchical contrastive learni
   - Creating custom curricula
   - Advanced strategies
 
+- **[Dataset Specification](dataset_specification.md)** - Formal data contracts and schemas
+  - Complete schema definitions for all 3 datasets
+  - Field specifications and validation rules
+  - Data quality expectations
+  - Usage patterns and loading strategies
+  - Cross-dataset consistency rules
+
 ### Technical Deep-Dive
 - **[Architecture Guide](architecture.md)** - System design and implementation
   - Data pipeline architecture
@@ -47,6 +54,8 @@ Comprehensive documentation for the NAICS Gemini hierarchical contrastive learni
 | Install and run my first training | [Quick Start](quickstart.md) | Installation → Training |
 | Understand hardness levels | [Curriculum Design](curriculum_design_guide.md) | Understanding Hardness Levels |
 | Create a custom curriculum | [Curriculum Design](curriculum_design_guide.md) | Creating Custom Curricula |
+| Understand dataset schemas | [Dataset Specification](dataset_specification.md) | Schema Specifications |
+| Validate data quality | [Dataset Specification](dataset_specification.md) | Data Quality Rules |
 | Understand how the model works | [Architecture](architecture.md) | Model Architecture |
 | Fix NaN loss | [Troubleshooting](troubleshooting.md) | Training Issues → Loss is NaN |
 | Speed up training | [Troubleshooting](troubleshooting.md) | Performance Issues |
@@ -54,6 +63,7 @@ Comprehensive documentation for the NAICS Gemini hierarchical contrastive learni
 | Learn about hyperbolic space | [Architecture](architecture.md) | Hyperbolic Projection |
 | Fix OOM errors | [Troubleshooting](troubleshooting.md) | Performance Issues → Out of Memory |
 | Understand data pipeline | [Architecture](architecture.md) | Data Pipeline Architecture |
+| Load datasets efficiently | [Dataset Specification](dataset_specification.md) | Usage Patterns |
 
 ## 📖 Recommended Reading Order
 
@@ -150,9 +160,10 @@ Found an issue or have a suggestion? Please:
 
 - **Quick Start:** 9.4 KB, ~2,000 words
 - **Curriculum Design:** 19 KB, ~4,500 words
+- **Dataset Specification:** 32 KB, ~7,500 words
 - **Architecture:** 36 KB, ~7,000 words
 - **Troubleshooting:** 23 KB, ~5,000 words
-- **Total:** ~87 KB, ~18,500 words
+- **Total:** ~120 KB, ~26,000 words
 
 ---
 

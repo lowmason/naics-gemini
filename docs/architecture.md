@@ -26,64 +26,64 @@ NAICS Gemini learns hierarchical embeddings for 2,125 NAICS industry codes using
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          DATA PIPELINE                                  │
-│                                                                         │
-│  Census Bureau    ┌──────────┐     ┌──────────┐     ┌──────────┐        │
-│  Excel Files  →   │Preprocess│  →  │Distances │  →  │ Triplets │        │
-│  (4 files)        │  2,125   │     │ 3.0M     │     │  263M    │        │
-│                   │  codes   │     │  pairs   │     │ triplets │        │
-│                   └──────────┘     └──────────┘     └──────────┘        │
-│                        ↓                                                │
+│                                                                           │
+│  Census Bureau    ┌──────────┐     ┌──────────┐     ┌──────────┐      │
+│  Excel Files  →   │Preprocess│  →  │Distances │  →  │ Triplets │      │
+│  (4 files)        │  2,125   │     │ 3.0M     │     │  263M    │      │
+│                   │  codes   │     │  pairs   │     │ triplets │      │
+│                   └──────────┘     └──────────┘     └──────────┘      │
+│                        ↓                                                 │
 │                   Parquet Files (streaming)                             │
 └─────────────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          MODEL ARCHITECTURE                             │
-│                                                                         │
-│  ┌─ Multi-Channel Encoder ────────────────────────────────────────┐     │
-│  │                                                                │     │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐            │     │
-│  │  │ Title   │  │  Desc   │  │Excluded │  │Examples │            │     │
-│  │  │ Channel │  │ Channel │  │ Channel │  │ Channel │            │     │
-│  │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘            │     │
-│  │       │            │            │            │                 │     │
-│  │  ┌────▼─────┐ ┌───▼─────┐ ┌───▼─────┐ ┌───▼─────┐              │     │
-│  │  │Transformer│ │Transform│ │Transform│ │Transform│             │     │
-│  │  │ + LoRA   │ │ + LoRA  │ │ + LoRA  │ │ + LoRA  │              │     │
-│  │  └────┬─────┘ └───┬─────┘ └───┬─────┘ └───┬─────┘              │     │
-│  │       │            │            │            │                 │     │
-│  │       └────────────┴────────────┴────────────┘                 │     │
-│  │                          │                                     │     │
-│  │                    Concatenate                                 │     │
-│  │                          │                                     │     │
-│  └──────────────────────────┼─────────────────────────────────────┘     │
-│                             ↓                                           │
+│                          MODEL ARCHITECTURE                              │
+│                                                                           │
+│  ┌─ Multi-Channel Encoder ────────────────────────────────────────┐    │
+│  │                                                                   │    │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐           │    │
+│  │  │ Title   │  │  Desc   │  │Excluded │  │Examples │           │    │
+│  │  │ Channel │  │ Channel │  │ Channel │  │ Channel │           │    │
+│  │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘           │    │
+│  │       │            │            │            │                  │    │
+│  │  ┌────▼─────┐ ┌───▼─────┐ ┌───▼─────┐ ┌───▼─────┐            │    │
+│  │  │Transformer│ │Transform│ │Transform│ │Transform│            │    │
+│  │  │ + LoRA   │ │ + LoRA  │ │ + LoRA  │ │ + LoRA  │            │    │
+│  │  └────┬─────┘ └───┬─────┘ └───┬─────┘ └───┬─────┘            │    │
+│  │       │            │            │            │                  │    │
+│  │       └────────────┴────────────┴────────────┘                 │    │
+│  │                          │                                       │    │
+│  │                    Concatenate                                  │    │
+│  │                          │                                       │    │
+│  └──────────────────────────┼───────────────────────────────────────┘    │
+│                              ↓                                            │
 │  ┌─ Mixture of Experts ─────────────────────────────────────────┐       │
-│  │                                                              │       │
-│  │    ┌──────────┐      ┌─────────┐  ┌─────────┐                │       │
-│  │    │  Gating  │  →   │Expert 1 │  │Expert 2 │                │       │
-│  │    │  Network │  →   │Expert 3 │  │Expert 4 │                │       │
-│  │    └──────────┘      └─────────┘  └─────────┘                │       │
-│  │         │                    │           │                   │       │
+│  │                                                                │       │
+│  │    ┌──────────┐      ┌─────────┐  ┌─────────┐               │       │
+│  │    │  Gating  │  →   │Expert 1 │  │Expert 2 │               │       │
+│  │    │  Network │  →   │Expert 3 │  │Expert 4 │               │       │
+│  │    └──────────┘      └─────────┘  └─────────┘               │       │
+│  │         │                    │           │                    │       │
 │  │    Top-2 Selection      Weighted Sum                         │       │
-│  │                                                              │       │
-│  └────────────────────────────┼──────────────────────────-──────┘       │
-│                                ↓                                        │
+│  │                                                                │       │
+│  └────────────────────────────┼────────────────────────────────┘       │
+│                                ↓                                          │
 │  ┌─ Hyperbolic Projection ───────────────────────────────────┐          │
-│  │                                                           │          │
+│  │                                                              │          │
 │  │   Euclidean → Tangent Space → Lorentz Model (Hyperboloid) │          │
-│  │   (768-dim)      (769-dim)         (769-dim)              │          │
-│  │                                                           │          │
-│  └─────────────────────────────────────────────────────────-─┘          │
+│  │   (768-dim)      (769-dim)         (769-dim)               │          │
+│  │                                                              │          │
+│  └──────────────────────────────────────────────────────────┘          │
 └─────────────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        TRAINING & LOSS                                  │
-│                                                                         │
+│                        TRAINING & LOSS                                   │
+│                                                                           │
 │  Anchor, Positive, K Negatives → Hyperbolic InfoNCE Loss                │
 │  (Lorentzian distance) + MoE Load Balancing Loss                        │
-│                                                                         │
-│  Optimizer: AdamW + Cosine Annealing                                    │
-│  Curriculum: Hardness-based filtering + negative sampling               │
+│                                                                           │
+│  Optimizer: AdamW + Cosine Annealing                                     │
+│  Curriculum: Hardness-based filtering + negative sampling                │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -283,31 +283,31 @@ Transformer: all-mpnet-base-v2 (768-dim)
 ```
 ┌─────────────────────────────────────────────────────────┐
 │              4 Separate Encoders (768-dim each)         │
-│                                                         │
+│                                                           │
 │  Title (768) + Description (768) + Excluded (768) +     │
 │  Examples (768) = Concatenated (3072-dim)               │
 └───────────────────────────┬─────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────┐
-│           Mixture of Experts Layer                      │
-│                                                         │
-│  ┌─────────────────────────────────────────────────-─┐  │
+│           Mixture of Experts Layer                       │
+│                                                           │
+│  ┌──────────────────────────────────────────────────┐  │
 │  │  Gating Network (3072 → 4)                        │  │
-│  │    ↓                                              │  │
+│  │    ↓                                               │  │
 │  │  Softmax → Top-2 Selection                        │  │
-│  │    ↓                                              │  │
-│  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐   │  │
-│  │  │Expert 1│  │Expert 2│  │Expert 3│  │Expert 4│   │  │
-│  │  │        │  │        │  │        │  │        │   │  │
-│  │  │3072 →  │  │3072 →  │  │3072 →  │  │3072 →  │   │  │
-│  │  │1024 →  │  │1024 →  │  │1024 →  │  │1024 →  │   │  │
-│  │  │3072    │  │3072    │  │3072    │  │3072    │   │  │
-│  │  └───┬────┘  └───┬────┘  └───┬────┘  └───┬────┘   │  │
-│  │      │            │            │            │     │  │
-│  │      └────────────┴────────────┴────────────┘     │  │
-│  │                    Weighted Sum                   │  │
-│  └─────────────────────────────────────────────────-─┘  │
-│                                                         │
+│  │    ↓                                               │  │
+│  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐ │  │
+│  │  │Expert 1│  │Expert 2│  │Expert 3│  │Expert 4│ │  │
+│  │  │        │  │        │  │        │  │        │ │  │
+│  │  │3072 →  │  │3072 →  │  │3072 →  │  │3072 →  │ │  │
+│  │  │1024 →  │  │1024 →  │  │1024 →  │  │1024 →  │ │  │
+│  │  │3072    │  │3072    │  │3072    │  │3072    │ │  │
+│  │  └───┬────┘  └───┬────┘  └───┬────┘  └───┬────┘ │  │
+│  │      │            │            │            │      │  │
+│  │      └────────────┴────────────┴────────────┘      │  │
+│  │                    Weighted Sum                     │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                           │
 │  Output: Fused embedding (3072-dim)                     │
 └───────────────────────────┬─────────────────────────────┘
                             ↓
@@ -363,11 +363,11 @@ load_balancing_loss = num_experts * sum(importance * load)
                             ↓
 ┌─────────────────────────────────────────────────────────┐
 │              Exponential Map (exp_map_zero)             │
-│                                                         │
-│  norm_v = ||v||                                         │
+│                                                           │
+│  norm_v = ||v||                                          │
 │  x₀ = cosh(norm_v / √c)                                 │
 │  x_rest = sinh(norm_v / √c) * v / norm_v                │
-│  x = [x₀, x_rest]                                       │
+│  x = [x₀, x_rest]                                        │
 └───────────────────────────┬─────────────────────────────┘
                             ↓
             Lorentz Model Point (3073-dim)
@@ -442,8 +442,8 @@ where λ = 0.01 (default)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                Parquet File (on disk)                   │
-│              263M rows × 8 columns                      │
+│                Parquet File (on disk)                    │
+│              263M rows × 8 columns                       │
 └───────────────────────────┬─────────────────────────────┘
                             ↓
         Curriculum Filtering (Polars lazy scan)
@@ -452,8 +452,8 @@ where λ = 0.01 (default)
         • difficulty_buckets: [1, 2]
                             ↓
 ┌─────────────────────────────────────────────────────────┐
-│              Filtered Triplets (lazy)                   │
-│              e.g., 50M rows after filtering             │
+│              Filtered Triplets (lazy)                    │
+│              e.g., 50M rows after filtering              │
 └───────────────────────────┬─────────────────────────────┘
                             ↓
           Collect anchors + positives
@@ -461,17 +461,17 @@ where λ = 0.01 (default)
                             ↓
 ┌─────────────────────────────────────────────────────────┐
 │       Negative Sampling (per anchor-positive pair)      │
-│                                                         │
-│  For each (anchor, positive):                           │
+│                                                           │
+│  For each (anchor, positive):                            │
 │    1. Get all valid negatives from filtered dataset     │
-│    2. Bucket by hardness level                          │
+│    2. Bucket by hardness level                           │
 │    3. Sample K negatives per bucket_percentages         │
 │    4. Fallback to easier buckets if sparse              │
 └───────────────────────────┬─────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────┐
-│            Tokenization Cache Lookup                    │
-│                                                         │
+│            Tokenization Cache Lookup                     │
+│                                                           │
 │  anchor_code → {title: ids, description: ids, ...}      │
 │  positive_code → {title: ids, description: ids, ...}    │
 │  negative_code × K → {title: ids, ...}                  │
@@ -513,37 +513,37 @@ Load time: <1 second
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                     Training Epoch                         │
-└───────────────────────────┬────────────────────────────────┘
-                            ↓
-                ┌───────────────────────┐
-                │  Sample Batch (B=32)  │
-                │  via DataLoader       │
-                └───────────┬───────────┘
-                            ↓
+│                     Training Epoch                          │
+└────────────────────┬───────────────────────────────────────┘
+                     ↓
+         ┌───────────────────────┐
+         │  Sample Batch (B=32)  │
+         │  via DataLoader       │
+         └───────────┬───────────┘
+                     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                    Forward Pass                             │
-│                                                             │
-│  For anchor, positive, negatives:                           │
+│                    Forward Pass                              │
+│                                                               │
+│  For anchor, positive, negatives:                            │
 │    1. Encode each channel (title, desc, excl, examples)     │
 │    2. Route through MoE (get fused embedding)               │
 │    3. Project to hyperbolic space (Lorentz model)           │
 └───────────────────────────┬─────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                      Loss Computation                       │
-│                                                             │
+│                      Loss Computation                        │
+│                                                               │
 │  contrastive_loss = HyperbolicInfoNCE(                      │
 │      anchor_hyp, positive_hyp, negative_hyp, B, K           │
-│  )                                                          │
-│                                                             │
+│  )                                                           │
+│                                                               │
 │  load_balancing_loss = (                                    │
 │      anchor_output.lb_loss +                                │
 │      positive_output.lb_loss +                              │
 │      negative_output.lb_loss                                │
-│  ) / 3.0                                                    │
-│                                                             │
-│  total_loss = contrastive_loss + λ * load_balancing_loss    │
+│  ) / 3.0                                                     │
+│                                                               │
+│  total_loss = contrastive_loss + λ * load_balancing_loss   │
 └───────────────────────────┬─────────────────────────────────┘
                             ↓
                     Backward Pass
@@ -678,14 +678,14 @@ eta_min = 1e-6  # Minimum learning rate
 
 **Per Component (batch size = 32, K = 16):**
 
-| Component                       | Memory  |
-|---------------------------------|---------|
-| 4 × Transformer encoders (LoRA) | ~2 GB   |
-| MoE layer (4 experts)           | ~500 MB |
-| Hyperbolic projection           | ~100 MB |
-| Batch tensors (B=32, K=16)      | ~1 GB   |
-| Optimizer state (AdamW)         | ~4 GB   |
-| **Total**                       | **~8 GB** |
+| Component | Memory |
+|-----------|--------|
+| 4 × Transformer encoders (LoRA) | ~2 GB |
+| MoE layer (4 experts) | ~500 MB |
+| Hyperbolic projection | ~100 MB |
+| Batch tensors (B=32, K=16) | ~1 GB |
+| Optimizer state (AdamW) | ~4 GB |
+| **Total** | **~8 GB** |
 
 **Recommendations:**
 - 16 GB GPU: batch_size=16, k_negatives=8

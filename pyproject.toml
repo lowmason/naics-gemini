@@ -26,11 +26,17 @@ dependencies = [
 [project.scripts]
 naics-gemini = 'naics_gemini.cli:app'
 
+
+[dependency-groups]
+dev = [
+    'yapf>=0.43.0',
+    'ruff>=0.6',
+    'rich>=13.9',
+]
+
 [project.optional-dependencies]
 dev = [
-    'ruff>=0.6',
     'pytest>=8.3',
-    'rich>=13.9',
 ]
 
 
@@ -102,9 +108,10 @@ docstring-code-line-length = 'dynamic'
 
 [tool.yapf]
 based_on_style = 'pep8'
+column_limit = 100
 
 # --- Spacing & blank lines (2 after defs/classes) ---
-blank_lines_around_top_level_definition = 2
+blank_lines_around_top_level_definition = 1
 blank_line_before_nested_class_or_def = true
 join_multiple_lines = false
 
@@ -119,7 +126,6 @@ split_before_closing_bracket = true
 
 # --- Preserve manual line breaks & semantic dividers ---
 coalesce_brackets = false
-split_before_comment = true
 split_penalty_after_opening_bracket = 10000
 split_penalty_for_added_line_split = 10000
 split_penalty_excess_character = 10000
