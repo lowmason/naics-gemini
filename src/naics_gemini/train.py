@@ -2,10 +2,9 @@ import logging
 from pathlib import Path
 
 import pytorch_lightning as pl
-import torch
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 
