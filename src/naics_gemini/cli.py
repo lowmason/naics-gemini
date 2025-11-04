@@ -193,7 +193,10 @@ def train(
             seed=cfg.seed
         )
         
-        logger.info('Initializing Model...')
+        # Construct distances path
+        distances_path = str(Path(cfg.paths.data_dir) / 'naics_distances.parquet')
+        
+        logger.info('Initializing Model with evaluation metrics...')
         model = NAICSContrastiveModel(
             base_model_name=cfg.model.base_model_name,
             lora_r=cfg.model.lora.r,
@@ -208,7 +211,11 @@ def train(
             learning_rate=cfg.training.learning_rate,
             weight_decay=cfg.training.weight_decay,
             warmup_steps=cfg.training.warmup_steps,
-            load_balancing_coef=cfg.model.moe.load_balancing_coef
+            load_balancing_coef=cfg.model.moe.load_balancing_coef,
+            # Evaluation settings
+            distances_path=distances_path,
+            eval_every_n_epochs=1,
+            eval_sample_size=500
         )
         
         logger.info('Setting up callbacks and checkpointing...')
@@ -243,7 +250,14 @@ def train(
             default_root_dir=cfg.paths.output_dir
         )
         
-        logger.info('Starting model training...')
+        logger.info('Starting model training with evaluation metrics...')
+        console.print('\n[bold cyan]📊 Evaluation metrics enabled:[/bold cyan]')
+        console.print('  • Cophenetic correlation (hierarchy preservation)')
+        console.print('  • Spearman correlation (rank preservation)')
+        console.print('  • Embedding statistics (norms, distances)')
+        console.print('  • Collapse detection (variance, norm, distance)')
+        console.print('  • Distortion metrics (mean, std)\n')
+        
         trainer.fit(model, datamodule)
         
         logger.info('Training complete.')

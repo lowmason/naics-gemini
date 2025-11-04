@@ -27,6 +27,11 @@ def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
     positive_batch = {channel: {} for channel in channels}
     negatives_batch = {channel: {} for channel in channels}
     
+    # Collect anchor and positive codes for evaluation
+    anchor_codes = []
+    positive_codes = []
+    negative_codes = []
+    
     for channel in channels:
         anchor_ids = []
         anchor_masks = []
@@ -54,12 +59,23 @@ def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
         negatives_batch[channel]['input_ids'] = torch.stack(all_neg_ids)
         negatives_batch[channel]['attention_mask'] = torch.stack(all_neg_masks)
     
+    # Extract codes from batch items
+    for item in batch:
+        anchor_codes.append(item.get('anchor_code', ''))
+        positive_codes.append(item.get('positive_code', ''))
+        if 'negative_codes' in item:
+            negative_codes.extend(item['negative_codes'])
+    
     return {
         'anchor': anchor_batch,
         'positive': positive_batch,
         'negatives': negatives_batch,
         'batch_size': len(batch),
-        'k_negatives': len(batch[0]['negatives'])
+        'k_negatives': len(batch[0]['negatives']),
+        # Add codes for evaluation tracking
+        'anchor_code': anchor_codes,
+        'positive_code': positive_codes,
+        'negative_codes': negative_codes
     } #type: ignore
 
 
