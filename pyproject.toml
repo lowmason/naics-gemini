@@ -51,6 +51,7 @@ dev = [
 required-environments = [
     "sys_platform == 'darwin' and platform_machine == 'arm64'",
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
 
 [[tool.uv.index]]
@@ -70,6 +71,7 @@ explicit = true
 torch = [
     { index = 'pytorch-cpu',  marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
     { index = 'pytorch-cu121', marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = 'pytorch-cu121', marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 
 
