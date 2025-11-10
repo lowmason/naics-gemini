@@ -74,10 +74,9 @@ def _get_exclusions(descriptions_df: pl.DataFrame, distances_df: pl.DataFrame) -
         descriptions_df.filter(pl.col('excluded').is_not_null())
         .select(
             positive_code=pl.col('code'),
-            negative_code=pl.col('excluded').str.extract_all(r'\b\d{2,6}\b'),
+            negative_code=pl.col('excluded_codes'),
         )
         .explode('negative_code')
-        .sort('negative_code')
         .filter(pl.col('negative_code').is_not_null(), pl.col('negative_code').is_in(codes))
         .join(
             descriptions_df.select(negative_code=pl.col('code')),
@@ -232,9 +231,28 @@ def _get_pairs(
             negative_idx=pl.col('negative_idx'),
             positive_code=pl.col('positive_code'),
             negative_code=pl.col('negative_code'),
-            excluded=pl.col('excluded').fill_null(False),
-            unrelated=pl.col('distance').eq(pl.col('distance').max()),
+            excluded=pl.col('excluded').fill_null(False)
         )
+        .with_columns(
+            un_1=pl.col('positive_code')
+                .str.slice(0, 2),
+            un_2=pl.col('negative_code')
+                .str.slice(0, 2)
+        )
+        .with_columns(
+            un_1=pl.when(pl.col('un_1').is_in(['31', '32', '33'])).then(pl.lit('31'))
+                .when(pl.col('un_1').is_in(['44', '45'])).then(pl.lit('44'))
+                .when(pl.col('un_1').is_in(['48', '49'])).then(pl.lit('48'))
+                .otherwise(pl.col('un_1')),
+            un_2=pl.when(pl.col('un_2').is_in(['31', '32', '33'])).then(pl.lit('31'))
+                .when(pl.col('un_2').is_in(['44', '45'])).then(pl.lit('44'))
+                .when(pl.col('un_2').is_in(['48', '49'])).then(pl.lit('48'))
+                .otherwise(pl.col('un_2'))
+        )
+        .with_columns(
+            unrelated=pl.col('un_1').ne(pl.col('un_2'))
+        )
+        .drop('un_1', 'un_2')
         .unique()
         .sort('positive_code', 'negative_code')
     )
@@ -292,18 +310,22 @@ def _get_triplets(
                                 .otherwise(pl.col('negative_distance'))
         )
         .with_columns(
-            anchor_distance=pl.col('negative_distance').sub(pl.col('positive_distance'))
+            relation_margin=pl.col('negative_relation').sub(pl.col('positive_relation')),
+            distance_margin=pl.col('negative_distance').sub(pl.col('positive_distance'))
         )
         .with_columns(
             unrelated=pl.when(pl.col('excluded'))
                         .then(pl.lit(False))
                         .otherwise(pl.col('unrelated')),
-            anchor_distance=pl.when(pl.col('excluded')).then(pl.lit(0.125))
+            relation_margin=pl.when(pl.col('excluded')).then(pl.lit(1))
+                              .when(pl.col('unrelated')).then(pl.lit(15))
+                              .otherwise(pl.col('relation_margin').add(1)),
+            distance_margin=pl.when(pl.col('excluded')).then(pl.lit(0.125))
                               .when(pl.col('unrelated')).then(pl.lit(7.0))
-                              .otherwise(pl.col('anchor_distance')),
+                              .otherwise(pl.col('distance_margin'))
         )
         .filter(
-            pl.col('anchor_distance').gt(0.0)
+            pl.col('distance_margin').gt(0.0)
         )
     )
 
@@ -354,12 +376,17 @@ def _get_triplets(
             'anchor_code', 'positive_code', 'negative_code',
             'anchor_level', 'positive_level', 'negative_level',
             'excluded', 'unrelated',
+            'relation_margin', 'distance_margin',
             'positive_relation', 'negative_relation',
-            'anchor_distance', 'positive_distance', 'negative_distance'
+            'positive_distance', 'negative_distance'
         )
     )
     
-    logger.info(f'Number of triplets: {triplets.height: ,}\n')
+    logger.info('Number of:')
+    logger.info(f'  triplets: {triplets.height: ,}')
+    logger.info(f'  unique anchors: {triplets.get_column("anchor_idx").unique().len()}\n')
+    logger.info(f'  unique positives: {triplets.get_column("positive_idx").unique().len()}\n')
+    logger.info(f'  unique negatives: {triplets.get_column("negative_idx").unique().len()}\n')
 
     return triplets
 
@@ -372,21 +399,32 @@ def _triplet_stats(triplets_df: pl.DataFrame):
 
     stats_df = (
         triplets_df
-        .group_by('excluded', 'unrelated', 'anchor_distance')
+        .group_by('excluded', 'unrelated', 'relation_margin', 'distance_margin')
         .agg(
-            count=pl.len()
+            n=pl.len(),
         )
         .with_columns(
-            pct=pl.col('count')
-                  .truediv(pl.col('count').sum())
+            pct=pl.col('n')
+                  .truediv(pl.col('n').sum())
+                  .mul(100)
         )
-        .sort('anchor_distance', 'excluded', 'unrelated', descending=[False, False, True])
+        .sort(
+            'excluded', 'unrelated', 'relation_margin', 'distance_margin', 
+            descending=[True, False, False, False]
+        )
     )
 
-    dists = stats_df.get_column('anchor_distance').unique().sort().to_list()
+    rels = stats_df.get_column('relation_margin').unique().sort().to_list()
+    dists = stats_df.get_column('distance_margin').unique().sort().to_list()
 
     logger.info(
-        f'Observed differences in positive and negative distances: {", ".join(map(str, dists))}\n'
+        'Observed relation margins (differences in positive and negative relations): '
+        f'{", ".join(str(r) for r in rels)}\n'
+    )
+
+    logger.info(
+        'Observed distance margins (differences in positive and negative distances): '
+        f'{", ".join(str(d) for d in dists)}\n'
     )
 
     console = Console()
@@ -397,12 +435,13 @@ def _triplet_stats(triplets_df: pl.DataFrame):
 
         table = Table(title=title, title_justify='left', show_lines=True, show_footer=True)
 
-        total_count = sum(row.get('count', 0) for row in rows)
-        total_pct = 100 * sum(row.get('pct', 0) for row in rows)
+        total_count = sum(row.get('n', 0) for row in rows)
+        total_pct = sum(row.get('pct', 0) for row in rows)
 
         table.add_column('Exclusion', justify='center')
         table.add_column('Unrelated', justify='center')
-        table.add_column('Anchor Dstance', justify='center')
+        table.add_column('Relation Margin', justify='center')
+        table.add_column('Distance Margin', justify='center')
         table.add_column('Frequency', justify='right', footer=f'[bold]{total_count: ,}[/bold]')
         table.add_column('Percent', justify='right', footer=f'[bold]{total_pct: .4f}%[/bold]')
 
@@ -410,20 +449,23 @@ def _triplet_stats(triplets_df: pl.DataFrame):
             excluded = 'True' if row.get('excluded', False) else 'False'
             unrelated = 'True' if row.get('unrelated', False) else 'False'
 
-            anchor_distance = row.get('anchor_distance')
-            dd_cell = Text(f'{anchor_distance: .3f}', style='bold')
+            relation_margin = row.get('relation_margin')
+            distance_margin = row.get('distance_margin')
+            
+            rm_cell = Text(f'{relation_margin}', style='bold')
+            dm_cell = Text(f'{distance_margin: .3f}', style='bold')
 
-            n = row.get('count', 0)
+            n = row.get('n', 0)
             pct = row.get('pct', 0)
 
             n_cell = Text(f'{n: ,}')
-            pct_cell = Text(f'{100 * pct: .4f}%', style='bold')
+            pct_cell = Text(f'{pct: .4f}%', style='bold')
 
-            table.add_row(excluded, unrelated, dd_cell, n_cell, pct_cell)
+            table.add_row(excluded, unrelated, rm_cell, dm_cell, n_cell, pct_cell)
 
         console.print(table)
 
-    _render_triplet_table(stats_df.to_dicts())
+    return _render_triplet_table(stats_df.to_dicts())
 
 
 # -------------------------------------------------------------------------------------------------
@@ -456,6 +498,7 @@ def generate_training_triplets() -> pl.DataFrame:
 
     # Combine positives and negatives into triplets
     triplets_df = _get_triplets(positives, negatives, positive_distances, negative_distances)
+
 
     _triplet_stats(triplets_df)
 

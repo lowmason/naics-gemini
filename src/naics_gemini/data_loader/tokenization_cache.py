@@ -19,9 +19,12 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------------------------------------
 
 @dataclass
-class Config:
+class TokenizationConfig:
+
+    descriptions_parquet: str = './data/naics_descriptions.parquet'
     tokenizer_name: str = 'sentence-transformers/all-MiniLM-L6-v2'
-    max_length: Optional[Union[int, str]] = None
+    max_length: Optional[int] = None
+    output_path: str = './data/token_cache/token_cache.pt'
     
     def __post_init__(self):
         if self.max_length is None:
@@ -56,19 +59,20 @@ def tokenize_text(
         truncation=True,
         max_length=max_length,
         return_tensors='pt'
-    ) 
-    
-    return (
-        {
-            'input_ids': encoded['input_ids'].squeeze(0), #type: ignore
-            'attention_mask': encoded['attention_mask'].squeeze(0) #type: ignore
-        },
-        counter
     )
 
+    input_ids = encoded['input_ids']
+    attention_mask = encoded['attention_mask']
+
+    encoding = {
+        'input_ids': torch.squeeze(input_ids), # type: ignore
+        'attention_mask': torch.squeeze(attention_mask) # type: ignore
+    }
+
+    return encoding, counter
 
 def build_tokenization_cache(
-    fields_path: str,
+    descriptions_path: str,
     tokenizer_name: str,
     max_length: int
 ) -> Dict[int, Dict[str, torch.Tensor]]:
@@ -83,7 +87,7 @@ def build_tokenization_cache(
     df_iter = (
         pl
         .read_parquet(
-            fields_path
+            descriptions_path
         )
         .sort('index')
         .iter_rows(named=True)
@@ -119,14 +123,14 @@ def build_tokenization_cache(
 
 def save_tokenization_cache(
     cache: Dict[int, Dict[str, torch.Tensor]],
-    cache_dir: str = './data/token_cache'
+    cache_path: str
 ) -> Path:
     
     '''Save tokenization cache to disk.'''
     
-    cache_path = Path(cache_dir)
-    cache_path.mkdir(parents=True, exist_ok=True)
-    cache_file = Path(f'{cache_path}/token_cache.pt')
+    cache_file = Path(cache_path)
+    cache_dir = cache_file.parent
+    cache_dir.mkdir(parents=True, exist_ok=True)
     
     torch.save(cache, cache_file)
     logger.info(f'Saved tokenization cache to: {cache_file.resolve()}')
@@ -135,12 +139,12 @@ def save_tokenization_cache(
 
 
 def load_tokenization_cache(
-    cache_dir: str = './data/token_cache'
+    cache_path: str
 ) -> Optional[Dict[int, Dict[str, torch.Tensor]]]:
     
     '''Load tokenization cache from disk if it exists.'''
     
-    cache_file = Path(f'{cache_dir}/token_cache.pt')
+    cache_file = Path(cache_path)
     
     if cache_file.exists():
         logger.info(f'Loading tokenization cache from: {cache_file.resolve()}')
@@ -149,24 +153,29 @@ def load_tokenization_cache(
     return None
 
 
+# -------------------------------------------------------------------------------------------------
+# Main tokenization functions
+# -------------------------------------------------------------------------------------------------
+
 def tokenization_cache(
-    fields_path: str,
-    tokenizer_name: str,
-    max_length: int,
-    cache_dir: str = './data/token_cache'
+    cfg: TokenizationConfig = TokenizationConfig()
 ) -> Dict[int, Dict[str, torch.Tensor]]:
     
     '''Get tokenization cache, loading from disk or building if necessary.'''
-    
+
     # Try to load from cache
-    cache = load_tokenization_cache(cache_dir)
+    cache = load_tokenization_cache(cfg.output_path)
     if cache is not None:
         return cache
     
     # Build cache if it doesn't exist
-    cache = build_tokenization_cache(fields_path, tokenizer_name, max_length)
-    save_tokenization_cache(cache, cache_dir)
-    
+    cache = build_tokenization_cache(
+        cfg.descriptions_parquet, 
+        cfg.tokenizer_name, 
+        cfg.max_length # type: ignore
+    )
+    save_tokenization_cache(cache, cfg.output_path)
+
     return cache
 
 
@@ -180,10 +189,13 @@ def get_tokens(
     if isinstance(idx_code, int):
         key = idx_code
 
-    if isinstance(idx_code, str):
+    elif isinstance(idx_code, str):
         for k, v in cache.items():
             if v['code'] == idx_code:
                 key = k
                 break
 
-    return {k: v for k, v in cache[key].items() if k != 'code'}
+    else:
+        raise ValueError('idx_code must be an int or str')
+    
+    return {key: cache[key]} # type: ignore

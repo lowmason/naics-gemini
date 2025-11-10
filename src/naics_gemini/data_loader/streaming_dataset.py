@@ -2,19 +2,21 @@
 # Imports and settings
 # -------------------------------------------------------------------------------------------------
 
+import logging
 import operator
 from collections import defaultdict
 from dataclasses import dataclass, fields, replace
 from functools import reduce
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional
 
 import polars as pl
-import pyarrow as pa
-import torch
-from pyarrow import dataset as ds
 
+from naics_gemini.data_loader.tokenization_cache import tokenization_cache
 from naics_gemini.utils.utilities import get_indices_codes
+
+logger = logging.getLogger(__name__)
+
 
 # -------------------------------------------------------------------------------------------------
 # Configuration
@@ -23,50 +25,68 @@ from naics_gemini.utils.utilities import get_indices_codes
 @dataclass
 class CurriculumConfig:
 
-    codes_parquet: str = './data/naics_descriptions.parquet'
-    distance_parquet: str = './data/naics_distances.parquet'
-    relation_parquet: str = './data/naics_relations.parquet'
+    # File paths
+    descriptions_parquet: str = './data/naics_descriptions.parquet'
+    distances_parquet: str = './data/naics_distances.parquet'
+    relations_parquet: str = './data/naics_relations.parquet'
     triplets_parquet: str = './data/naics_training_pairs'
+
+    # Dataset creation parameters
+    seed: int = 42
+
+    excluded: Optional[bool] = None
+    unrelated: Optional[bool] = None
 
     anchor_level: Optional[List[int]] = None
     positive_level: Optional[List[int]] = None
     negative_level: Optional[List[int]] = None
 
-    anchor_distance: Optional[List[float]] = None
+    relation_margins: Optional[List[int]] = None
+    distance_margins: Optional[List[float]] = None
+
+    positive_relation: Optional[List[int]] = None
+    negative_relation: Optional[List[int]] = None
+
     positive_distance: Optional[List[float]] = None
     negative_distance: Optional[List[float]] = None
     
     n_positives: int = 2125
     n_negatives: int = 2125
 
-    seed: int = 42
-
     def items(self):
         for f in fields(self):
-            if f.name != 'input_parquet':
+            if not f.name.endswith('_parquet') and f.name != 'seed':
                 v = getattr(self, f.name)
                 if v is not None:
                     yield f.name, v
 
 
 # -------------------------------------------------------------------------------------------------
-# Utility functions
+# Triplet batch generator
 # -------------------------------------------------------------------------------------------------
     
-def _get_file_list(
-    codes_parquet: str,
-    triplets_parquet: str,
-    anchor_level: Optional[List[int]] = None
-) -> List[str]:
-        
-    codes = get_indices_codes(codes_parquet, return_type='codes')
-    code_to_idx = get_indices_codes(codes_parquet, return_type='code_to_idx')
+def create_streaming_generator(
+    curriculum: CurriculumConfig
+) -> Iterator[Dict[str, Any]]:
+    
+    # Parameters from curriculum
+    descriptions_parquet = curriculum.descriptions_parquet
+    triplets_parquet = curriculum.triplets_parquet
+    anchor_level = curriculum.anchor_level
+    n_positives = curriculum.n_positives
+    n_negatives = curriculum.n_negatives
 
+    # Get all codes and code to index mapping
+    codes = get_indices_codes(descriptions_parquet, return_type='codes')
+    code_to_idx = get_indices_codes(descriptions_parquet, return_type='code_to_idx')
+
+    # Organize codes by level
     level_dict = defaultdict(list)
     for code in codes:
-        level = len(code)
+        level = len(code) # type: ignore
         level_dict[level].append(code)
 
+    # Get list of dataset files
     if anchor_level is not None:
         dataset_files = []   
         for level in anchor_level:
@@ -79,407 +99,283 @@ def _get_file_list(
         dataset_files = []
         for pq_path in Path(f'{triplets_parquet}/').glob('**/*.parquet'):
             dataset_files.append(pq_path.as_posix())
-    
-    return dataset_files
 
-
-def _create_dataset(
-    codes_parquet: str,
-    triplets_parquet: str,
-    anchor_level: Optional[List[int]] = None
-) -> ds.Dataset:
-    
-    dataset_files = _get_file_list(
-        codes_parquet=codes_parquet,
-        triplets_parquet=triplets_parquet,
-        anchor_level=anchor_level
-    )
-
-    print(f'Number of batches (parquet files): {len(dataset_files):,}')
-        
-    return (
-        ds
-        .dataset(
-            dataset_files, 
-            format='parquet',
-            partitioning=ds.partitioning(
-                flavor='hive',
-                schema=pa.schema([
-                    pa.field('anchor', pa.uint32())
-                ])
-            )        
-        )
-    )
-
-
-def _get_file_filters(
-    curriculum: CurriculumConfig
-) -> Optional[ds.Expression]:
-
+    # Build filters from curriculum
     exprs = []
     for k, v in curriculum.items():
 
         if isinstance(v, list):
             exprs.append(
-                ds.field(k).isin(v)
+                pl.col(k).is_in(v)
+            )       
+
+        if isinstance(v, bool):
+            exprs.append(
+                pl.col(k).eq(v)
             )
 
     if not exprs:
-        return None
+        exprs = [pl.col('anchor_idx').ge(0)]
     
-    return reduce(operator.and_, exprs)
-
-
-def _tuple_dicts(
-    distance_parquet: str,
-    relation_parquet: str
-) -> Tuple[Dict[Tuple[int, int], int], Dict[Tuple[int, int], float]]:
-
-    distance_df = (
+    filters = reduce(operator.and_, exprs)
+    
+    # Build (anchors, positives, negatives, fallbacks) dataframe 
+    df_1 = (
         pl
-        .read_parquet(
-            distance_parquet
-        )
-        .select('idx_i', 'idx_j', 'distance')
-        .unique()
-    )
-
-    relation_df = (
-        pl
-        .read_parquet(
-            relation_parquet
-        )
-        .select('idx_i', 'idx_j', 'relation_id')
-        .unique()
-    )
-
-    tuple_iter = (
-        distance_df
-        .join(
-            relation_df,
-            on=['idx_i', 'idx_j'],
-            how='inner'
+        .scan_parquet(
+            dataset_files
         )
         .with_columns(
-            distance=pl.when(pl.col('relation_id').eq(2)).then(1.0)
-                       .when(pl.col('distance').is_in([1.0, 1.5]))
-                       .then(pl.col('distance').add(0.5))
-                       .otherwise(pl.col('distance'))
-        )
-        .sort('idx_i', 'idx_j')
-        .iter_rows(named=True)
-    )
-
-    relation_dict, distance_dict = {}, {}
-    for row in tuple_iter:
-        key = (row['idx_i'], row['idx_j'])
-        relation_dict[key] = row['relation_id']
-        distance_dict[key] = row['distance']
-
-    return relation_dict, distance_dict
-
-
-def _fill_incomplete(
-    incomplete_df: pl.DataFrame,
-    triplets_parquet: str,
-    curriculum: CurriculumConfig
-):
-
-    incomplete_anchors = (
-        incomplete_df
-        .get_column('anchor_idx')
-        .sort()
-        .to_list()
-    )
-
-    incomplete_files = []
-    for idx in incomplete_anchors:
-        for pq_path in Path(f'{triplets_parquet}/anchor={idx}/').glob('*.parquet'):
-            incomplete_files.append(pq_path.as_posix())
-        
-
-    curriculum_keys = [k for k, v in curriculum.items()]
-    if 'anchor_distance' in curriculum_keys:
-
-        all_distances = [
-            0.125, 0.25, 0.5, 1.0, 2.0, 2.5, 3.0, 
-            3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5
-        ]
-        max_anchor_distance = max(curriculum.anchor_distance)
-
-        incomplete_distance = [d for d in all_distances if d > max_anchor_distance]
-        len_incomplete_distance = min(len(curriculum.anchor_distance), len(incomplete_distance))
-
-        incomplete_distance = sorted(list(incomplete_distance))[:len_incomplete_distance] + [7.0]
-
-    else:
-        incomplete_distance = [7.0]
-
-    incomplete_curriculum = replace(
-        curriculum,
-        anchor_distance=incomplete_distance
-    )
-
-    filter_expr = _get_file_filters(incomplete_curriculum)
-
-    incomplete_dataset = (
-        ds
-        .dataset(
-            incomplete_files, 
-            format='parquet',
-            partitioning=ds.partitioning(
-                flavor='hive',
-                schema=pa.schema([
-                    pa.field('anchor', pa.uint32())
-                ])
-            )        
-        )
-        .filter(filter_expr)
-    )
-
-    incomplete_added = (
-        pl
-        .from_arrow(
-            incomplete_dataset
-            .to_table()
-        )
-        .sort('anchor_idx', 'positive_idx', 'negative_idx', 'anchor_distance')
-        .group_by('anchor_idx', 'positive_idx', maintain_order=True)
-        .agg(
-            negative_added=pl.col('negative_idx')  
-        )
-    )
-
-    completed = (
-        incomplete_df
-        .explode('positive_idx', 'negative_idx')
-        .with_columns(
-            to_add=pl.col('negative_idx')
-                    .list.len()
-                    .add(-curriculum.n_negatives)
-                    .mul(-1)
-        )
-        .join(
-            incomplete_added,
-            how='left',
-            on=['anchor_idx', 'positive_idx']
-        )
-        .with_columns(
-            pl.col('negative_added')
-            .fill_null([])
-            .list.sample(
-                pl.col('to_add'),
-                with_replacement=False,
-                shuffle=True, 
-                seed=curriculum.seed
-            )
+            filtered=pl.when(filters)
+                       .then(pl.lit('negatives'))
+                       .otherwise(pl.lit('fallback'))
         )
         .select(
-            anchor_idx=pl.col('anchor_idx'),
-            positive_idx=pl.col('positive_idx'),
-            negative_idx=pl.col('negative_idx')
-                            .list.set_union(pl.col('negative_added'))
-                            .list.unique()
+            anchors=pl.struct(
+                pl.col('anchor_idx'),
+                pl.col('anchor_code')
+            ),
+            positives=pl.struct(
+                pl.col('positive_idx'),
+                pl.col('positive_code')
+            ),
+            filtered=pl.col('filtered'),
+            negatives=pl.struct(
+                pl.col('negative_idx'),
+                pl.col('negative_code'),
+                pl.col('relation_margin'),
+                pl.col('distance_margin')
+            )
         )
-        .group_by('anchor_idx')
+        .group_by('anchors', 'positives', 'filtered')
         .agg(
-            pl.col('positive_idx'),
-            pl.col('negative_idx')
+            negatives=pl.col('negatives')
+        )
+        .select(
+            anchors=pl.col('anchors'), 
+            positives_negatives=pl.struct(
+                pl.col('positives'),
+                pl.col('filtered'),
+                pl.col('negatives')
+            )
+        )
+        .group_by('anchors')
+        .agg(
+            positives_negatives_len=pl.col('positives_negatives').len(),
+            positives_negatives=pl.col('positives_negatives')
+        )
+        .with_columns(
+            positives_negatives_len=pl.min_horizontal(
+                pl.col('positives_negatives_len'),
+                pl.lit(n_positives)
+            )
+        )
+        .with_columns(
+            positives_negatives=pl.col('positives_negatives')
+                        .list.sample(
+                            pl.col('positives_negatives_len'), 
+                            shuffle=True, 
+                            seed=curriculum.seed
+                        )
+        )
+        .drop('positives_negatives_len')
+        .explode('positives_negatives')
+        .unnest('positives_negatives')
+        .collect()
+        .pivot(
+            'filtered',
+            index=['anchors', 'positives'],
+            values=['negatives']
+        )
+        .filter(pl.col('negatives').is_not_null())
+        .select(
+            anchors=pl.col('anchors'),
+            positives=pl.col('positives'),
+            negatives=pl.col('negatives'),
+            fallback=pl.when(pl.col('negatives').list.len().lt(n_negatives))
+                       .then(pl.col('fallback'))
+                       .otherwise(None)
         )
     )
 
-    print(f'    Incomplete: {len(incomplete_files):,}, Completed: {completed.height:,}')
-
-    return completed
-
-
-# -------------------------------------------------------------------------------------------------
-# Generator function
-# -------------------------------------------------------------------------------------------------
-
-def iter_file_batches(
-    dataset: Optional[ds.Dataset],
-    filter_expr: Optional[ds.Expression],
-    codes_parquet: Optional[str],
-    triplets_parquet: Optional[str],
-    curriculum: CurriculumConfig,
-    anchor_level: Optional[List[int]] = None
-) -> Iterator[Tuple[ds.FileFragment, pa.Table]]:
-    
-    if dataset is None:
-        dataset = _create_dataset(
-            codes_parquet=codes_parquet, 
-            triplets_parquet=triplets_parquet, 
-            anchor_level=anchor_level
+    # Complete batches
+    df_2 = (
+        df_1
+        .filter(
+            pl.col('fallback').is_null()
         )
-
-    
-    if filter_expr is None:
-        filter_expr = _get_file_filters(curriculum)
-    
-    for file_fragment in dataset.get_fragments(): 
-
-        table = file_fragment.to_table(
-            filter=filter_expr,
-            columns=['anchor_idx', 'positive_idx', 'negative_idx', 'anchor_distance']
+        .select(
+            anchors=pl.col('anchors'),
+            positives=pl.col('positives'),
+            negatives=pl.col('negatives')
+                        .list.sample(
+                            n_negatives, 
+                            shuffle=True, 
+                            seed=curriculum.seed
+                        )
+                    
         )
+    )
+
+    # Completed batches with fallbacks
+    df_3 = (
+        df_1
+        .filter(
+            pl.col('fallback').is_not_null()
+        )
+        .with_columns(
+            negatives_len=pl.lit(n_negatives)
+                            .sub(pl.col('negatives').list.len()),
+            fallback_len=pl.col('fallback').list.len()
+        )
+        .with_columns(
+            sample_len=pl.min_horizontal(
+                pl.col('negatives_len'),
+                pl.col('fallback_len')
+            )
+        )
+        .drop('negatives_len', 'fallback_len')
+        .with_columns(
+            fallback=pl.col('fallback')
+                        .list.sample(
+                            pl.col('sample_len'), 
+                            shuffle=True, 
+                            seed=curriculum.seed
+                        )
+        )
+        .with_columns(
+            negatives=pl.col('negatives')
+                        .list.concat(pl.col('fallback'))
+        )
+        .drop('fallback', 'sample_len')
+    )
+
+    # Combine complete and completed
+    df = (
+        pl
+        .concat([
+            df_2, 
+            df_3
+        ])
+        .select(
+            batch=pl.col('anchors')
+                    .rank('dense'),
+            anchors=pl.col('anchors'),
+            positives=pl.col('positives'),
+            negatives=pl.col('negatives')
+        )
+    )
+
+    # Create iterator and dictionary of dataframes by batch
+    df_dict = (
+        df
+        .sort('batch')
+        .partition_by('batch', include_key=False, as_dict=True)
+    )
+
+    df_iter = [k[0] for k in df_dict.keys()]
+    df_dict = {k[0]: v for k, v in df_dict.items()}
+
+    logging.info(f'Number of anchors: {len(df_iter): ,}')
+    logging.info(f'Number of anchors/positives: {df.height: ,}')
+    logging.info(f'  w/o fallbacks: {df_2.height: ,}')
+    logging.info(f'  w/ fallbacks: {df_3.height: ,}')
+    logging.info(f'Number of anchors/positives/negatives: {df.explode("negatives").height: ,}')
+
+    for anchor in df_iter:
         
-        yield file_fragment, table
-
-
-# -------------------------------------------------------------------------------------------------
-# Triplet batch generator
-# -------------------------------------------------------------------------------------------------
-
-def triplet_batches(
-    iter_files: Iterator[Tuple[ds.FileFragment, pa.Table]],
-    curriculum: CurriculumConfig,
-    idx_to_code: Dict[int, str],
-    relation_dict: Dict[Tuple[int, int], int],
-    distance_dict: Dict[Tuple[int, int], float],
-    rng: Optional[torch.Generator] = None,
-) -> Iterator[List[Dict[str, any]]]:
-    
-    if rng is None:
-        rng = torch.Generator()
-        rng.manual_seed(curriculum.seed)
-
-    n_neg = curriculum.n_negatives
-    n_pos = curriculum.n_positives
-
-    for file_num, (file, file_batch) in enumerate(iter_files, start=1):
-
-        df_batch = (
-            pl
-            .from_arrow(file_batch)
-        )
-
-        if df_batch.height > n_pos:
-            df_batch = df_batch.sample(
-                n=curriculum.n_positives,
-                with_replacement=False,
-                shuffle=True,
-                seed=curriculum.seed
-            )
-
-        df = (
-            df_batch
-            .group_by('anchor_idx', 'positive_idx', maintain_order=True)  
-            .agg(
-                pl.col('negative_idx')
-            )
-            .group_by('anchor_idx', maintain_order=True)
-            .agg(
-                pl.col('positive_idx'),
-                pl.col('negative_idx')
-            )
-            .with_columns(
-                fallback=pl.col('negative_idx')
-                           .list.len()
-                           .lt(n_neg)
-            )
-        )
-
-        print(
-            f'  Batch {file_num} '
-            f'[{Path(file.path).parent.stem}]: '
-            f'triplets = {df_batch.height:,}, '
-            f'grouped triplets = {df.height:,}'
-        )
-
-        complete = df.filter(pl.col('fallback')).drop('fallback')
-        incomplete = df.filter(~pl.col('fallback')).drop('fallback')
-
-        print(f'    Complete {complete.height:,}, Incomplete = {incomplete.height:,}')
-
-        if incomplete.height == 0:
-            completed = complete
-
-        elif complete.height == 0:
-            completed = _fill_incomplete(incomplete, curriculum.triplets_parquet, curriculum)
-
-        else:
-            _completed = _fill_incomplete(incomplete, curriculum.triplets_parquet, curriculum)
-
-            completed = (
-                pl
-                .concat([
-                    complete, 
-                    _completed
-                ])
-            )
-
-        triplet_iter = (
-            completed
-            .explode('positive_idx', 'negative_idx')
-            .explode('negative_idx')
+        anchor_iter = (
+            df_dict[anchor]
             .iter_rows(named=True)
         )
 
-        triplets = []
-        for row in triplet_iter:
-            anchor_idx = row['anchor_idx']
-            anchor_code = idx_to_code[anchor_idx]
+        for row in anchor_iter:
+            grouped = {}
+            key = (row['anchors']['anchor_idx'], row['positives']['positive_idx'])
 
-            positive_idx = row['positive_idx']
-            positive_code = idx_to_code[positive_idx]
+            negatives = []
+            for negative in row['negatives']:
+                negative_idx = negative['negative_idx']
+                negative_code = negative['negative_code']
+                relation_margin = negative['relation_margin']
+                distance_margin = negative['distance_margin']
 
-            positive_relation = relation_dict.get((anchor_idx, positive_idx), None)
-            positive_distance = distance_dict.get((anchor_idx, positive_idx), None)
+                negatives.append({
+                    'negative_idx': negative_idx,
+                    'negative_code': negative_code,
+                    'relation_margin': relation_margin,
+                    'distance_margin': distance_margin
+                })
 
-            negative_idx = row['negative_idx']
-            negative_code = idx_to_code[negative_idx]
 
-            negative_relation = relation_dict.get((anchor_idx, negative_idx), None)
-            negative_distance = distance_dict.get((anchor_idx, negative_idx), None)
+            if key not in grouped:
+                grouped[key] = {
+                    'anchor_idx': row['anchors']['anchor_idx'],
+                    'anchor_code': row['anchors']['anchor_code'],
+                    'positive_idx': row['positives']['positive_idx'],
+                    'positive_code': row['positives']['positive_code'],
+                    'negatives': negatives
+                }
 
-            triplets.append({
-                'anchor_idx': anchor_idx,
-                'anchor_code': anchor_code,
-                'positive_idx': positive_idx,
-                'positive_code': positive_code,
-                'positive_relation': positive_relation,
-                'positive_distance': positive_distance,
+            yield grouped[key]
+
+            
+# -------------------------------------------------------------------------------------------------
+# Streaming dataset generator
+# -------------------------------------------------------------------------------------------------
+
+def create_streaming_dataset(
+    curriculum: CurriculumConfig
+) -> Iterator[Dict[str, Any]]:
+    
+    curriculum = replace(
+        CurriculumConfig(),
+        anchor_level=[2, 3],
+        positive_relation=[1, 2],
+        excluded=False,
+        unrelated=False,
+        n_positives=100,
+        n_negatives=20
+    )
+
+    token_cache = tokenization_cache()
+
+    triplets_iterator = create_streaming_generator(curriculum)
+
+    for triplets in triplets_iterator:
+        
+        anchor_idx = triplets['anchor_idx']
+        anchor_code = triplets['anchor_code']
+        anchor_embedding = {k: v for k, v in token_cache[anchor_idx].items() if k != 'code'}
+
+        positive_idx = triplets['positive_idx']
+        positive_code = triplets['positive_code']
+        positive_embedding = {k: v for k, v in token_cache[positive_idx].items() if k != 'code'}
+        
+        negatives = []
+        for negative in triplets['negatives']:
+
+            negative_idx = negative['negative_idx']
+            negative_code = negative['negative_code']
+            negative_embedding = {k: v for k, v in token_cache[negative_idx].items() if k != 'code'}
+            
+            relation_margin = negative['relation_margin']
+            distance_margin = negative['distance_margin']
+
+            negatives.append({
                 'negative_idx': negative_idx,
                 'negative_code': negative_code,
-                'negative_relation': negative_relation,
-                'negative_distance': negative_distance            
+                'negative_embedding': negative_embedding,
+                'relation_margin': relation_margin,
+                'distance_margin': distance_margin
             })
 
-        yield triplets
-
-
-# -------------------------------------------------------------------------------------------------
-# Main logic
-# -------------------------------------------------------------------------------------------------
-
-curriculum = CurriculumConfig(
-    anchor_level=[2, 3],
-    positive_level=[3],
-    n_negatives=10
-)
-
-file_iterator = iter_file_batches(
-    dataset=None,
-    filter_expr=None,
-    codes_parquet=curriculum.codes_parquet,
-    triplets_parquet=curriculum.triplets_parquet,
-    curriculum=curriculum,
-    anchor_level=curriculum.anchor_level
- )
-
-relation_dict, distance_dict = _tuple_dicts(
-    curriculum.distance_parquet, 
-    curriculum.relation_parquet
-)
-
-idx_to_code = get_indices_codes(curriculum.codes_parquet, 'idx_to_code')
-
-triplets_iterator = triplet_batches(
-    iter_files=file_iterator,
-    curriculum=curriculum,
-    idx_to_code=idx_to_code,
-    relation_dict=relation_dict,
-    distance_dict=distance_dict,
-    rng=None
-)
+        yield {
+            'anchor_idx': anchor_idx,
+            'anchor_code': anchor_code,
+            'anchor_embedding': anchor_embedding,
+            'positive_idx': positive_idx,
+            'positive_code': positive_code,
+            'positive_embedding': positive_embedding,
+            'negatives': negatives
+        }
