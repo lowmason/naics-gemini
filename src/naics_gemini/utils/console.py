@@ -13,16 +13,7 @@ from rich.logging import RichHandler
 # Configure logging
 # -------------------------------------------------------------------------------------------------
 
-class CustomFormatter(logging.Formatter):
-    '''
-    Prints time only when it changes (by second):
-
-    [12:34:56]
-    first message
-    second message
-    [12:34:57]
-    next message
-    '''
+class ConsoleFormatter(logging.Formatter):
 
     def __init__(self, timefmt='[%H:%M:%S]'):
         super().__init__()
@@ -41,16 +32,11 @@ class CustomFormatter(logging.Formatter):
             return message
 
 
-
 def configure_logging(
-    log_file: str ,
+    log_file: str,
     log_dir: str = './logs',
     level: str = 'INFO'
 ):
-
-    '''
-    Configures logging to use RichHandler for beautiful output with module context.
-    '''
 
     # Create log directory if it doesn't exist
     if not Path(log_dir).exists():
@@ -73,12 +59,12 @@ def configure_logging(
         show_level=False,
         markup=True
     )
-    console_handler.setFormatter(CustomFormatter())
+    console_handler.setFormatter(ConsoleFormatter())
     
     # Rich file handler
     file_handler = logging.FileHandler(f'{log_dir}/{log_file}', encoding='utf-8')
     file_formatter = logging.Formatter(
-        fmt='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+        fmt='%(asctime)s | %(levelname)s | %(name)s | %(filename)s:%(lineno)d] | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     file_handler.setFormatter(file_formatter)

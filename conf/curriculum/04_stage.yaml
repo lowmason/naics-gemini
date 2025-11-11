@@ -1,8 +1,8 @@
-name: default
+name: 01_stage
 
 # Anchor filtering
 anchor_level: None
-excluded: None
+excluded: False
 unrelated: None
 relation_margins: None
 distance_margins: None
@@ -11,10 +11,10 @@ distance_margins: None
 positive_level: None
 positive_relation: None
 positive_distance: None
-n_positives: 64
+n_positives: 16
 
 # Negative sampling
 negative_level: None
 negative_relation: None
 negative_distance: None
-n_negatives: 32
+n_negatives: 8

@@ -1,9 +1,0 @@
-name: 00_test
-positive_levels: [6]
-positive_distance_min: null
-positive_distance_max: 1.0
-max_positives: 5
-difficulty_buckets: [1]
-bucket_percentages:
-  1: 1.0
-k_negatives: 4

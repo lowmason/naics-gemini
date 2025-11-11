@@ -330,6 +330,10 @@ def calculate_pairwise_distances() -> pl.DataFrame:
             distance=pl.col('distance')
                        .fill_null(9.0)
         )
+        .with_columns(
+            distance=pl.col('distance')
+                       .rank('dense')
+        )
         .sort('idx_i', 'idx_j')
     )
 

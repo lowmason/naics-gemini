@@ -274,7 +274,7 @@ def _get_triplets(
     positive_distances_df: pl.DataFrame,
     negative_distances_df: pl.DataFrame,
 ) -> pl.DataFrame:
-    
+        
     triplets = (
         positives_df
         .join(
@@ -291,7 +291,7 @@ def _get_triplets(
             on=['anchor_code', 'positive_code']
         )
     )
-                    
+
     triplets = (
         triplets
         .join(
@@ -300,14 +300,8 @@ def _get_triplets(
             on=['anchor_code', 'negative_code']
         )
         .with_columns(
-            positive_distance=pl.when(pl.col('positive_relation').eq(2)).then(1.0)
-                                .when(pl.col('positive_distance').is_in([1.0, 1.5]))
-                                .then(pl.col('positive_distance').add(0.5))
-                                .otherwise(pl.col('positive_distance')),
-            negative_distance=pl.when(pl.col('negative_relation').eq(2)).then(1.0)
-                                .when(pl.col('negative_distance').is_in([1.0, 1.5]))
-                                .then(pl.col('negative_distance').add(0.5))
-                                .otherwise(pl.col('negative_distance'))
+            positive_distance=pl.col('positive_distance').cast(pl.Int8),
+            negative_distance=pl.col('negative_distance').cast(pl.Int8)
         )
         .with_columns(
             relation_margin=pl.col('negative_relation').sub(pl.col('positive_relation')),
@@ -317,15 +311,46 @@ def _get_triplets(
             unrelated=pl.when(pl.col('excluded'))
                         .then(pl.lit(False))
                         .otherwise(pl.col('unrelated')),
-            relation_margin=pl.when(pl.col('excluded')).then(pl.lit(1))
-                              .when(pl.col('unrelated')).then(pl.lit(15))
-                              .otherwise(pl.col('relation_margin').add(1)),
-            distance_margin=pl.when(pl.col('excluded')).then(pl.lit(0.125))
-                              .when(pl.col('unrelated')).then(pl.lit(7.0))
-                              .otherwise(pl.col('distance_margin'))
+            relation_margin=pl.when(pl.col('excluded')).then(pl.lit(0.5))
+                            .when(pl.col('unrelated')).then(pl.lit(15))
+                            .otherwise(pl.col('relation_margin')),
+            distance_margin=pl.when(pl.col('excluded')).then(pl.lit(0.25))
+                            .when(
+                                pl.col('relation_margin').eq(1) & 
+                                pl.col('distance_margin').eq(-1)
+                            ).then(0.5)
+                            .when(
+                                pl.col('relation_margin').eq(1) & 
+                                pl.col('distance_margin').eq(0)
+                            ).then(0.75)
+                            .when(pl.col('unrelated')).then(pl.lit(15))
+                            .otherwise(pl.col('distance_margin'))
         )
         .filter(
-            pl.col('distance_margin').gt(0.0)
+            pl.col('relation_margin').gt(0),
+            pl.col('distance_margin').gt(0)
+        )
+        .with_columns(
+            relation_margin=pl.col('relation_margin')
+                            .rank('dense')
+                            .replace({15: 100})
+                            .sub(1),
+            distance_margin=pl.col('distance_margin')
+                            .rank('dense')
+                            .replace({13: 100})
+                            .sub(1)
+        )
+        .with_columns(
+            margin=(
+                pl.col('relation_margin').mul(0.5) + 
+                pl.col('distance_margin').mul(0.5)
+            )
+            .rank('dense')
+            .sub(1)    
+        )
+        .with_columns(
+            margin=pl.when(pl.col('margin').eq(pl.col('margin').max())).then(99)
+                    .otherwise(pl.col('margin'))
         )
     )
 

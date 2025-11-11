@@ -1,9 +1,6 @@
-# Main configuration file for NAICS Gemini
-# Uses Hydra defaults for curriculum selection
-
 defaults:
   - _self_
-  - curriculum: default  # This allows curriculum override
+  - curriculum: default
 
 # Experiment identification
 experiment_name: ${curriculum.name}
@@ -12,16 +9,19 @@ seed: 42
 # Paths
 paths:
   data_dir: ./data
+  log_dir: ./logs
   output_dir: ./outputs
   checkpoint_dir: ./checkpoints
 
 # Data configuration
 data:
-  descriptions_path: ${paths.data_dir}/naics_descriptions.parquet
-  triplets_path: ${paths.data_dir}/naics_training_pairs.parquet
+  descriptions_path: ${data_dir}/naics_descriptions.parquet
+  relations_path: ${data_dir}/naics_relations.parquet
+  distances_path: ${data_dir}/naics_distances.parquet
+  triplets_path: ${data_dir}/naics_training_pairs
   tokenizer_name: sentence-transformers/all-MiniLM-L6-v2
   batch_size: 32
-  num_workers: 4
+  num_workers: 0
   val_split: 0.05
 
 # Model configuration
@@ -56,9 +56,9 @@ training:
   
   trainer:
     max_epochs: 10
-    accelerator: mps
+    accelerator: auto
     devices: 1
-    precision: 16-mixed
+    precision: 16
     gradient_clip_val: 1.0
     accumulate_grad_batches: 1
     log_every_n_steps: 10
