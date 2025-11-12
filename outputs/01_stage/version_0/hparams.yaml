@@ -1,0 +1,17 @@
+base_model_name: sentence-transformers/all-MiniLM-L6-v2
+lora_r: 8
+lora_alpha: 16
+lora_dropout: 0.1
+use_moe: true
+num_experts: 4
+top_k: 2
+moe_hidden_dim: 1024
+temperature: 0.07
+curvature: 1.0
+learning_rate: 0.0002
+weight_decay: 0.01
+warmup_steps: 500
+load_balancing_coef: 0.01
+distances_path: ./data/naics_distances.parquet
+eval_every_n_epochs: 1
+eval_sample_size: 500

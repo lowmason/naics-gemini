@@ -4,6 +4,7 @@
 
 import logging
 import time
+import warnings
 from pathlib import Path
 from typing import List, Optional
 
@@ -14,6 +15,14 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
+
+# Suppress precision warning from PyTorch Lightning model summary
+warnings.filterwarnings(
+    'ignore',
+    message='.*Precision.*is not supported by the model summary.*',
+    category=UserWarning,
+    module='pytorch_lightning.utilities.model_summary.model_summary'
+)
 
 from naics_gemini.data_generation.compute_distances import calculate_pairwise_distances
 from naics_gemini.data_generation.compute_relations import calculate_pairwise_relations

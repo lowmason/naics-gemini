@@ -49,6 +49,7 @@ class EmbeddingEvaluator:
         '''
         
         embeddings = embeddings.to(self.device)
+        embeddings = embeddings.float()
         
         if metric == 'euclidean':
             # Euclidean distance: ||u - v||_2
@@ -544,6 +545,7 @@ class EmbeddingStatistics:
         '''
 
         embeddings = embeddings.to(self.device)
+        embeddings = embeddings.float()
         
         # Basic statistics
         mean = embeddings.mean(dim=0)
@@ -594,6 +596,7 @@ class EmbeddingStatistics:
         '''
 
         embeddings = embeddings.to(self.device)
+        embeddings = embeddings.float()
         
         # Variance collapse: low variance across dimensions
         var_per_dim = embeddings.var(dim=0)

@@ -17,8 +17,8 @@ dirs:
 
 # Data loading configuration
 data_loader:
-  batch_size: 32
-  num_workers: 0
+  batch_size: 8
+  num_workers: 1
   val_split: 0.05
   
   tokenization:

@@ -25,6 +25,7 @@ dependencies = [
     "tensorboardx>=2.6.4",
     "pydantic>=2.12.4",
     "selenium>=4.38.0",
+    "great-tables>=0.20.0",
 ]
 
 [project.scripts]

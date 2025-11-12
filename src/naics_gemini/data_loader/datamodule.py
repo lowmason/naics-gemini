@@ -10,7 +10,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, IterableDataset
 
 from naics_gemini.data_loader.streaming_dataset import create_streaming_dataset
-from naics_gemini.utils.config import StreamingConfig
+from naics_gemini.utils.config import StreamingConfig, TokenizationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -92,13 +92,48 @@ def collate_fn(batch: List[Dict]) -> Dict:
 
 class GeneratorDataset(IterableDataset):
     
-    def __init__(self, generator_fn, *args, **kwargs):
+    def __init__(self, generator_fn, tokenization_cfg, *args, **kwargs):
+        """
+        Args:
+            generator_fn: Function to create the streaming generator
+            tokenization_cfg: TokenizationConfig for loading cache (not the cache itself)
+            *args, **kwargs: Additional arguments for generator_fn
+        """
         self.generator_fn = generator_fn
+        self.tokenization_cfg = tokenization_cfg
         self.args = args
         self.kwargs = kwargs
+        # Cache will be loaded lazily per worker
+        self._token_cache = None
+    
+    def _get_token_cache(self):
+        """Lazily load token cache once per worker process."""
+        if self._token_cache is None:
+            from naics_gemini.data_loader.tokenization_cache import tokenization_cache
+            self._token_cache = tokenization_cache(self.tokenization_cfg)
+        return self._token_cache
     
     def __iter__(self):
-        return self.generator_fn(*self.args, **self.kwargs)
+        # Get worker info for proper data sharding across workers
+        worker_info = torch.utils.data.get_worker_info()
+        
+        # Load cache in this worker process
+        token_cache = self._get_token_cache()
+        
+        # Create the generator, passing the token cache
+        generator = self.generator_fn(token_cache, *self.args, **self.kwargs)
+        
+        # If using multiple workers, each worker should only process a subset
+        if worker_info is None:
+            # Single-process data loading, return the full iterator
+            return generator
+        else:
+            # Multi-process data loading: split data by worker
+            worker_id = worker_info.id
+            num_workers = worker_info.num_workers
+            
+            # Skip items not assigned to this worker (round-robin distribution)
+            return (item for i, item in enumerate(generator) if i % num_workers == worker_id)
 
 
 # -------------------------------------------------------------------------------------------------
@@ -139,15 +174,24 @@ class NAICSDataModule(LightningDataModule):
             curriculum = StreamingConfig()
             val_curriculum = StreamingConfig(seed=seed + 1)
 
+        # Create tokenization config (workers will load cache lazily)
+        self.tokenization_cfg = TokenizationConfig(
+            descriptions_parquet=descriptions_path,
+            tokenizer_name=tokenizer_name,
+            max_length=curriculum.max_length
+        )
+
         logger.info('  • Creating training dataset')
         self.train_dataset = GeneratorDataset(
             create_streaming_dataset,
+            self.tokenization_cfg,
             curriculum
         )           
         
         logger.info('  • Creating validation dataset\n')
         self.val_dataset = GeneratorDataset(
             create_streaming_dataset,
+            self.tokenization_cfg,
             val_curriculum
         )
     
@@ -161,7 +205,7 @@ class NAICSDataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             collate_fn=collate_fn,
-            persistent_workers=True if self.num_workers > 0 else False
+            persistent_workers=False  # Set to False to avoid hanging during initialization
         )
     
     def val_dataloader(self) -> DataLoader:
@@ -173,5 +217,5 @@ class NAICSDataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             collate_fn=collate_fn,
-            persistent_workers=True if self.num_workers > 0 else False
+            persistent_workers=False  # Set to False to avoid hanging during initialization
         )

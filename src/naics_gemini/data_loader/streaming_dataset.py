@@ -11,8 +11,7 @@ from typing import Any, Dict, Iterator
 
 import polars as pl
 
-from naics_gemini.data_loader.tokenization_cache import tokenization_cache
-from naics_gemini.utils.config import StreamingConfig, TokenizationConfig
+from naics_gemini.utils.config import StreamingConfig
 from naics_gemini.utils.utilities import get_indices_codes
 
 logger = logging.getLogger(__name__)
@@ -281,16 +280,19 @@ def create_streaming_generator(
 # -------------------------------------------------------------------------------------------------
 
 def create_streaming_dataset(
+    token_cache: Dict[int, Dict[str, Any]],
     cfg: StreamingConfig
 ) -> Iterator[Dict[str, Any]]:
-
-    tokenization_cfg = TokenizationConfig(
-        descriptions_parquet=cfg.descriptions_parquet,
-        tokenizer_name=cfg.tokenizer_name,
-        max_length=cfg.max_length
-    )
+    """
+    Create a streaming dataset generator that yields training samples.
     
-    token_cache = tokenization_cache(tokenization_cfg)
+    Args:
+        token_cache: Pre-loaded tokenization cache (loaded once in main process)
+        cfg: Streaming configuration
+        
+    Yields:
+        Dictionary containing anchor, positive, and negative samples with embeddings
+    """
 
     triplets_iterator = create_streaming_generator(cfg)
 
