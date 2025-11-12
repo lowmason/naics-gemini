@@ -28,7 +28,7 @@ class EmbeddingEvaluator:
             device: Device to run computations on
         ''' 
         
-        self.device, _ = get_device()
+        self.device, _, _ = get_device()
     
     
     def compute_pairwise_distances(
@@ -149,7 +149,7 @@ class RetrievalMetrics:
             device: Device to run computations on
         '''
 
-        self.device, _ = get_device()
+        self.device, _, _ = get_device()
     
     
     def precision_at_k(
@@ -346,7 +346,7 @@ class HierarchyMetrics:
             device: Device to run computations on
         '''
 
-        self.device, _ = get_device()
+        self.device, _, _ = get_device()
     
     
     def cophenetic_correlation(
@@ -568,7 +568,7 @@ class EmbeddingStatistics:
             device: Device to run computations on
         '''
 
-        self.device, _ = get_device()
+        self.device, _, _ = get_device()
     
     
     def compute_statistics(
@@ -709,7 +709,7 @@ class NAICSEvaluationRunner:
         '''
 
         self.model = model
-        self.device, _ = get_device()
+        self.device, _, _ = get_device()
         
         self.embedding_eval = EmbeddingEvaluator(self.device)
         self.retrieval_metrics = RetrievalMetrics(self.device)

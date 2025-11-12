@@ -384,7 +384,7 @@ def train(
         trainer = pyl.Trainer(
             max_epochs=cfg.training.trainer.max_epochs,
             accelerator=accelerator,
-            devices=cfg.training.trainer.devices,
+            devices=num_devices,
             precision=precision,
             gradient_clip_val=cfg.training.trainer.gradient_clip_val,
             accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
@@ -476,7 +476,7 @@ def train_sequential(
             cfg = Config.from_yaml(config_file, curriculum_name=curriculum)
             
             # Check device
-            accelerator, precision = get_device(log_info=(i == 1))
+            accelerator, precision, num_devices = get_device(log_info=(i == 1))
             
             # Seed for reproducibility
             pyl.seed_everything(cfg.seed + i, verbose=False)
@@ -564,7 +564,7 @@ def train_sequential(
             trainer = pyl.Trainer(
                 max_epochs=cfg.training.trainer.max_epochs,
                 accelerator=accelerator,
-                devices=cfg.training.trainer.devices,
+                devices=num_devices,
                 precision=precision,
                 gradient_clip_val=cfg.training.trainer.gradient_clip_val,
                 accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
