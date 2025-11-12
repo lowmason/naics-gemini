@@ -3,13 +3,13 @@ name: 05_stage
 # Anchor filtering
 anchor_level: null
 relation_margins: null
-distance_margins: null
+distance_margins: [7, 8, 9, 10, 11]
 
 # Positive filtering
 positive_level: null
 positive_relation: null
 positive_distance: null
-n_positives: null
+n_positives: 32
 
 # Negative sampling
 negative_level: null

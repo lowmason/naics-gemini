@@ -9,10 +9,10 @@ distance_margins: null
 positive_level: [2, 3]
 positive_relation: [1, 2]
 positive_distance: null
-n_positives: 100
+n_positives: 64
 
 # Negative sampling
 negative_level: null
 negative_relation: null
 negative_distance: null
-n_negatives: 20
+n_negatives: 24
