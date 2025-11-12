@@ -44,4 +44,4 @@ def get_device(log_info: bool = False) -> Tuple[str, str]:
     return device, precision
 
 if __name__ == '__main__':
-    device = get_device()
+    device, precision = get_device()

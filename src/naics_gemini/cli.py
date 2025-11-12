@@ -3,6 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -142,7 +143,7 @@ def run_all_data_gen():
 
 
 # -------------------------------------------------------------------------------------------------
-# Model training commands
+# Model training: single curricula
 # -------------------------------------------------------------------------------------------------
 
 @app.command('train')
@@ -359,23 +360,236 @@ def train(
         console.print('  • Collapse detection (variance, norm, distance)')
         console.print('  • Distortion metrics (mean, std)\n')
         
-        #trainer.fit(model, datamodule)
+        trainer.fit(model, datamodule)
         
         # Training complete
-        #logger.info('Training complete!')
-        #logger.info(f'Best model checkpoint: {checkpoint_callback.best_model_path}')
+        logger.info('Training complete!')
+        logger.info(f'Best model checkpoint: {checkpoint_callback.best_model_path}')
         
-        #console.print(
-        #    f'\n[bold green]✓ Training completed successfully![/bold green]\n'
-        #    f'Best checkpoint: [cyan]{checkpoint_callback.best_model_path}[/cyan]\n'
-        #)
+        console.print(
+            f'\n[bold green]✓ Training completed successfully![/bold green]\n'
+            f'Best checkpoint: [cyan]{checkpoint_callback.best_model_path}[/cyan]\n'
+        )
         
         # Save final config
-        #config_output_path = checkpoint_dir / 'config.yaml'
-        #cfg.to_yaml(str(config_output_path))
-        #console.print(f'Config saved: [cyan]{config_output_path}[/cyan]\n')
+        config_output_path = checkpoint_dir / 'config.yaml'
+        cfg.to_yaml(str(config_output_path))
+        console.print(f'Config saved: [cyan]{config_output_path}[/cyan]\n')
         
     except Exception as e:
         logger.error(f'Training failed: {e}', exc_info=True)
         console.print(f'\n[bold red]✗ Training failed:[/bold red] {e}\n')
         raise typer.Exit(code=1)
+
+
+# -------------------------------------------------------------------------------------------------
+# Model training: curriculum
+# -------------------------------------------------------------------------------------------------
+
+@app.command('train-sequential')
+def train_sequential(
+    curricula: Annotated[
+        List[str],
+        typer.Option(
+            '--curricula',
+            '-c',
+            help="List of curriculum configs (e.g., '01_stage,02_stage,03_stage')",
+        ),
+    ] = ['01_stage', '02_stage', '03_stage', '04_stage', '05_stage'],
+    config_file: Annotated[
+        str,
+        typer.Option(
+            '--config',
+            help='Path to base config YAML file',
+        ),
+    ] = 'conf/config.yaml',
+    resume_from_checkpoint: Annotated[
+        bool,
+        typer.Option(
+            '--resume',
+            help='Resume from last checkpoint if available',
+        ),
+    ] = True,
+):
+    
+    configure_logging('train_sequential.log')
+    
+    console.rule('[bold green]Sequential Curriculum Training[/bold green]')
+    console.print(f'[bold]Stages to run:[/bold] {", ".join(curricula)}\n')
+    
+    last_checkpoint = None
+    
+    for i, curriculum in enumerate(curricula, 1):
+        console.rule(
+            f'[bold cyan]Stage {i}/{len(curricula)}: {curriculum}[/bold cyan]'
+        )
+        
+        try:
+
+            # Load configuration for this curriculum
+            cfg = Config.from_yaml(config_file, curriculum_name=curriculum)
+            
+            # Check device
+            accelerator, precision = get_device(log_info=(i == 1))
+            
+            # Seed for reproducibility
+            pyl.seed_everything(cfg.seed + i, verbose=False)
+            
+            # Initialize DataModule with curriculum-specific config
+            datamodule = NAICSDataModule(
+                descriptions_path=cfg.data_loader.streaming.descriptions_parquet,
+                triplets_path=cfg.data_loader.streaming.triplets_parquet,
+                tokenizer_name=cfg.data_loader.tokenization.tokenizer_name,
+                streaming_config=cfg.curriculum.model_dump(),
+                batch_size=cfg.data_loader.batch_size,
+                num_workers=cfg.data_loader.num_workers,
+                val_split=cfg.data_loader.val_split,
+                seed=cfg.seed + i
+            )
+            
+            # Initialize or load model
+            if last_checkpoint and resume_from_checkpoint:
+                logger.info(f'Loading model from checkpoint: {last_checkpoint}')
+                model = NAICSContrastiveModel.load_from_checkpoint(
+                    last_checkpoint,
+                    # Override learning rate for new stage if needed
+                    learning_rate=cfg.training.learning_rate,
+                )
+                console.print('[green]✓[/green] Resumed from previous stage checkpoint\n')
+
+            else:
+                logger.info('Initializing new model...')
+                model = NAICSContrastiveModel(
+                    base_model_name=cfg.model.base_model_name,
+                    lora_r=cfg.model.lora.r,
+                    lora_alpha=cfg.model.lora.alpha,
+                    lora_dropout=cfg.model.lora.dropout,
+                    use_moe=cfg.model.moe.enabled,
+                    num_experts=cfg.model.moe.num_experts,
+                    top_k=cfg.model.moe.top_k,
+                    moe_hidden_dim=cfg.model.moe.hidden_dim,
+                    temperature=cfg.loss.temperature,
+                    curvature=cfg.loss.curvature,
+                    learning_rate=cfg.training.learning_rate,
+                    weight_decay=cfg.training.weight_decay,
+                    warmup_steps=cfg.training.warmup_steps,
+                    load_balancing_coef=cfg.model.moe.load_balancing_coef,
+                    distances_path=cfg.data_loader.streaming.distances_parquet,
+                    eval_every_n_epochs=cfg.model.eval_every_n_epochs,
+                    eval_sample_size=cfg.model.eval_sample_size
+                )
+                if i == 1:
+                    console.print('[green]✓[/green] Initialized new model\n')
+
+                else:
+                    console.print(
+                        '[yellow]![/yellow] No checkpoint found, '
+                        'using random initialization\n'
+                    )
+            
+            # Setup callbacks with stage-specific checkpoint directory
+            checkpoint_dir = Path(f'{cfg.dirs.checkpoint_dir}/sequential_{"-".join(curricula)}/{curriculum}')
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            
+            checkpoint_callback = ModelCheckpoint(
+                dirpath=checkpoint_dir,
+                filename=f'{curriculum}-{{epoch:02d}}-{{val/contrastive_loss:.4f}}',
+                monitor='val/contrastive_loss',
+                mode='min',
+                save_top_k=1,
+                save_last=True
+            )
+            
+            # Early stopping with stage-appropriate patience
+            early_stopping = EarlyStopping(
+                monitor='val/contrastive_loss',
+                patience=3 if i < len(curricula) else 5,
+                mode='min'
+            )
+            
+            # TensorBoard logger with stage info
+            tb_logger = TensorBoardLogger(
+                save_dir=cfg.dirs.output_dir,
+                name=f'sequential_{"-".join(curricula)}',
+                version=curriculum
+            )
+            
+            # Initialize Trainer
+            trainer = pyl.Trainer(
+                max_epochs=cfg.training.trainer.max_epochs,
+                accelerator=accelerator,
+                devices=cfg.training.trainer.devices,
+                precision=precision,
+                gradient_clip_val=cfg.training.trainer.gradient_clip_val,
+                accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
+                log_every_n_steps=cfg.training.trainer.log_every_n_steps,
+                val_check_interval=cfg.training.trainer.val_check_interval,
+                callbacks=[checkpoint_callback, early_stopping],
+                logger=tb_logger,
+                default_root_dir=cfg.dirs.output_dir
+            )
+            
+            # Train this stage
+            logger.info(f'Starting training for stage: {curriculum}\n')
+            trainer.fit(model, datamodule)
+            
+            # Store checkpoint path for next stage
+            last_checkpoint = checkpoint_callback.best_model_path
+            
+            console.print(
+                f'[green]✓[/green] Stage {i} complete. '
+                f'Best checkpoint: [cyan]{last_checkpoint}[/cyan]\n'
+            )
+            
+            # Optional: Run evaluation on test set between stages
+            if i < len(curricula):
+                console.print('[dim]Preparing for next stage...[/dim]\n')
+                time.sleep(2)  # Brief pause between stages
+            
+        except Exception as e:
+            logger.error(f'Stage {curriculum} failed: {e}', exc_info=True)
+            console.print(f'\n[bold red]✗ Stage {curriculum} failed:[/bold red] {e}\n')
+            
+            if i < len(curricula):
+                response = typer.prompt(
+                    f'Continue with next stage ({curricula[i]})? [y/N]',
+                    default='n'
+                )
+                if response.lower() != 'y':
+                    raise typer.Exit(code=1)
+            else:
+                raise typer.Exit(code=1)
+    
+    console.rule('[bold green]Sequential Training Complete![/bold green]')
+    console.print(f'\n[bold]Final checkpoint:[/bold] [cyan]{last_checkpoint}[/cyan]\n')
+
+
+
+
+
+# -------------------------------------------------------------------------------------------------
+# Model training: single curricula
+# -------------------------------------------------------------------------------------------------
+
+def find_latest_checkpoint(checkpoint_dir: Path, curriculum: str) -> Optional[str]:
+    
+    '''
+    Find the latest checkpoint for a given curriculum stage.
+    '''
+    
+    if not checkpoint_dir.exists():
+        return None
+    
+    # Look for checkpoint files
+    checkpoints = list(checkpoint_dir.glob(f'{curriculum}*.ckpt'))
+    
+    if not checkpoints:
+        # Try 'last.ckpt' as fallback
+        last_ckpt = checkpoint_dir / 'last.ckpt'
+        if last_ckpt.exists():
+            return str(last_ckpt)
+        return None
+    
+    # Sort by modification time and return the latest
+    checkpoints.sort(key=lambda x: x.stat().st_mtime)
+    return str(checkpoints[-1])

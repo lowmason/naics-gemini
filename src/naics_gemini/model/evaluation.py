@@ -3,7 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -20,13 +20,15 @@ logger = logging.getLogger(__name__)
 class EmbeddingEvaluator:
     
     def __init__(self):
+
         '''
         Evaluator for embedding quality metrics.
         
         Args:
             device: Device to run computations on
         ''' 
-        self.device = get_device()
+        
+        self.device, _ = get_device()
     
     
     def compute_pairwise_distances(
@@ -34,6 +36,7 @@ class EmbeddingEvaluator:
         embeddings: torch.Tensor,
         metric: str = 'euclidean'
     ) -> torch.Tensor:
+        
         '''
         Compute pairwise distances between embeddings.
         
@@ -44,6 +47,7 @@ class EmbeddingEvaluator:
         Returns:
             Distance matrix of shape (N, N)
         '''
+        
         embeddings = embeddings.to(self.device)
         
         if metric == 'euclidean':
@@ -67,6 +71,7 @@ class EmbeddingEvaluator:
     
     
     def _lorentz_distance_matrix(self, embeddings: torch.Tensor) -> torch.Tensor:
+
         '''
         Compute pairwise Lorentzian distances.
         
@@ -76,6 +81,7 @@ class EmbeddingEvaluator:
         Returns:
             Distance matrix of shape (N, N)
         '''
+        
         N = embeddings.shape[0]
         distances = torch.zeros(N, N, device=self.device)
         
@@ -100,6 +106,7 @@ class EmbeddingEvaluator:
         embeddings: torch.Tensor,
         metric: str = 'cosine'
     ) -> torch.Tensor:
+        
         '''
         Compute pairwise similarities between embeddings.
         
@@ -110,6 +117,7 @@ class EmbeddingEvaluator:
         Returns:
             Similarity matrix of shape (N, N)
         '''
+
         embeddings = embeddings.to(self.device)
         
         if metric == 'cosine':
@@ -132,13 +140,15 @@ class EmbeddingEvaluator:
 class RetrievalMetrics:
     
     def __init__(self):
+
         '''
         Metrics for evaluating retrieval quality.
         
         Args:
             device: Device to run computations on
         '''
-        self.device = get_device()
+
+        self.device, _ = get_device()
     
     
     def precision_at_k(
@@ -147,6 +157,7 @@ class RetrievalMetrics:
         ground_truth: torch.Tensor,
         k: int = 10
     ) -> torch.Tensor:
+        
         '''
         Compute precision@k for retrieval.
         
@@ -158,6 +169,7 @@ class RetrievalMetrics:
         Returns:
             Precision@k for each query (shape: N)
         '''
+
         distances = distances.to(self.device)
         ground_truth = ground_truth.to(self.device)
         
@@ -183,6 +195,7 @@ class RetrievalMetrics:
         ground_truth: torch.Tensor,
         k: int = 10
     ) -> torch.Tensor:
+        
         '''
         Compute recall@k for retrieval.
         
@@ -194,6 +207,7 @@ class RetrievalMetrics:
         Returns:
             Recall@k for each query (shape: N)
         '''
+
         distances = distances.to(self.device)
         ground_truth = ground_truth.to(self.device)
         
@@ -223,6 +237,7 @@ class RetrievalMetrics:
         ground_truth: torch.Tensor,
         k: Optional[int] = None
     ) -> torch.Tensor:
+        
         '''
         Compute Mean Average Precision (MAP).
         
@@ -234,6 +249,7 @@ class RetrievalMetrics:
         Returns:
             MAP score (scalar)
         '''
+
         distances = distances.to(self.device)
         ground_truth = ground_truth.to(self.device)
         
@@ -271,6 +287,7 @@ class RetrievalMetrics:
         relevance_scores: torch.Tensor,
         k: int = 10
     ) -> torch.Tensor:
+        
         '''
         Compute Normalized Discounted Cumulative Gain (NDCG@k).
         
@@ -282,6 +299,7 @@ class RetrievalMetrics:
         Returns:
             NDCG@k for each query (shape: N)
         '''
+
         distances = distances.to(self.device)
         relevance_scores = relevance_scores.to(self.device)
         
@@ -319,13 +337,15 @@ class RetrievalMetrics:
 class HierarchyMetrics:
     
     def __init__(self):
+
         '''
         Metrics for evaluating hierarchy preservation.
         
         Args:
             device: Device to run computations on
         '''
-        self.device = get_device()
+
+        self.device, _ = get_device()
     
     
     def cophenetic_correlation(
@@ -333,6 +353,7 @@ class HierarchyMetrics:
         embedding_distances: torch.Tensor,
         tree_distances: torch.Tensor
     ) -> torch.Tensor:
+        
         '''
         Compute cophenetic correlation coefficient.
         
@@ -345,6 +366,7 @@ class HierarchyMetrics:
         Returns:
             Correlation coefficient (scalar)
         '''
+
         embedding_distances = embedding_distances.to(self.device)
         tree_distances = tree_distances.to(self.device)
         
@@ -363,6 +385,7 @@ class HierarchyMetrics:
     
     
     def _pearson_correlation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+
         '''
         Compute Pearson correlation coefficient.
         
@@ -373,6 +396,7 @@ class HierarchyMetrics:
         Returns:
             Correlation coefficient (scalar)
         '''
+
         x_mean = x.mean()
         y_mean = y.mean()
         
@@ -393,6 +417,7 @@ class HierarchyMetrics:
         embedding_distances: torch.Tensor,
         tree_distances: torch.Tensor
     ) -> torch.Tensor:
+        
         '''
         Compute Spearman rank correlation coefficient.
         
@@ -403,6 +428,7 @@ class HierarchyMetrics:
         Returns:
             Correlation coefficient (scalar)
         '''
+
         embedding_distances = embedding_distances.to(self.device)
         tree_distances = tree_distances.to(self.device)
         
@@ -424,6 +450,7 @@ class HierarchyMetrics:
     
     
     def _rank_tensor(self, x: torch.Tensor) -> torch.Tensor:
+
         '''
         Convert values to ranks.
         
@@ -433,6 +460,7 @@ class HierarchyMetrics:
         Returns:
             Ranks (shape: N)
         '''
+
         _, indices = torch.sort(x)
         ranks = torch.zeros_like(indices, dtype=torch.float32)
         ranks[indices] = torch.arange(len(x), device=x.device, dtype=torch.float32)
@@ -445,6 +473,7 @@ class HierarchyMetrics:
         embedding_distances: torch.Tensor,
         tree_distances: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
+        
         '''
         Compute distortion metrics (how much distances are stretched/compressed).
         
@@ -455,6 +484,7 @@ class HierarchyMetrics:
         Returns:
             Dictionary with distortion metrics
         '''
+
         embedding_distances = embedding_distances.to(self.device)
         tree_distances = tree_distances.to(self.device)
         
@@ -487,19 +517,22 @@ class HierarchyMetrics:
 class EmbeddingStatistics:
     
     def __init__(self):
+
         '''
         Statistics for analyzing embedding space.
         
         Args:
             device: Device to run computations on
         '''
-        self.device = get_device()
+
+        self.device, _ = get_device()
     
     
     def compute_statistics(
         self,
         embeddings: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
+        
         '''
         Compute comprehensive statistics about embeddings.
         
@@ -509,6 +542,7 @@ class EmbeddingStatistics:
         Returns:
             Dictionary of statistics
         '''
+
         embeddings = embeddings.to(self.device)
         
         # Basic statistics
@@ -547,6 +581,7 @@ class EmbeddingStatistics:
         embeddings: torch.Tensor,
         threshold: float = 0.01
     ) -> Dict[str, bool]:
+        
         '''
         Check if embeddings have collapsed (become too similar).
         
@@ -557,6 +592,7 @@ class EmbeddingStatistics:
         Returns:
             Dictionary with collapse indicators
         '''
+
         embeddings = embeddings.to(self.device)
         
         # Variance collapse: low variance across dimensions
@@ -579,12 +615,14 @@ class EmbeddingStatistics:
         pairwise_dists = distances[triu_indices[0], triu_indices[1]]
         distance_std = pairwise_dists.std().item()
         distance_collapsed = (distance_std < threshold)
+
+        any_collapse = variance_collapsed or norm_collapsed or distance_collapsed
         
         return {
             'variance_collapsed': variance_collapsed,
             'norm_collapsed': norm_collapsed,
             'distance_collapsed': distance_collapsed,
-            'any_collapse': variance_collapsed or norm_collapsed or distance_collapsed
+            'any_collapse': any_collapse
         }
 
 
@@ -598,6 +636,7 @@ class NAICSEvaluationRunner:
         self,
         model
     ):
+        
         '''
         Complete evaluation runner for NAICS embeddings.
         
@@ -605,8 +644,9 @@ class NAICSEvaluationRunner:
             model: Trained NAICSContrastiveModel
             device: Device to run on
         '''
+
         self.model = model
-        self.device = get_device()
+        self.device, _ = get_device()
         
         self.embedding_eval = EmbeddingEvaluator(self.device)
         self.retrieval_metrics = RetrievalMetrics(self.device)
@@ -620,7 +660,8 @@ class NAICSEvaluationRunner:
         tree_distances: Optional[torch.Tensor] = None,
         ground_truth_relevance: Optional[torch.Tensor] = None,
         k_values: List[int] = [5, 10, 20]
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
+        
         '''
         Run comprehensive evaluation.
         
@@ -633,6 +674,7 @@ class NAICSEvaluationRunner:
         Returns:
             Dictionary of all evaluation metrics
         '''
+
         results = {}
         
         # Embedding statistics
