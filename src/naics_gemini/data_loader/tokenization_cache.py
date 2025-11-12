@@ -3,6 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
@@ -13,6 +14,9 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from naics_gemini.utils.config import TokenizationConfig
 
 logger = logging.getLogger(__name__)
+
+# Disable tokenizer parallelism to avoid fork issues with multiprocessing
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 
 # -------------------------------------------------------------------------------------------------

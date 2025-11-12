@@ -17,7 +17,7 @@ dirs:
 
 # Data loading configuration
 data_loader:
-  batch_size: 4
+  batch_size: 8
   num_workers: 0
   val_split: 0.05
   
@@ -72,6 +72,6 @@ training:
     devices: 1
     precision: "16-mixed"
     gradient_clip_val: 1.0
-    accumulate_grad_batches: 32
+    accumulate_grad_batches: 4  # Reduced from 32 to save memory
     log_every_n_steps: 10
     val_check_interval: 1.0

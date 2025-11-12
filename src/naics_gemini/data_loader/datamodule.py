@@ -195,6 +195,15 @@ class NAICSDataModule(LightningDataModule):
             val_curriculum
         )
     
+    def prepare_data(self):
+        '''Build tokenization cache before worker processes are spawned.'''
+        # This is called only on the main process before worker setup
+        # Build the cache so all workers can load it instead of building it
+        import os
+        os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+        from naics_gemini.data_loader.tokenization_cache import tokenization_cache
+        logger.info('Preparing tokenization cache in main process...')
+        tokenization_cache(self.tokenization_cfg)
     
     def train_dataloader(self) -> DataLoader:
 
@@ -203,9 +212,9 @@ class NAICSDataModule(LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            num_workers=self.num_workers,
+            num_workers=0,  # Use single process to avoid multiprocessing issues with tokenizer
             collate_fn=collate_fn,
-            persistent_workers=False  # Set to False to avoid hanging during initialization
+            persistent_workers=False
         )
     
     def val_dataloader(self) -> DataLoader:
@@ -215,7 +224,7 @@ class NAICSDataModule(LightningDataModule):
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
-            num_workers=self.num_workers,
+            num_workers=0,  # Use single process to avoid multiprocessing issues with tokenizer
             collate_fn=collate_fn,
-            persistent_workers=False  # Set to False to avoid hanging during initialization
+            persistent_workers=False
         )

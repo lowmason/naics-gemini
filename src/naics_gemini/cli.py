@@ -3,6 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
+import os
 import time
 import warnings
 from pathlib import Path
@@ -25,6 +26,9 @@ from naics_gemini.model.naics_model import NAICSContrastiveModel
 from naics_gemini.utils.backend import get_device
 from naics_gemini.utils.config import Config, list_available_curricula, parse_override_value
 from naics_gemini.utils.console import configure_logging
+
+# Set CUDA memory allocator configuration to reduce fragmentation
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -238,7 +242,7 @@ def train(
 
         # Check device
         logger.info('Determining infrastructure...')
-        accelerator, precision = get_device(log_info=True)
+        accelerator, precision, num_devices = get_device(log_info=True)
 
         # Load configuration
         logger.info('Loading configuration...')
@@ -381,10 +385,20 @@ def train(
         # Initialize Trainer
         logger.info('Initializing PyTorch Lightning Trainer...\n')
         
+        # Use only 1 device as specified in config, even if multiple GPUs are available
+        devices_to_use = cfg.training.trainer.devices if hasattr(cfg.training.trainer, 'devices') else 1
+        
+        # If using multiple devices, need to handle unused parameters in DDP
+        strategy = 'auto'
+        if devices_to_use > 1 and accelerator in ['cuda', 'gpu']:
+            from pytorch_lightning.strategies import DDPStrategy
+            strategy = DDPStrategy(find_unused_parameters=True)
+        
         trainer = pyl.Trainer(
             max_epochs=cfg.training.trainer.max_epochs,
             accelerator=accelerator,
-            devices=num_devices,
+            devices=devices_to_use,
+            strategy=strategy,
             precision=precision,
             gradient_clip_val=cfg.training.trainer.gradient_clip_val,
             accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
