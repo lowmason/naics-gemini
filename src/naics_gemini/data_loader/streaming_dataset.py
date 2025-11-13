@@ -138,27 +138,42 @@ def create_streaming_generator(
         .explode('positives_negatives')
         .unnest('positives_negatives')
         .collect()
+    )
+    
+    # Pivot to separate filtered (negatives) from unfiltered (fallback)
+    # When we pivot on the 'filtered' boolean column, Polars names the resulting columns
+    # based on the 'values' parameter combined with the boolean values.
+    # Since values='negatives' and filtered is True/False, we get 'negatives' and 'fallback'
+    df_1 = (
+        df_1
         .pivot(
-            'filtered',
+            on='filtered',
             index=['anchors', 'positives'],
-            values=['negatives']
+            values='negatives'
         )
         .filter(pl.col('negatives').is_not_null())
+        .with_columns(
+            negatives_len=pl.col('negatives').list.len(),
+            # Ensure fallback column exists and handle null
+            fallback=pl.when(pl.col('fallback').is_not_null())
+                      .then(pl.col('fallback'))
+                      .otherwise(pl.lit([]).cast(pl.List(pl.Struct)))
+        )
         .select(
             anchors=pl.col('anchors'),
             positives=pl.col('positives'),
             negatives=pl.col('negatives'),
-            fallback=pl.when(pl.col('negatives').list.len().lt(n_negatives))
-                       .then(pl.col('negatives'))
-                       .otherwise(None)
+            negatives_len=pl.col('negatives_len'),
+            fallback=pl.col('fallback'),
+            fallback_len=pl.col('fallback').list.len()
         )
     )
 
-    # Complete batches
+    # Complete batches - those with enough negatives already (>= n_negatives)
     df_2 = (
         df_1
         .filter(
-            pl.col('fallback').is_null()
+            pl.col('negatives_len') >= n_negatives
         )
         .select(
             anchors=pl.col('anchors'),
@@ -166,44 +181,60 @@ def create_streaming_generator(
             negatives=pl.col('negatives')
                         .list.sample(
                             n_negatives, 
-                            shuffle=True, 
+                            shuffle=True,
+                            with_replacement=False,
                             seed=cfg.seed
                         )
                     
         )
     )
 
-    # Completed batches with fallbacks
+    # Incomplete batches - need fallback sampling to reach n_negatives
     df_3 = (
         df_1
         .filter(
-            pl.col('fallback').is_not_null()
+            pl.col('negatives_len') < n_negatives
         )
         .with_columns(
-            negatives_len=pl.lit(n_negatives)
-                            .sub(pl.col('negatives').list.len()),
-            fallback_len=pl.col('fallback').list.len()
+            # Calculate how many more negatives we need from fallback
+            need_from_fallback=pl.lit(n_negatives).sub(pl.col('negatives_len'))
         )
         .with_columns(
-            sample_len=pl.min_horizontal(
-                pl.col('negatives_len'),
-                pl.col('fallback_len')
-            )
+            # Sample fallbacks - use with_replacement if needed, handle empty fallback
+            fallback_sample=pl.when(pl.col('fallback_len') == 0)
+                .then(
+                    # No fallbacks available: repeat existing negatives to reach n_negatives
+                    pl.col('negatives').list.sample(
+                        pl.col('need_from_fallback'),
+                        shuffle=True,
+                        with_replacement=True,
+                        seed=cfg.seed
+                    )
+                )
+                .when(pl.col('fallback_len') >= pl.col('need_from_fallback'))
+                .then(
+                    # Enough fallbacks: sample without replacement
+                    pl.col('fallback').list.sample(
+                        pl.col('need_from_fallback'),
+                        shuffle=True,
+                        with_replacement=False,
+                        seed=cfg.seed
+                    )
+                )
+                .otherwise(
+                    # Not enough fallbacks: sample with replacement to reach n_negatives
+                    pl.col('fallback').list.sample(
+                        pl.col('need_from_fallback'),
+                        shuffle=True,
+                        with_replacement=True,
+                        seed=cfg.seed
+                    )
+                )
         )
-        .drop('negatives_len', 'fallback_len')
         .with_columns(
-            fallback=pl.col('fallback')
-                        .list.sample(
-                            pl.col('sample_len'), 
-                            shuffle=True, 
-                            seed=cfg.seed
-                        )
+            negatives=pl.col('negatives').list.concat(pl.col('fallback_sample'))
         )
-        .with_columns(
-            negatives=pl.col('negatives')
-                        .list.concat(pl.col('fallback'))
-        )
-        .drop('fallback', 'sample_len')
+        .drop('fallback', 'negatives_len', 'fallback_len', 'need_from_fallback', 'fallback_sample')
     )
 
     # Combine complete and completed

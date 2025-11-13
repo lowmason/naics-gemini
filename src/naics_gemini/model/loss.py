@@ -108,6 +108,8 @@ class HyperbolicInfoNCELoss(nn.Module):
         
         pos_distances = self.lorentz_distance(anchor_hyp, positive_hyp)
         
+        # Compute negative distances
+        # Each anchor has exactly k_negatives negatives
         neg_distances = []
         for i in range(batch_size):
             anchor_repeated = anchor_hyp[i:i+1].repeat(k_negatives, 1)

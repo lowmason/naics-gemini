@@ -375,6 +375,10 @@ def train(
             mode='min'
         )
         
+        # TensorBoard logger - ensure directory exists first
+        tb_log_dir = Path(cfg.dirs.output_dir) / cfg.experiment_name
+        tb_log_dir.mkdir(parents=True, exist_ok=True)
+        
         tb_logger = TensorBoardLogger(
             save_dir=cfg.dirs.output_dir,
             name=cfg.experiment_name
@@ -489,6 +493,23 @@ def train_sequential(
             # Load configuration for this curriculum
             cfg = Config.from_yaml(config_file, curriculum_name=curriculum)
             
+            # Setup checkpoint directory for this stage
+            stages = '-'.join(s.split('_')[0] for s in curricula)
+            checkpoint_dir = Path(f'{cfg.dirs.checkpoint_dir}/sequential_{stages}/{curriculum}')
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Check if this stage already has a checkpoint
+            existing_checkpoints = list(checkpoint_dir.glob(f'{curriculum}-*.ckpt'))
+            last_ckpt = checkpoint_dir / 'last.ckpt'
+            
+            if resume_from_checkpoint and existing_checkpoints and last_ckpt.exists():
+                # Stage already complete - use its checkpoint and skip training
+                last_checkpoint = str(last_ckpt)
+                console.print(f'[green]✓[/green] Stage already complete: {curriculum}')
+                console.print(f'[cyan]Using checkpoint:[/cyan] {last_checkpoint}\n')
+                logger.info(f'Skipping stage {curriculum} - already trained')
+                continue
+            
             # Check device
             accelerator, precision, num_devices = get_device(log_info=(i == 1))
             
@@ -548,9 +569,6 @@ def train_sequential(
                     )
             
             # Setup callbacks with stage-specific checkpoint directory
-            checkpoint_dir = Path(f'{cfg.dirs.checkpoint_dir}/sequential_{"-".join(curricula)}/{curriculum}')
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            
             checkpoint_callback = ModelCheckpoint(
                 dirpath=checkpoint_dir,
                 filename=f'{curriculum}-{{epoch:02d}}-{{val/contrastive_loss:.4f}}',
@@ -568,9 +586,13 @@ def train_sequential(
             )
             
             # TensorBoard logger with stage info
+            # Create the log directory first to avoid FileNotFoundError
+            tb_log_dir = Path(f'{cfg.dirs.output_dir}/sequential_{stages}/{curriculum}')
+            tb_log_dir.mkdir(parents=True, exist_ok=True)
+            
             tb_logger = TensorBoardLogger(
                 save_dir=cfg.dirs.output_dir,
-                name=f'sequential_{"-".join(curricula)}',
+                name=f'sequential_{stages}',
                 version=curriculum
             )
             

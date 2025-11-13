@@ -200,6 +200,15 @@ class NAICSContrastiveModel(pyl.LightningModule):
         return contrastive_loss
     
     
+    def _to_python_scalar(self, value):
+        '''Convert any numeric value to a Python scalar for logging.'''
+        if isinstance(value, torch.Tensor):
+            return value.item()
+        elif isinstance(value, (bool, int)):
+            return int(value)
+        else:
+            return float(value)
+    
     def on_validation_epoch_end(self):
         '''Compute comprehensive evaluation metrics at the end of each validation epoch.'''
         
@@ -240,20 +249,20 @@ class NAICSContrastiveModel(pyl.LightningModule):
             
             # 1. Embedding statistics
             stats = self.embedding_stats.compute_statistics(embeddings)
-            self.log('val/mean_norm', stats['mean_norm'], batch_size=num_samples)
-            self.log('val/std_norm', stats['std_norm'], batch_size=num_samples)
-            self.log('val/mean_pairwise_distance', stats['mean_pairwise_distance'], batch_size=num_samples)
-            self.log('val/std_pairwise_distance', stats['std_pairwise_distance'], batch_size=num_samples)
+            self.log('val/mean_norm', self._to_python_scalar(stats['mean_norm']), batch_size=num_samples)
+            self.log('val/std_norm', self._to_python_scalar(stats['std_norm']), batch_size=num_samples)
+            self.log('val/mean_pairwise_distance', self._to_python_scalar(stats['mean_pairwise_distance']), batch_size=num_samples)
+            self.log('val/std_pairwise_distance', self._to_python_scalar(stats['std_pairwise_distance']), batch_size=num_samples)
             
             # 2. Improved collapse check with actual values
             collapse = self.embedding_stats.check_collapse(embeddings)
-            self.log('val/variance_collapsed', float(collapse['variance_collapsed']), batch_size=num_samples)
-            self.log('val/norm_collapsed', float(collapse['norm_collapsed']), batch_size=num_samples)
-            self.log('val/distance_collapsed', float(collapse['distance_collapsed']), batch_size=num_samples)
+            self.log('val/variance_collapsed', self._to_python_scalar(collapse['variance_collapsed']), batch_size=num_samples)
+            self.log('val/norm_collapsed', self._to_python_scalar(collapse['norm_collapsed']), batch_size=num_samples)
+            self.log('val/distance_collapsed', self._to_python_scalar(collapse['distance_collapsed']), batch_size=num_samples)
             # Log actual values for insight
-            self.log('val/mean_variance', collapse['mean_variance'], batch_size=num_samples)
-            self.log('val/norm_cv', collapse['norm_cv'], prog_bar=True, batch_size=num_samples)
-            self.log('val/distance_cv', collapse['distance_cv'], prog_bar=True, batch_size=num_samples)
+            self.log('val/mean_variance', self._to_python_scalar(collapse['mean_variance']), batch_size=num_samples)
+            self.log('val/norm_cv', self._to_python_scalar(collapse['norm_cv']), prog_bar=True, batch_size=num_samples)
+            self.log('val/distance_cv', self._to_python_scalar(collapse['distance_cv']), prog_bar=True, batch_size=num_samples)
             
             # 3. Compute embedding distances
             emb_dists = self.embedding_eval.compute_pairwise_distances(
@@ -266,22 +275,22 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 emb_dists,
                 gt_dists
             )
-            self.log('val/cophenetic_correlation', cophenetic_result['correlation'], 
+            self.log('val/cophenetic_correlation', self._to_python_scalar(cophenetic_result['correlation']), 
                     prog_bar=True, batch_size=num_samples)
-            self.log('val/cophenetic_n_pairs', float(cophenetic_result['n_pairs']), batch_size=num_samples)
+            self.log('val/cophenetic_n_pairs', self._to_python_scalar(cophenetic_result['n_pairs']), batch_size=num_samples)
             
             spearman_result = self.hierarchy_metrics.spearman_correlation(
                 emb_dists,
                 gt_dists
             )
-            self.log('val/spearman_correlation', spearman_result['correlation'], batch_size=num_samples)
-            self.log('val/spearman_n_pairs', float(spearman_result['n_pairs']), batch_size=num_samples)
+            self.log('val/spearman_correlation', self._to_python_scalar(spearman_result['correlation']), batch_size=num_samples)
+            self.log('val/spearman_n_pairs', self._to_python_scalar(spearman_result['n_pairs']), batch_size=num_samples)
             
             # 5. Distortion metrics
             distortion = self.hierarchy_metrics.distortion(emb_dists, gt_dists)
-            self.log('val/mean_distortion', distortion['mean_distortion'], batch_size=num_samples)
-            self.log('val/std_distortion', distortion['std_distortion'], batch_size=num_samples)
-            self.log('val/median_distortion', distortion['median_distortion'], 
+            self.log('val/mean_distortion', self._to_python_scalar(distortion['mean_distortion']), batch_size=num_samples)
+            self.log('val/std_distortion', self._to_python_scalar(distortion['std_distortion']), batch_size=num_samples)
+            self.log('val/median_distortion', self._to_python_scalar(distortion['median_distortion']), 
                     prog_bar=True, batch_size=num_samples)
             
             logger.info(
