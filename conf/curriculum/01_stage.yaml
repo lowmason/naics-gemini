@@ -1,7 +1,7 @@
 name: 01_stage
 
 # Anchor filtering
-anchor_level: [2]
+anchor_level: [2, 3]
 relation_margin: null
 distance_margin: null
 
@@ -9,10 +9,12 @@ distance_margin: null
 positive_level: [2, 3]
 positive_relation: [1, 2]
 positive_distance: null
-n_positives: 64
 
 # Negative sampling
 negative_level: null
 negative_relation: null
 negative_distance: null
-n_negatives: 24
+
+# num samples
+n_positives: 32
+n_negatives: 16

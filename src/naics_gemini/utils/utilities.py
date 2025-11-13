@@ -6,10 +6,36 @@ import logging
 import operator
 import time
 from functools import reduce
+from pathlib import Path
 from typing import Dict, List, Literal, Optional, Union
 
 import httpx
 import polars as pl
+
+from naics_gemini.utils.config import DirConfig
+
+logger = logging.getLogger(__name__)
+
+
+# -------------------------------------------------------------------------------------------------
+# Make directories
+# -------------------------------------------------------------------------------------------------
+
+def make_directories(dir_config: DirConfig = DirConfig()) -> None:
+
+    logging.info('Directory setup:')
+    for dir, dir_path in dir_config.model_dump().items():
+        path = Path(dir_path)
+
+        if path.exists():
+            logging.info(f'  • {dir} directory already exists: {dir_path}')
+
+        else:
+            path.mkdir(parents=True, exist_ok=True)
+            logging.info(f'  • Created {dir} directory: {dir_path}')
+    
+    logging.info('\n')
+
 
 # -------------------------------------------------------------------------------------------------
 # Get relationship mapping

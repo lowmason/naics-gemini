@@ -10,6 +10,7 @@ import polars as pl
 
 from naics_gemini.utils.config import DownloadConfig, load_config
 from naics_gemini.utils.utilities import download_with_retry as _download_with_retry
+from naics_gemini.utils.utilities import make_directories
 from naics_gemini.utils.utilities import parquet_stats as _parquet_stats
 
 logger = logging.getLogger(__name__)
@@ -687,6 +688,9 @@ def _get_descriptions_2(
 # -------------------------------------------------------------------------------------------------
 
 def download_preprocess_data() -> pl.DataFrame:
+
+    # Create directories
+    make_directories()
     
     # Load configuration from YAML
     cfg = load_config(DownloadConfig, 'data_generation/download.yaml')

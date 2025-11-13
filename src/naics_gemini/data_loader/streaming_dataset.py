@@ -40,7 +40,7 @@ def _get_config_dict(cfg: StreamingConfig) -> Dict[str, Any]:
 
 
 def _get_weighted_sample(
-    df: pl.LazyFrame,
+    df: pl.DataFrame,
     group_col: Union[str, List[str]],
     weight_col: str,
     n_samples: int,
@@ -52,10 +52,7 @@ def _get_weighted_sample(
     else:
         rng = np.random.default_rng()
 
-    if isinstance(df, pl.LazyFrame):
-        df_len = df.select(pl.len()).collect().item() 
-    else:
-        df_len = df.height
+    df_len = df.height
     
     df = (
         df
@@ -142,13 +139,26 @@ def create_streaming_generator(
     filters = reduce(operator.and_, exprs)
 
     # Build (anchors, positives, negatives, fallbacks) dataframe 
-    df_1 = (
+    df_0 = (
         pl
         .scan_parquet(
             dataset_files
         )
         .filter(
             filters
+        )
+    )
+
+    # Build final dataframe with sampled positives
+    df_1 = (
+        df_0
+        .with_columns(
+            relation_margin=pl.when(pl.col('excluded'))
+                            .then(pl.col('relation_margin').add(1))
+                            .otherwise(pl.col('relation_margin')),
+            distance_margin=pl.when(pl.col('excluded'))
+                            .then(pl.col('distance_margin').add(1))
+                            .otherwise(pl.col('distance_margin'))
         )
         .with_columns(
             sample_wgt=pl.mean_horizontal('relation_margin', 'distance_margin')
@@ -208,8 +218,10 @@ def create_streaming_generator(
         .unnest('positives_negatives')
         .explode('negatives')
         .unnest('negatives')
+        .collect()
     )
 
+    # Build final dataframe with sampled positives and negatives
     df = (
         _get_weighted_sample(
             df_1,
@@ -220,7 +232,8 @@ def create_streaming_generator(
         )
         .group_by('anchors', 'positives')
         .agg(
-            negatives=pl.col('negatives')
+            negatives=pl.col('negatives'),
+            negatives_len=pl.col('negatives').len()
         )
         .sort('anchors')
         .select(
@@ -228,9 +241,9 @@ def create_streaming_generator(
                     .rank('dense'),
             anchors=pl.col('anchors'),
             positives=pl.col('positives'),
-            negatives=pl.col('negatives')
+            negatives=pl.col('negatives'),
+            negatives_len=pl.col('negatives_len')
         )
-        .collect()
     )
 
     # Create iterator and dictionary of dataframes by batch

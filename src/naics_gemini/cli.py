@@ -403,7 +403,7 @@ def train(
             accelerator=accelerator,
             devices=devices_to_use,
             strategy=strategy,
-            precision=precision,
+            precision=precision, # type: ignore
             gradient_clip_val=cfg.training.trainer.gradient_clip_val,
             accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
             log_every_n_steps=cfg.training.trainer.log_every_n_steps,
@@ -450,7 +450,7 @@ def train(
 # Model training: curriculum
 # -------------------------------------------------------------------------------------------------
 
-@app.command('train-sequential')
+@app.command('train-curriculum')
 def train_sequential(
     curricula: Annotated[
         List[str],
@@ -601,7 +601,7 @@ def train_sequential(
                 max_epochs=cfg.training.trainer.max_epochs,
                 accelerator=accelerator,
                 devices=num_devices,
-                precision=precision,
+                precision=precision, # type: ignore
                 gradient_clip_val=cfg.training.trainer.gradient_clip_val,
                 accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
                 log_every_n_steps=cfg.training.trainer.log_every_n_steps,
@@ -644,34 +644,3 @@ def train_sequential(
     
     console.rule('[bold green]Sequential Training Complete![/bold green]')
     console.print(f'\n[bold]Final checkpoint:[/bold] [cyan]{last_checkpoint}[/cyan]\n')
-
-
-
-
-
-# -------------------------------------------------------------------------------------------------
-# Model training: single curricula
-# -------------------------------------------------------------------------------------------------
-
-def find_latest_checkpoint(checkpoint_dir: Path, curriculum: str) -> Optional[str]:
-    
-    '''
-    Find the latest checkpoint for a given curriculum stage.
-    '''
-    
-    if not checkpoint_dir.exists():
-        return None
-    
-    # Look for checkpoint files
-    checkpoints = list(checkpoint_dir.glob(f'{curriculum}*.ckpt'))
-    
-    if not checkpoints:
-        # Try 'last.ckpt' as fallback
-        last_ckpt = checkpoint_dir / 'last.ckpt'
-        if last_ckpt.exists():
-            return str(last_ckpt)
-        return None
-    
-    # Sort by modification time and return the latest
-    checkpoints.sort(key=lambda x: x.stat().st_mtime)
-    return str(checkpoints[-1])
