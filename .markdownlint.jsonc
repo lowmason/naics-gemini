@@ -1,0 +1,37 @@
+{
+  // Line length - set to 100 to match Python code style
+  "MD013": {
+    "line_length": 100,
+    "code_blocks": false,
+    "tables": false
+  },
+  
+  // Blanks around headings
+  "MD022": {
+    "lines_above": 1,
+    "lines_below": 1
+  },
+  
+  // Blanks around lists
+  "MD032": true,
+  
+  // Multiple consecutive blank lines
+  "MD012": {
+    "maximum": 1
+  },
+  
+  // Heading style - allow any style (ATX or setext)
+  "MD003": {
+    "style": "consistent"
+  },
+  
+  // Unordered list style
+  "MD004": {
+    "style": "consistent"
+  },
+  
+  // List indentation
+  "MD007": {
+    "indent": 2
+  }
+}

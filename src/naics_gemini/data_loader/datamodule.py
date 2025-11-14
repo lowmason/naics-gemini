@@ -93,12 +93,12 @@ def collate_fn(batch: List[Dict]) -> Dict:
 class GeneratorDataset(IterableDataset):
     
     def __init__(self, generator_fn, tokenization_cfg, *args, **kwargs):
-        """
+        '''
         Args:
             generator_fn: Function to create the streaming generator
             tokenization_cfg: TokenizationConfig for loading cache (not the cache itself)
             *args, **kwargs: Additional arguments for generator_fn
-        """
+        '''
         self.generator_fn = generator_fn
         self.tokenization_cfg = tokenization_cfg
         self.args = args
@@ -107,7 +107,7 @@ class GeneratorDataset(IterableDataset):
         self._token_cache = None
     
     def _get_token_cache(self):
-        """Lazily load token cache once per worker process."""
+        '''Lazily load token cache once per worker process.'''
         if self._token_cache is None:
             from naics_gemini.data_loader.tokenization_cache import tokenization_cache
             self._token_cache = tokenization_cache(self.tokenization_cfg)

@@ -11,7 +11,7 @@ from typing import List, Optional
 
 import pytorch_lightning as pyl
 import typer
-from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from rich.console import Console
 from rich.panel import Panel
@@ -384,13 +384,18 @@ def train(
             name=cfg.experiment_name
         )
         
-        # Don't add epoch progress callback - PyTorch Lightning's progress bar already shows epoch info
+        # Don't add epoch progress callback - PyTorch Lightning's progress bar
+        # already shows epoch info
         
         # Initialize Trainer
         logger.info('Initializing PyTorch Lightning Trainer...\n')
         
         # Use only 1 device as specified in config, even if multiple GPUs are available
-        devices_to_use = cfg.training.trainer.devices if hasattr(cfg.training.trainer, 'devices') else 1
+        devices_to_use = (
+            cfg.training.trainer.devices
+            if hasattr(cfg.training.trainer, 'devices')
+            else 1
+        )
         
         # If using multiple devices, need to handle unused parameters in DDP
         strategy = 'auto'
@@ -422,7 +427,10 @@ def train(
         console.print('  • Collapse detection (variance, norm, distance)')
         console.print('  • Distortion metrics (mean, std)\n')
         
-        console.print(f'[bold yellow]Training for {cfg.training.trainer.max_epochs} epochs...[/bold yellow]\n')
+        console.print(
+            f'[bold yellow]Training for {cfg.training.trainer.max_epochs} epochs...'
+            f'[/bold yellow]\n'
+        )
         
         trainer.fit(model, datamodule)
         

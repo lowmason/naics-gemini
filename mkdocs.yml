@@ -1,0 +1,18 @@
+site_name: NAICS Hyperbolic Embedding System
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Architecture:
+      - System Overview: architecture.md
+  - Training:
+      - Contrastive Model: training.md
+      - HGCN Refinement: embeddings.md
+  - API Reference:
+      - Encoder: api/encoder.md
+      - Mixture of Experts: api/moe.md
+      - Hyperbolic Ops: api/hyperbolic.md
+      - Contrastive Loss: api/loss.md
+      - HGCN: api/hgcn.md
+plugins:
+  - search
