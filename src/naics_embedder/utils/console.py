@@ -92,7 +92,7 @@ def configure_logging(
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # Explicitly re-enable your own package
-    logging.getLogger('naics_gemini').setLevel(level)
+    logging.getLogger('naics_embedder').setLevel(level)
 
 
 # -------------------------------------------------------------------------------------------------

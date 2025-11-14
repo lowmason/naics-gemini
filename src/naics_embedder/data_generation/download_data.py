@@ -8,10 +8,10 @@ from typing import Dict, Optional, Set, Tuple
 
 import polars as pl
 
-from naics_gemini.utils.config import DownloadConfig, load_config
-from naics_gemini.utils.utilities import download_with_retry as _download_with_retry
-from naics_gemini.utils.utilities import make_directories
-from naics_gemini.utils.utilities import parquet_stats as _parquet_stats
+from naics_embedder.utils.config import DownloadConfig, load_config
+from naics_embedder.utils.utilities import download_with_retry as _download_with_retry
+from naics_embedder.utils.utilities import make_directories
+from naics_embedder.utils.utilities import parquet_stats as _parquet_stats
 
 logger = logging.getLogger(__name__)
 

@@ -9,8 +9,8 @@ import torch
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, IterableDataset
 
-from naics_gemini.data_loader.streaming_dataset import create_streaming_dataset
-from naics_gemini.utils.config import StreamingConfig, TokenizationConfig
+from naics_embedder.data_loader.streaming_dataset import create_streaming_dataset
+from naics_embedder.utils.config import StreamingConfig, TokenizationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ class GeneratorDataset(IterableDataset):
     def _get_token_cache(self):
         '''Lazily load token cache once per worker process.'''
         if self._token_cache is None:
-            from naics_gemini.data_loader.tokenization_cache import tokenization_cache
+            from naics_embedder.data_loader.tokenization_cache import tokenization_cache
             self._token_cache = tokenization_cache(self.tokenization_cfg)
         return self._token_cache
     
@@ -201,7 +201,7 @@ class NAICSDataModule(LightningDataModule):
         # Build the cache so all workers can load it instead of building it
         import os
         os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-        from naics_gemini.data_loader.tokenization_cache import tokenization_cache
+        from naics_embedder.data_loader.tokenization_cache import tokenization_cache
         logger.info('Preparing tokenization cache in main process...')
         tokenization_cache(self.tokenization_cfg)
     

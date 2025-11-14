@@ -11,7 +11,7 @@ import polars as pl
 import torch
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
-from naics_gemini.utils.config import TokenizationConfig
+from naics_embedder.utils.config import TokenizationConfig
 
 logger = logging.getLogger(__name__)
 

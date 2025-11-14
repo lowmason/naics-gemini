@@ -11,13 +11,13 @@ import pytorch_lightning as pyl
 import torch
 from sklearn.cluster import KMeans
 
-from naics_gemini.model.encoder import MultiChannelEncoder
-from naics_gemini.model.evaluation import (
+from naics_embedder.model.encoder import MultiChannelEncoder
+from naics_embedder.model.evaluation import (
     EmbeddingEvaluator,
     EmbeddingStatistics,
     HierarchyMetrics,
 )
-from naics_gemini.model.loss import HyperbolicInfoNCELoss
+from naics_embedder.model.loss import HyperbolicInfoNCELoss
 
 logger = logging.getLogger(__name__) 
 

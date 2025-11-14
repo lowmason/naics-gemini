@@ -69,7 +69,7 @@ class MultiChannelEncoder(nn.Module):
         
         # Optional: Mixture of Experts
         if use_moe:
-            from naics_gemini.model.moe import MixtureOfExperts
+            from naics_embedder.model.moe import MixtureOfExperts
             logger.info(f'Initializing MoE with {num_experts} experts (top-k={top_k})...\n')
             self.moe = MixtureOfExperts(
                 input_dim=self.embedding_dim * len(self.channels),  # 4 channels concatenated

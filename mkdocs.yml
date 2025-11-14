@@ -1,8 +1,8 @@
 site_name: NAICS Hyperbolic Embedding System
 site_description: Hyperbolic contrastive learning and HGCN refinement for NAICS taxonomy
 site_author: Lowell Mason
-repo_name: lowmason/naics-gemini
-repo_url: https://github.com/lowmason/naics-gemini
+repo_name: lowmason/naics-embedder
+repo_url: https://github.com/lowmason/naics-embedder
 edit_uri: edit/main/docs/
 
 theme:

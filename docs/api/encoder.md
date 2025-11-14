@@ -1,3 +1,3 @@
 # Encoder API
 
-::: naics_gemini.encoder
+::: naics_embedder.encoder

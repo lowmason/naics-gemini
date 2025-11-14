@@ -1,3 +1,3 @@
 # HGCN API
 
-::: naics_gemini.hgcn
+::: naics_embedder.hgcn

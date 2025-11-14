@@ -1120,7 +1120,7 @@ wheels = [
 ]
 
 [[package]]
-name = "naics-gemini"
+name = "naics-embedder"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

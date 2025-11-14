@@ -12,8 +12,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import numpy as np
 import polars as pl
 
-from naics_gemini.utils.config import StreamingConfig
-from naics_gemini.utils.utilities import get_indices_codes
+from naics_embedder.utils.config import StreamingConfig
+from naics_embedder.utils.utilities import get_indices_codes
 
 logger = logging.getLogger(__name__)
 

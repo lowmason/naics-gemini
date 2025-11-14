@@ -1,3 +1,3 @@
 # Hyperbolic API
 
-::: naics_gemini.hyperbolic
+::: naics_embedder.hyperbolic

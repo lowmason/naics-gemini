@@ -12,7 +12,7 @@ from typing import Dict, List, Literal, Optional, Union
 import httpx
 import polars as pl
 
-from naics_gemini.utils.config import DirConfig
+from naics_embedder.utils.config import DirConfig
 
 logger = logging.getLogger(__name__)
 

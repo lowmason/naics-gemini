@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import torch
 import torch.nn.functional as F
 
-from naics_gemini.utils.backend import get_device
+from naics_embedder.utils.backend import get_device
 
 logger = logging.getLogger(__name__)
 

@@ -17,15 +17,15 @@ from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
 
-from naics_gemini.data_generation.compute_distances import calculate_pairwise_distances
-from naics_gemini.data_generation.compute_relations import calculate_pairwise_relations
-from naics_gemini.data_generation.create_triplets import generate_training_triplets
-from naics_gemini.data_generation.download_data import download_preprocess_data
-from naics_gemini.data_loader.datamodule import NAICSDataModule
-from naics_gemini.model.naics_model import NAICSContrastiveModel
-from naics_gemini.utils.backend import get_device
-from naics_gemini.utils.config import Config, list_available_curricula, parse_override_value
-from naics_gemini.utils.console import configure_logging
+from naics_embedder.data_generation.compute_distances import calculate_pairwise_distances
+from naics_embedder.data_generation.compute_relations import calculate_pairwise_relations
+from naics_embedder.data_generation.create_triplets import generate_training_triplets
+from naics_embedder.data_generation.download_data import download_preprocess_data
+from naics_embedder.data_loader.datamodule import NAICSDataModule
+from naics_embedder.model.naics_model import NAICSContrastiveModel
+from naics_embedder.utils.backend import get_device
+from naics_embedder.utils.config import Config, list_available_curricula, parse_override_value
+from naics_embedder.utils.console import configure_logging
 
 # Set CUDA memory allocator configuration to reduce fragmentation
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'

@@ -1,3 +1,3 @@
 # Loss API
 
-::: naics_gemini.loss
+::: naics_embedder.loss
