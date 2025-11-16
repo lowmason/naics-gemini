@@ -497,6 +497,93 @@ class HierarchyMetrics:
         }
     
     
+    def ndcg_ranking(
+        self,
+        embedding_distances: torch.Tensor,
+        tree_distances: torch.Tensor,
+        k_values: List[int] = [5, 10, 20],
+        min_distance: float = 0.1
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Compute NDCG@k for ranking evaluation.
+        
+        For each anchor code, ranks all other codes by embedding distance and
+        evaluates using NDCG based on tree distance relevance.
+        
+        Args:
+            embedding_distances: Distance matrix from embeddings (N, N)
+            tree_distances: Ground truth tree distances (N, N)
+            k_values: List of k values for NDCG@k
+            min_distance: Minimum tree distance to consider
+            
+        Returns:
+            Dictionary with NDCG@k for each k value
+        """
+        embedding_distances = embedding_distances.to(self.device)
+        tree_distances = tree_distances.to(self.device)
+        
+        N = embedding_distances.shape[0]
+        results = {}
+        
+        # For each anchor, compute NDCG
+        all_ndcg_scores = {k: [] for k in k_values}
+        
+        for anchor_idx in range(N):
+            # Get distances from anchor to all others
+            anchor_emb_dists = embedding_distances[anchor_idx]  # (N,)
+            anchor_tree_dists = tree_distances[anchor_idx]  # (N,)
+            
+            # Filter out self and very small tree distances
+            valid_mask = (anchor_tree_dists >= min_distance) & (torch.arange(N, device=self.device) != anchor_idx)
+            
+            if valid_mask.sum() < max(k_values):
+                continue
+            
+            # Get valid indices
+            valid_indices = torch.where(valid_mask)[0]
+            
+            # Get distances and tree distances for valid codes
+            valid_emb_dists = anchor_emb_dists[valid_indices]
+            valid_tree_dists = anchor_tree_dists[valid_indices]
+            
+            # Convert tree distances to relevance scores
+            # Lower tree distance = higher relevance
+            max_tree_dist = valid_tree_dists.max()
+            relevance_scores = (max_tree_dist - valid_tree_dists + 1e-6) / (max_tree_dist + 1e-6)
+            
+            # Compute NDCG@k for each k
+            for k in k_values:
+                k_actual = min(k, len(valid_emb_dists))
+                
+                # Sort by embedding distance (ascending = most relevant first)
+                _, sorted_indices = torch.sort(valid_emb_dists, descending=False)
+                sorted_relevance = relevance_scores[sorted_indices[:k_actual]]
+                
+                # Compute DCG
+                positions = torch.arange(1, k_actual + 1, dtype=torch.float32, device=self.device)
+                dcg = torch.sum(sorted_relevance / torch.log2(positions + 1))
+                
+                # Compute ideal DCG (sort by relevance descending)
+                ideal_relevance, _ = torch.sort(relevance_scores, descending=True)
+                ideal_dcg = torch.sum(ideal_relevance[:k_actual] / torch.log2(positions + 1))
+                
+                # NDCG = DCG / IDCG
+                if ideal_dcg > 0:
+                    ndcg = dcg / ideal_dcg
+                    all_ndcg_scores[k].append(ndcg)
+        
+        # Average NDCG across all anchors
+        for k in k_values:
+            if len(all_ndcg_scores[k]) > 0:
+                results[f'ndcg@{k}'] = torch.stack(all_ndcg_scores[k]).mean()
+                results[f'ndcg@{k}_n_queries'] = len(all_ndcg_scores[k])
+            else:
+                results[f'ndcg@{k}'] = torch.tensor(0.0, device=self.device)
+                results[f'ndcg@{k}_n_queries'] = 0
+        
+        return results
+    
+    
     def _rank_tensor(self, x: torch.Tensor) -> torch.Tensor:
 
         '''

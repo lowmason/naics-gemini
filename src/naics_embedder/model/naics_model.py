@@ -44,6 +44,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
         temperature: float = 0.07,
         curvature: float = 1.0,
         hierarchy_weight: float = 0.1,
+        rank_order_weight: float = 0.15,
+        radius_reg_weight: float = 0.01,
         learning_rate: float = 2e-4,
         weight_decay: float = 0.01,
         warmup_steps: int = 500,
@@ -96,6 +98,19 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 tree_distances=self.ground_truth_distances,
                 code_to_idx=self.code_to_idx,
                 weight=hierarchy_weight
+            )
+        
+        # Add LambdaRank loss for global ranking optimization (replaces pairwise ranking)
+        self.lambdarank_loss_fn = None
+        rank_order_weight = getattr(self.hparams, 'rank_order_weight', 0.15)
+        if self.ground_truth_distances is not None and self.code_to_idx is not None and rank_order_weight > 0:
+            from naics_embedder.model.loss import LambdaRankLoss
+            self.lambdarank_loss_fn = LambdaRankLoss(
+                tree_distances=self.ground_truth_distances,
+                code_to_idx=self.code_to_idx,
+                weight=rank_order_weight,
+                sigma=1.0,
+                ndcg_k=10
             )
         
         self.validation_embeddings = {}
@@ -449,9 +464,85 @@ class NAICSContrastiveModel(pyl.LightningModule):
             except Exception as e:
                 logger.warning(f'Failed to compute hierarchy loss: {e}')
 
-        total_loss = contrastive_loss + full_load_balancing_loss + hierarchy_loss
+        # Add LambdaRank loss for global ranking (1 positive + k negatives per anchor)
+        lambdarank_loss = torch.tensor(0.0, device=self.device)
+        if self.lambdarank_loss_fn is not None and 'anchor_code' in batch and 'positive_code' in batch:
+            try:
+                # Get codes from batch
+                anchor_codes = batch['anchor_code']
+                positive_codes = batch['positive_code']
+                negative_codes = batch.get('negative_codes', [])
+                
+                # If negative_codes not in batch, we can't compute LambdaRank
+                if not negative_codes or len(negative_codes) != batch_size:
+                    logger.debug('Skipping LambdaRank: negative_codes not available in batch')
+                else:
+                    # Use the loss function's lorentz distance
+                    from naics_embedder.model.hyperbolic import LorentzDistance
+                    lorentz_dist = LorentzDistance(curvature=self.hparams.curvature)
+                    
+                    lambdarank_loss = self.lambdarank_loss_fn(
+                        anchor_emb,
+                        positive_emb,
+                        negative_emb,
+                        anchor_codes,
+                        positive_codes,
+                        negative_codes,
+                        lambda x, y: lorentz_dist(x, y),
+                        batch_size,
+                        k_negatives
+                    )
+                    
+                    self.log('train/lambdarank_loss', lambdarank_loss, batch_size=batch_size)
+            except Exception as e:
+                logger.warning(f'Failed to compute LambdaRank loss: {e}')
+                import traceback
+                logger.debug(traceback.format_exc())
+
+        # Add radius regularization to prevent hyperbolic radius instability
+        radius_reg_loss = torch.tensor(0.0, device=self.device)
+        radius_reg_weight = getattr(self.hparams, 'radius_reg_weight', 0.0)
+        if radius_reg_weight > 0:
+            # Compute hyperbolic radius for all embeddings in batch
+            # Radius = sqrt(x0^2 - 1) where x0 is the time component
+            # We want to penalize large radii to keep embeddings near origin
+            all_embeddings = torch.cat([anchor_emb, positive_emb, negative_emb])
+            x0 = all_embeddings[:, 0]  # Time component
+            # Compute radius: r = sqrt(x0^2 - 1/c) for curvature c
+            # For c=1: r = sqrt(x0^2 - 1)
+            c = self.hparams.curvature
+            radius_squared = torch.clamp(x0 ** 2 - 1.0 / c, min=0.0)
+            radius = torch.sqrt(radius_squared + 1e-8)  # Add small epsilon for stability
+            
+            # Penalize radii larger than a threshold (e.g., 10)
+            # Use a smooth penalty: max(0, radius - threshold)^2
+            radius_threshold = 10.0
+            excess_radius = torch.clamp(radius - radius_threshold, min=0.0)
+            radius_reg_loss = radius_reg_weight * torch.mean(excess_radius ** 2)
+            
+            self.log(
+                'train/radius_reg_loss',
+                radius_reg_loss,
+                prog_bar=False,
+                batch_size=batch_size
+            )
+            # Also log mean radius for monitoring
+            self.log(
+                'train/mean_radius',
+                radius.mean(),
+                prog_bar=False,
+                batch_size=batch_size
+            )
+            self.log(
+                'train/max_radius',
+                radius.max(),
+                prog_bar=False,
+                batch_size=batch_size
+            )
 
         batch_size = batch['batch_size']
+        
+        total_loss = contrastive_loss + full_load_balancing_loss + hierarchy_loss + lambdarank_loss + radius_reg_loss
         
         self.log(
             'train/contrastive_loss', 
@@ -469,6 +560,13 @@ class NAICSContrastiveModel(pyl.LightningModule):
             self.log(
                 'train/hierarchy_loss',
                 hierarchy_loss,
+                prog_bar=False,
+                batch_size=batch_size
+            )
+        if lambdarank_loss.item() > 0:
+            self.log(
+                'train/lambdarank_loss',
+                lambdarank_loss,
                 prog_bar=False,
                 batch_size=batch_size
             )
@@ -756,6 +854,26 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 batch_size=num_samples
             )
 
+            # Compute NDCG@k for ranking evaluation (position-aware metric)
+            # This replaces Spearman as the primary ranking metric
+            ndcg_result = self.hierarchy_metrics.ndcg_ranking(
+                emb_dists,
+                gt_dists,
+                k_values=[5, 10, 20]
+            )
+            for k in [5, 10, 20]:
+                self.log(
+                    f'val/ndcg@{k}',
+                    self._to_python_scalar(ndcg_result[f'ndcg@{k}']),
+                    batch_size=num_samples
+                )
+                self.log(
+                    f'val/ndcg@{k}_n_queries',
+                    self._to_python_scalar(ndcg_result[f'ndcg@{k}_n_queries']),
+                    batch_size=num_samples
+                )
+            
+            # Still compute Spearman for backward compatibility, but don't log to console
             spearman_result = self.hierarchy_metrics.spearman_correlation(
                 emb_dists,
                 gt_dists
@@ -805,7 +923,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 f'Correlation metrics: \n'
                 f'  • Hierarchy preservation: cophenetic={cophenetic_result["correlation"]:.4f} '
                 f'({cophenetic_result["n_pairs"]} pairs)\n'
-                f'  • Rank preservation: spearman={spearman_result["correlation"]:.4f}\n'
+                f'  • Ranking quality: NDCG@5={ndcg_result["ndcg@5"]:.4f}, '
+                f'NDCG@10={ndcg_result["ndcg@10"]:.4f}, NDCG@20={ndcg_result["ndcg@20"]:.4f}\n'
             )        
             logger.info(
                 f'Collapse detection metrics: \n'
@@ -830,30 +949,15 @@ class NAICSContrastiveModel(pyl.LightningModule):
             weight_decay=self.hparams.weight_decay
         )
         
-        total_steps = self.trainer.estimated_stepping_batches
-        warmup_steps = self.hparams.warmup_steps
-        
-        def lr_lambda(current_step: int):
-
-            if current_step < warmup_steps:
-                return float(current_step) / float(max(1, warmup_steps))
-            
-            progress_1 = float(current_step - warmup_steps)
-            progress_2 = float(max(1, total_steps - warmup_steps))
-            progress = progress_1 / progress_2
-            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
-        
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-        
-        # Add ReduceLROnPlateau for validation-based learning rate reduction
-        plateau_scheduler = {
+        # Use ReduceLROnPlateau for validation-based learning rate reduction
+        # This helps prevent overfitting by reducing LR when validation loss plateaus
+        scheduler = {
             'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer,
                 mode='min',
                 factor=0.5,  # Reduce LR by 50%
                 patience=3,  # Wait 3 epochs without improvement
-                min_lr=1e-6,
-                verbose=True
+                min_lr=1e-6
             ),
             'monitor': 'val/contrastive_loss',
             'interval': 'epoch',
@@ -862,12 +966,5 @@ class NAICSContrastiveModel(pyl.LightningModule):
         
         return {
             'optimizer': optimizer,
-            'lr_scheduler': [
-                {
-                    'scheduler': scheduler,
-                    'interval': 'step',
-                    'frequency': 1
-                },
-                plateau_scheduler
-            ]
+            'lr_scheduler': scheduler
         }

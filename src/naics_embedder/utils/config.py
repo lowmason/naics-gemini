@@ -710,6 +710,18 @@ class LossConfig(BaseModel):
         le=1.0,
         description='Weight for hierarchy preservation loss component (0.0 to disable)'
     )
+    rank_order_weight: float = Field(
+        default=0.15,
+        ge=0,
+        le=1.0,
+        description='Weight for rank order preservation loss (Spearman correlation optimization, 0.0 to disable)'
+    )
+    radius_reg_weight: float = Field(
+        default=0.01,
+        ge=0,
+        le=1.0,
+        description='Weight for radius regularization to prevent hyperbolic radius instability (0.0 to disable)'
+    )
 
 
 # -------------------------------------------------------------------------------------------------

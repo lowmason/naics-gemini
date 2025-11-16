@@ -59,11 +59,13 @@ model:
 loss:
   temperature: 0.07
   curvature: 1.0
-  hierarchy_weight: 0.1  # Weight for hierarchy preservation loss (0.0 to disable)
+  hierarchy_weight: 0.25  # Weight for hierarchy preservation loss (increased from 0.1)
+  rank_order_weight: 0.30  # Weight for rank order preservation loss (Spearman correlation)
+  radius_reg_weight: 0.01  # Weight for radius regularization to prevent instability
 
 # Training configuration
 training:
-  learning_rate: 2e-4
+  learning_rate: 1e-4  # Reduced from 2e-4 to prevent radius instability
   weight_decay: 0.01
   warmup_steps: 500
   

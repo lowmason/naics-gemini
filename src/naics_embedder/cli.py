@@ -467,6 +467,8 @@ def train(
                 temperature=cfg.loss.temperature,
                 curvature=cfg.loss.curvature,
                 hierarchy_weight=cfg.loss.hierarchy_weight,
+                rank_order_weight=cfg.loss.rank_order_weight,
+                radius_reg_weight=cfg.loss.radius_reg_weight,
                 learning_rate=cfg.training.learning_rate,
                 weight_decay=cfg.training.weight_decay,
                 warmup_steps=cfg.training.warmup_steps,
@@ -566,7 +568,7 @@ def train(
         logger.info('Starting model training with evaluation metrics...\n')
         console.print('[bold cyan]Evaluation metrics enabled:[/bold cyan]')
         console.print('  • Cophenetic correlation (hierarchy preservation)')
-        console.print('  • Spearman correlation (rank preservation)')
+        console.print('  • NDCG@k (ranking quality: position-aware metric)')
         console.print('  • Embedding statistics (norms, distances)')
         console.print('  • Collapse detection (variance, norm, distance)')
         console.print('  • Distortion metrics (mean, std)\n')
