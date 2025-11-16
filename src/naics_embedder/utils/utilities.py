@@ -7,7 +7,10 @@ import operator
 import time
 from functools import reduce
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Union
+
+if TYPE_CHECKING:
+    import torch
 
 import httpx
 import polars as pl
@@ -272,3 +275,45 @@ def parquet_stats(
 
     logger.info(f'{parquet_df.height: ,} {message}:')
     logger.info(f'  {output_parquet}\n')
+
+
+# -------------------------------------------------------------------------------------------------
+# Device and directory utilities
+# -------------------------------------------------------------------------------------------------
+
+def pick_device(device_str: str = 'auto') -> 'torch.device':
+    '''
+    Pick device for PyTorch operations.
+    
+    Args:
+        device_str: Device string ('auto', 'cuda', 'cpu', 'mps')
+    
+    Returns:
+        torch.device object
+    '''
+    import torch
+    
+    if device_str == 'auto':
+        if torch.cuda.is_available():
+            return torch.device('cuda')
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            return torch.device('mps')
+        else:
+            return torch.device('cpu')
+    else:
+        return torch.device(device_str)
+
+
+def setup_directory(dir_path: str) -> Path:
+    '''
+    Setup directory, creating it if it doesn't exist.
+    
+    Args:
+        dir_path: Path to directory
+    
+    Returns:
+        Path object to the directory
+    '''
+    path = Path(dir_path)
+    path.mkdir(parents=True, exist_ok=True)
+    return path

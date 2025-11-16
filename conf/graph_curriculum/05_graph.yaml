@@ -1,0 +1,22 @@
+
+name: 05_graph
+
+# Anchor filtering
+anchor_level: null
+relation_margin: null
+distance_margin: null
+
+# Positive filtering
+positive_level: null
+positive_relation: [1, 2, 3, 4, 6, 5, 8, 7]
+positive_distance: null
+
+# Negative sampling
+negative_level: null
+negative_relation: null
+negative_distance: null
+
+# num samples
+n_positives: 768
+n_negatives: 48
+        

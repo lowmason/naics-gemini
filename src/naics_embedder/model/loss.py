@@ -3,7 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
-from typing import Optional
+from typing import Optional, Dict, List
 
 import torch
 import torch.nn as nn
@@ -104,3 +104,106 @@ class HyperbolicInfoNCELoss(nn.Module):
         loss = F.cross_entropy(logits, labels)
         
         return loss
+
+
+# -------------------------------------------------------------------------------------------------
+# Hierarchy Preservation Loss
+# -------------------------------------------------------------------------------------------------
+
+class HierarchyPreservationLoss(nn.Module):
+    """
+    Loss component that encourages embedding distances to match tree distances.
+    This directly optimizes hierarchy preservation by penalizing deviations from
+    ground truth tree structure.
+    """
+    
+    def __init__(
+        self,
+        tree_distances: torch.Tensor,
+        code_to_idx: Dict[str, int],
+        weight: float = 0.1,
+        min_distance: float = 0.1
+    ):
+        super().__init__()
+        # Register as buffer so it moves with model to correct device
+        self.register_buffer('tree_distances', tree_distances)
+        self.code_to_idx = code_to_idx
+        self.weight = weight
+        self.min_distance = min_distance
+        
+    def forward(
+        self,
+        embeddings: torch.Tensor,
+        codes: List[str],
+        lorentz_distance_fn
+    ) -> torch.Tensor:
+        """
+        Compute hierarchy preservation loss.
+        
+        Args:
+            embeddings: Hyperbolic embeddings (N, D+1)
+            codes: List of NAICS codes corresponding to embeddings
+            lorentz_distance_fn: Function to compute Lorentz distances
+        
+        Returns:
+            Loss scalar
+        """
+        # Get indices for codes that exist in ground truth
+        valid_indices = []
+        valid_codes = []
+        for i, code in enumerate(codes):
+            if code in self.code_to_idx:
+                valid_indices.append(i)
+                valid_codes.append(code)
+        
+        if len(valid_indices) < 2:
+            return torch.tensor(0.0, device=embeddings.device)
+        
+        # Get embeddings for valid codes
+        valid_embeddings = embeddings[valid_indices]
+        
+        # Get ground truth distance matrix indices
+        gt_indices = torch.tensor([
+            self.code_to_idx[code] for code in valid_codes
+        ], device=embeddings.device)
+        
+        # Get ground truth distances for these codes
+        gt_dists = self.tree_distances[gt_indices][:, gt_indices]
+        
+        # Compute embedding distances
+        N = valid_embeddings.shape[0]
+        emb_dists = torch.zeros((N, N), device=embeddings.device)
+        
+        for i in range(N):
+            for j in range(i+1, N):
+                dist = lorentz_distance_fn(
+                    valid_embeddings[i:i+1],
+                    valid_embeddings[j:j+1]
+                )
+                emb_dists[i, j] = dist
+                emb_dists[j, i] = dist
+        
+        # Get upper triangular values (excluding diagonal)
+        triu_indices = torch.triu_indices(N, N, offset=1, device=embeddings.device)
+        emb_dists_flat = emb_dists[triu_indices[0], triu_indices[1]]
+        gt_dists_flat = gt_dists[triu_indices[0], triu_indices[1]]
+        
+        # Filter out pairs with very small tree distances
+        valid_mask = gt_dists_flat >= self.min_distance
+        if valid_mask.sum() < 2:
+            return torch.tensor(0.0, device=embeddings.device)
+        
+        emb_dists_filtered = emb_dists_flat[valid_mask]
+        gt_dists_filtered = gt_dists_flat[valid_mask]
+        
+        # Normalize distances to similar scales for stable training
+        emb_mean = emb_dists_filtered.mean()
+        gt_mean = gt_dists_filtered.mean()
+        
+        emb_dists_norm = emb_dists_filtered / (emb_mean + 1e-8)
+        gt_dists_norm = gt_dists_filtered / (gt_mean + 1e-8)
+        
+        # MSE loss between normalized distances
+        mse_loss = torch.mean((emb_dists_norm - gt_dists_norm) ** 2)
+        
+        return self.weight * mse_loss

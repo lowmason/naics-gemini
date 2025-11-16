@@ -248,8 +248,8 @@ def suggest_configurations(
     suggestions = []
     
     stage_profiles = [
-        {'name': '01_stage (Early)', 'n_positives': 32, 'n_negatives': 24},
-        {'name': '02-05_stage (Later)', 'n_positives': 16, 'n_negatives': 8},
+        {'name': '01_text (Early)', 'n_positives': 32, 'n_negatives': 24},
+        {'name': '02-05_text (Later)', 'n_positives': 16, 'n_negatives': 8},
     ]
     
     for profile in stage_profiles:
@@ -398,7 +398,7 @@ def optimize_gpu_config(
             curriculum_dir = conf_dir / 'text_curriculum'
             
             # Update stage 01
-            stage_01_path = curriculum_dir / '01_stage.yaml'
+            stage_01_path = curriculum_dir / '01_text.yaml'
             if stage_01_path.exists():
                 update_curriculum_file(
                     str(stage_01_path),
@@ -411,7 +411,7 @@ def optimize_gpu_config(
             if len(suggestions) > 1:
                 later_config = suggestions[1]
                 for stage_num in ['02', '03', '04', '05']:
-                    stage_path = curriculum_dir / f'{stage_num}_stage.yaml'
+                    stage_path = curriculum_dir / f'{stage_num}_text.yaml'
                     if stage_path.exists():
                         update_curriculum_file(
                             str(stage_path),

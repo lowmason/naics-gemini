@@ -43,6 +43,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
         moe_hidden_dim: int = 1024,
         temperature: float = 0.07,
         curvature: float = 1.0,
+        hierarchy_weight: float = 0.1,
         learning_rate: float = 2e-4,
         weight_decay: float = 0.01,
         warmup_steps: int = 500,
@@ -85,6 +86,17 @@ class NAICSContrastiveModel(pyl.LightningModule):
         self.code_to_idx = None
         if distance_matrix_path:
             self._load_ground_truth_distances(distance_matrix_path)
+        
+        # Add hierarchy preservation loss if ground truth available
+        self.hierarchy_loss_fn = None
+        hierarchy_weight = getattr(self.hparams, 'hierarchy_weight', 0.1)
+        if self.ground_truth_distances is not None and self.code_to_idx is not None and hierarchy_weight > 0:
+            from naics_embedder.model.loss import HierarchyPreservationLoss
+            self.hierarchy_loss_fn = HierarchyPreservationLoss(
+                tree_distances=self.ground_truth_distances,
+                code_to_idx=self.code_to_idx,
+                weight=hierarchy_weight
+            )
         
         self.validation_embeddings = {}
         self.validation_codes = []
@@ -409,7 +421,35 @@ class NAICSContrastiveModel(pyl.LightningModule):
                     prog_bar=True
                 )
 
-        total_loss = contrastive_loss + full_load_balancing_loss
+        # Add hierarchy preservation loss if available
+        hierarchy_loss = torch.tensor(0.0, device=self.device)
+        if self.hierarchy_loss_fn is not None and 'anchor_code' in batch:
+            try:
+                # Get all codes and embeddings in batch
+                all_codes = batch['anchor_code'].copy()
+                if 'positive_code' in batch:
+                    all_codes.extend(batch['positive_code'])
+                else:
+                    # If no positive codes, duplicate anchor codes
+                    all_codes.extend(batch['anchor_code'])
+                
+                all_embeddings = torch.cat([anchor_emb, positive_emb])
+                
+                # Use the loss function's lorentz distance
+                from naics_embedder.model.hyperbolic import LorentzDistance
+                lorentz_dist = LorentzDistance(curvature=self.hparams.curvature)
+                
+                hierarchy_loss = self.hierarchy_loss_fn(
+                    all_embeddings,
+                    all_codes,
+                    lambda x, y: lorentz_dist(x, y)
+                )
+                
+                self.log('train/hierarchy_loss', hierarchy_loss, batch_size=batch_size)
+            except Exception as e:
+                logger.warning(f'Failed to compute hierarchy loss: {e}')
+
+        total_loss = contrastive_loss + full_load_balancing_loss + hierarchy_loss
 
         batch_size = batch['batch_size']
         
@@ -425,6 +465,13 @@ class NAICSContrastiveModel(pyl.LightningModule):
             prog_bar=True, 
             batch_size=batch_size
         )
+        if hierarchy_loss.item() > 0:
+            self.log(
+                'train/hierarchy_loss',
+                hierarchy_loss,
+                prog_bar=False,
+                batch_size=batch_size
+            )
         self.log(
             'train/total_loss', 
             total_loss, 
@@ -753,15 +800,18 @@ class NAICSContrastiveModel(pyl.LightningModule):
                     
                     if epochs_since_start % self.hparams.fn_cluster_every_n_epochs == 0:
                         self._update_pseudo_labels()            
-                        
+                    
             logger.info(
-                f'Evaluation complete: '
-                f'cophenetic={cophenetic_result["correlation"]:.4f} '
-                f'({cophenetic_result["n_pairs"]} pairs), '
-                f'spearman={spearman_result["correlation"]:.4f}, '
-                f'norm_cv={collapse["norm_cv"]:.4f}, '
-                f'dist_cv={collapse["distance_cv"]:.4f}, '
-                f'collapse={collapse["any_collapse"]}\n'
+                f'Correlation metrics: \n'
+                f'  • Hierarchy preservation: cophenetic={cophenetic_result["correlation"]:.4f} '
+                f'({cophenetic_result["n_pairs"]} pairs)\n'
+                f'  • Rank preservation: spearman={spearman_result["correlation"]:.4f}\n'
+            )        
+            logger.info(
+                f'Collapse detection metrics: \n'
+                f'  • Norm CV: {collapse["norm_cv"]:.4f}\n'
+                f'  • Distance CV: {collapse["distance_cv"]:.4f}\n'
+                f'  • Collapse: {collapse["any_collapse"]}\n'
             )
             
         except Exception as e:
@@ -795,11 +845,29 @@ class NAICSContrastiveModel(pyl.LightningModule):
         
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
         
+        # Add ReduceLROnPlateau for validation-based learning rate reduction
+        plateau_scheduler = {
+            'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode='min',
+                factor=0.5,  # Reduce LR by 50%
+                patience=3,  # Wait 3 epochs without improvement
+                min_lr=1e-6,
+                verbose=True
+            ),
+            'monitor': 'val/contrastive_loss',
+            'interval': 'epoch',
+            'frequency': 1
+        }
+        
         return {
             'optimizer': optimizer,
-            'lr_scheduler': {
-                'scheduler': scheduler,
-                'interval': 'step',
-                'frequency': 1
-            }
+            'lr_scheduler': [
+                {
+                    'scheduler': scheduler,
+                    'interval': 'step',
+                    'frequency': 1
+                },
+                plateau_scheduler
+            ]
         }

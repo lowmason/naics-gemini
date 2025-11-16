@@ -17,7 +17,7 @@ dirs:
 
 # Data loading configuration
 data_loader:
-  batch_size: 8
+  batch_size: 12
   num_workers: 4
   val_split: 0.05
   
@@ -52,13 +52,14 @@ model:
     hidden_dim: 1024
     load_balancing_coef: 0.01
   
-  eval_sample_size: 400
-  eval_every_n_epochs: 2
+  eval_sample_size: 500  # Increased for more stable hierarchy metrics
+  eval_every_n_epochs: 1  # Evaluate every epoch for better monitoring
 
 # Loss configuration
 loss:
   temperature: 0.07
   curvature: 1.0
+  hierarchy_weight: 0.1  # Weight for hierarchy preservation loss (0.0 to disable)
 
 # Training configuration
 training:
@@ -67,7 +68,7 @@ training:
   warmup_steps: 500
   
   trainer:
-    max_epochs: 20
+    max_epochs: 15  # Reduced to prevent unnecessary training
     accelerator: auto
     devices: 1
     precision: "16-mixed"

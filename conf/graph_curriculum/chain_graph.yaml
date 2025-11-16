@@ -1,0 +1,39 @@
+chain_name: graph_curriculum
+
+stages:
+  - name: 01_graph
+    max_epochs: 10
+    learning_rate: 5.0e-04
+    warmup_ratio: 0.30
+    temperature_start: 0.15
+    temperature_end: 0.12
+  - name: 02_graph  
+    max_epochs: 12
+    learning_rate: 2.5e-04
+    warmup_ratio: 0.25
+    temperature_start: 0.12
+    temperature_end: 0.10
+  - name: 03_graph  
+    max_epochs: 10
+    learning_rate: 1.25e-04
+    warmup_ratio: 0.20
+    temperature_start: 0.10
+    temperature_end: 0.095
+  - name: 04_graph
+    max_epochs: 10
+    learning_rate: 7.5e-05
+    warmup_ratio: 0.15
+    temperature_start: 0.095
+    temperature_end: 0.090
+  - name: 05_graph
+    max_epochs: 10
+    learning_rate: 3.75e-05
+    warmup_ratio: 0.10
+    temperature_start: 0.090
+    temperature_end: 0.085
+  - name: 06_graph
+    max_epochs: 12
+    learning_rate: 5.0e-05
+    warmup_ratio: 0.30
+    temperature_start: 0.085
+    temperature_end: 0.080

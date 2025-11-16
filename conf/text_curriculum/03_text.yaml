@@ -1,0 +1,20 @@
+name: 03_text
+
+# Anchor filtering
+anchor_level: null
+relation_margin: null
+distance_margin: null
+
+# Positive filtering
+positive_level: null
+positive_relation: [1, 2, 3, 4, 5, 6, 7]
+positive_distance: null
+
+# Negative sampling
+negative_level: null
+negative_relation: null
+negative_distance: null
+
+# num samples
+n_positives: 512
+n_negatives: 28

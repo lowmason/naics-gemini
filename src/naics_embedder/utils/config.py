@@ -704,6 +704,12 @@ class LossConfig(BaseModel):
         gt=0,
         description='Curvature for hyperbolic space'
     )
+    hierarchy_weight: float = Field(
+        default=0.1,
+        ge=0,
+        le=1.0,
+        description='Weight for hierarchy preservation loss component (0.0 to disable)'
+    )
 
 
 # -------------------------------------------------------------------------------------------------
@@ -886,6 +892,324 @@ class CurriculumConfig(BaseModel):
 
 
 # -------------------------------------------------------------------------------------------------
+# Graph Curriculum Configuration
+# -------------------------------------------------------------------------------------------------
+
+class GraphCurriculumConfig(BaseModel):
+    '''Graph curriculum learning configuration (for HGCN training).'''
+    
+    name: str = Field(
+        default='default',
+        description='Curriculum name'
+    )
+    
+    # Anchor parameters
+    anchor_level: Optional[List[int]] = Field(
+        default=None,
+        description='Filter anchor codes by hierarchy level'
+    )
+    relation_margin: Optional[List[int]] = Field(
+        default=None,
+        description='Filter by relation margin'
+    )
+    distance_margin: Optional[List[float]] = Field(
+        default=None,
+        description='Filter by distance margin'
+    )
+    
+    # Positive filtering
+    positive_level: Optional[List[int]] = Field(
+        default=None,
+        description='Filter positive codes by hierarchy level'
+    )
+    positive_relation: Optional[List[int]] = Field(
+        default=None,
+        description='Filter positive pairs by relation'
+    )
+    positive_distance: Optional[List[float]] = Field(
+        default=None,
+        description='Filter positive pairs by distance'
+    )
+    n_positives: int = Field(
+        default=2048,
+        gt=0,
+        description='Maximum number of positives per anchor'
+    )
+    
+    # Negative sampling
+    negative_level: Optional[List[int]] = Field(
+        default=None,
+        description='Filter negative codes by hierarchy level'
+    )
+    negative_relation: Optional[List[int]] = Field(
+        default=None,
+        description='Filter negative pairs by relation'
+    )
+    negative_distance: Optional[List[int]] = Field(
+        default=None,
+        description='Filter negative pairs by distance'
+    )
+    n_negatives: int = Field(
+        default=32,
+        gt=0,
+        description='Maximum number of negatives per positive'
+    )
+    
+    @field_validator('anchor_level', 'positive_level', 'negative_level')
+    @classmethod
+    def validate_levels(cls, v: Optional[List[int]]) -> Optional[List[int]]:
+        '''Validate NAICS levels are in valid range.'''
+        if v is not None and not all(2 <= level <= 6 for level in v):
+            raise ValueError('Levels must be between 2 and 6')
+        return v
+
+
+class GraphConfig(BaseModel):
+    '''Base configuration for HGCN training.'''
+    
+    encodings_parquet: str = Field(
+        default='./output/hyperbolic_projection/encodings.parquet',
+        description='Path to input hyperbolic embeddings parquet file'
+    )
+    relations_parquet: str = Field(
+        default='./data/naics_relations.parquet',
+        description='Path to relations parquet file'
+    )
+    training_pairs_path: str = Field(
+        default='./data/naics_training_pairs.parquet',
+        description='Path to training pairs directory'
+    )
+    
+    output_dir: str = Field(
+        default='./output/hgcn/',
+        description='Output directory for checkpoints and logs'
+    )
+    output_parquet: str = Field(
+        default='./output/hgcn/encodings.parquet',
+        description='Output path for final embeddings'
+    )
+    
+    tangent_dim: int = Field(
+        default=31,
+        gt=0,
+        description='Spatial dimensions in tangent space'
+    )
+    n_hgcn_layers: int = Field(
+        default=2,
+        gt=0,
+        description='Number of HGCN layers'
+    )
+    dropout: float = Field(
+        default=0.10,
+        ge=0,
+        le=1,
+        description='Dropout rate'
+    )
+    learnable_curvature: bool = Field(
+        default=True,
+        description='Whether curvature is learnable'
+    )
+    learnable_loss_weights: bool = Field(
+        default=True,
+        description='Whether loss weights are learnable'
+    )
+    
+    # Training parameters
+    num_epochs: int = Field(
+        default=8,
+        gt=0,
+        description='Number of training epochs'
+    )
+    epoch_every: int = Field(
+        default=1,
+        gt=0,
+        description='Log every N epochs'
+    )
+    batch_size: int = Field(
+        default=64,
+        gt=0,
+        description='Batch size'
+    )
+    lr: float = Field(
+        default=0.00075,
+        gt=0,
+        description='Learning rate'
+    )
+    warmup_ratio: float = Field(
+        default=0.2,
+        ge=0,
+        le=1,
+        description='Fraction of epochs for warmup'
+    )
+    temperature_start: float = Field(
+        default=0.10,
+        gt=0,
+        description='Starting temperature for loss scaling'
+    )
+    temperature_end: float = Field(
+        default=0.08,
+        gt=0,
+        description='Ending temperature for loss scaling'
+    )
+    weight_decay: float = Field(
+        default=1e-5,
+        ge=0,
+        description='Weight decay'
+    )
+    gradient_clip_norm: float = Field(
+        default=1.0,
+        gt=0,
+        description='Gradient clipping norm'
+    )
+    
+    # Loss parameters
+    triplet_margin: float = Field(
+        default=1.0,
+        gt=0,
+        description='Triplet loss margin'
+    )
+    w_triplet: float = Field(
+        default=1.0,
+        ge=0,
+        description='Triplet loss weight'
+    )
+    w_per_level: float = Field(
+        default=0.5,
+        ge=0,
+        description='Level loss weight'
+    )
+    
+    # Data sampling parameters (legacy, not used in weighted sampling)
+    k_total: int = Field(
+        default=48,
+        gt=0,
+        description='Total number of negatives to sample'
+    )
+    pct_excluded: float = Field(
+        default=0.0,
+        ge=0,
+        le=1,
+        description='Percentage of excluded negatives'
+    )
+    pct_hard: float = Field(
+        default=0.05,
+        ge=0,
+        le=1,
+        description='Percentage of hard negatives'
+    )
+    pct_medium: float = Field(
+        default=0.15,
+        ge=0,
+        le=1,
+        description='Percentage of medium negatives'
+    )
+    pct_easy: float = Field(
+        default=0.55,
+        ge=0,
+        le=1,
+        description='Percentage of easy negatives'
+    )
+    pct_unrelated: float = Field(
+        default=0.25,
+        ge=0,
+        le=1,
+        description='Percentage of unrelated negatives'
+    )
+    
+    n_positive_samples: int = Field(
+        default=2048,
+        gt=0,
+        description='Number of positive samples'
+    )
+    allowed_relations: Optional[List[str]] = Field(
+        default=None,
+        description='Allowed relations for filtering'
+    )
+    min_code_level: Optional[int] = Field(
+        default=None,
+        ge=2,
+        le=6,
+        description='Minimum code level'
+    )
+    max_code_level: Optional[int] = Field(
+        default=None,
+        ge=2,
+        le=6,
+        description='Maximum code level'
+    )
+    
+    shuffle: bool = Field(
+        default=True,
+        description='Shuffle data'
+    )
+    num_workers: int = Field(
+        default=4,
+        ge=0,
+        description='Number of data loader workers'
+    )
+    pin_memory: bool = Field(
+        default=True,
+        description='Pin memory for data loader'
+    )
+    
+    device: str = Field(
+        default='auto',
+        description='Device string'
+    )
+    seed: int = Field(
+        default=42,
+        ge=0,
+        description='Random seed'
+    )
+    
+    # Curriculum configuration
+    curriculum: Optional[GraphCurriculumConfig] = Field(
+        default=None,
+        description='Graph curriculum learning configuration'
+    )
+    
+    @classmethod
+    def from_yaml(
+        cls,
+        yaml_path: str,
+        curriculum_name: Optional[str] = None,
+        curriculum_type: str = 'graph'
+    ) -> 'GraphConfig':
+        '''Load GraphConfig from YAML file.'''
+        
+        yaml_file = Path(yaml_path)
+        if not yaml_file.exists():
+            raise FileNotFoundError(f'Config file not found: {yaml_path}')
+        
+        with open(yaml_file, 'r') as f:
+            data = yaml.safe_load(f)
+        
+        if data is None:
+            data = {}
+        
+        # Load curriculum if specified
+        if curriculum_name:
+            if curriculum_type == 'graph':
+                curriculum_path = Path('conf/graph_curriculum') / f'{curriculum_name}.yaml'
+            else:
+                curriculum_path = Path('conf/text_curriculum') / f'{curriculum_name}.yaml'
+            
+            if not curriculum_path.exists():
+                raise FileNotFoundError(
+                    f'Curriculum not found: {curriculum_path}\n'
+                    f'Available curricula: {list(curriculum_path.parent.glob("*.yaml"))}'
+                )
+            
+            with open(curriculum_path, 'r') as f:
+                curriculum_data = yaml.safe_load(f)
+            
+            if curriculum_data:
+                data['curriculum'] = curriculum_data
+        
+        return cls(**data)
+
+
+# -------------------------------------------------------------------------------------------------
 # Chain Configuration (for sequential training with stage-specific overrides)
 # -------------------------------------------------------------------------------------------------
 
@@ -893,7 +1217,7 @@ class ChainStageConfig(BaseModel):
     '''Configuration for a single stage in a training chain.'''
     
     name: str = Field(
-        description='Name of the curriculum stage (e.g., "01_stage")'
+        description='Name of the curriculum stage (e.g., "01_text")'
     )
     max_epochs: Optional[int] = Field(
         default=None,
@@ -919,18 +1243,26 @@ class ChainConfig(BaseModel):
     )
     
     @classmethod
-    def from_yaml(cls, yaml_path: str) -> 'ChainConfig':
+    def from_yaml(cls, yaml_path: str, curriculum_type: str = 'text') -> 'ChainConfig':
         '''Load chain configuration from YAML file.'''
         
+        # If yaml_path is just a name (e.g., "chain_text"), resolve to full path
         chain_file = Path(yaml_path)
+        if not chain_file.is_absolute() and not chain_file.exists():
+            # Try to resolve relative to curriculum directory
+            if curriculum_type == 'graph':
+                chain_file = Path('conf/graph_curriculum') / f'{yaml_path}.yaml'
+            else:
+                chain_file = Path('conf/text_curriculum') / f'{yaml_path}.yaml'
+        
         if not chain_file.exists():
-            raise FileNotFoundError(f'Chain config not found: {yaml_path}')
+            raise FileNotFoundError(f'Chain config not found: {chain_file}')
         
         with open(chain_file, 'r') as f:
             data = yaml.safe_load(f)
         
         if data is None:
-            raise ValueError(f'Chain config file is empty: {yaml_path}')
+            raise ValueError(f'Chain config file is empty: {chain_file}')
         
         return cls(**data)
     
@@ -1002,7 +1334,8 @@ class Config(BaseModel):
     def from_yaml(
         cls,
         yaml_path: str,
-        curriculum_name: Optional[str] = None
+        curriculum_name: Optional[str] = None,
+        curriculum_type: str = 'text'
     ) -> 'Config':
      
         '''Load configuration from YAML file.'''
@@ -1019,11 +1352,15 @@ class Config(BaseModel):
         
         # Load curriculum if specified
         if curriculum_name:
-            curriculum_path = Path('conf/text_curriculum') / f'{curriculum_name}.yaml'
+            if curriculum_type == 'graph':
+                curriculum_path = Path('conf/graph_curriculum') / f'{curriculum_name}.yaml'
+            else:
+                curriculum_path = Path('conf/text_curriculum') / f'{curriculum_name}.yaml'
+            
             if not curriculum_path.exists():
                 raise FileNotFoundError(
                     f'Curriculum not found: {curriculum_path}\n'
-                    f'Available curricula: {list(Path("conf/text_curriculum").glob("*.yaml"))}'
+                    f'Available curricula: {list(curriculum_path.parent.glob("*.yaml"))}'
                 )
             
             with open(curriculum_path, 'r') as f:
@@ -1042,7 +1379,7 @@ class Config(BaseModel):
                 
         if curriculum_name:
             logger.info(f'  • Loaded config from {yaml_path}')
-            logger.info(f'  • Using curriculum: {curriculum_name}\n')
+            logger.info(f'  • Using curriculum: {curriculum_name} (type: {curriculum_type})\n')
         else:
             logger.info(f'  • Loaded config from {yaml_path}\n')
         

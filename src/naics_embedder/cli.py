@@ -204,9 +204,16 @@ def train(
         typer.Option(
             '--curriculum',
             '-c',
-            help="Curriculum config name (e.g., '01_stage', '02_stage')",
+            help="Curriculum config name (e.g., '01_text', '02_text', '01_graph', '02_graph')",
         ),
     ] = 'default',
+    curriculum_type: Annotated[
+        str,
+        typer.Option(
+            '--curriculum-type',
+            help="Curriculum type: 'text' or 'graph' (default: 'text')",
+        ),
+    ] = 'text',
     config_file: Annotated[
         str,
         typer.Option(
@@ -287,7 +294,16 @@ def train(
 
         # Load configuration
         logger.info('Loading configuration...')
-        cfg = Config.from_yaml(config_file, curriculum_name=curriculum)
+        if curriculum_type == 'graph':
+            # For graph training, use GraphConfig and hgcn module
+            from naics_embedder.utils.config import GraphConfig
+            from naics_embedder.model.hgcn import main as hgcn_main
+            cfg = GraphConfig.from_yaml(config_file, curriculum_name=curriculum, curriculum_type='graph')
+            # Call HGCN training directly
+            hgcn_main(config_file=config_file, curriculum_stages=[curriculum] if curriculum != 'default' else None)
+            return
+        else:
+            cfg = Config.from_yaml(config_file, curriculum_name=curriculum, curriculum_type='text')
         
         # Apply command-line overrides
         if overrides:
@@ -450,6 +466,7 @@ def train(
                 moe_hidden_dim=cfg.model.moe.hidden_dim,
                 temperature=cfg.loss.temperature,
                 curvature=cfg.loss.curvature,
+                hierarchy_weight=cfg.loss.hierarchy_weight,
                 learning_rate=cfg.training.learning_rate,
                 weight_decay=cfg.training.weight_decay,
                 warmup_steps=cfg.training.warmup_steps,
@@ -464,6 +481,27 @@ def train(
         checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
+        # Check if checkpoint is from the same stage (for resuming) or different stage (for loading weights)
+        resuming_same_stage = False
+        if checkpoint_path:
+            checkpoint_path_obj = Path(checkpoint_path)
+            # Check if checkpoint is in the same checkpoint directory (same stage)
+            try:
+                checkpoint_abs = checkpoint_path_obj.resolve()
+                current_dir_abs = checkpoint_dir.resolve()
+                # Check if checkpoint's parent directory matches the current stage's checkpoint directory
+                resuming_same_stage = checkpoint_abs.parent == current_dir_abs
+            except Exception:
+                # If we can't determine, assume it's a different stage (safer)
+                resuming_same_stage = False
+            
+            if resuming_same_stage:
+                logger.info(f'Checkpoint is from same stage - will resume training from checkpoint')
+                console.print('[cyan]Resuming training from checkpoint (will continue from saved epoch)[/cyan]\n')
+            else:
+                logger.info(f'Checkpoint is from different stage - will load weights only, start fresh training')
+                console.print('[cyan]Loading weights from previous stage checkpoint, starting fresh training[/cyan]\n')
+        
         checkpoint_callback = ModelCheckpoint(
             dirpath=checkpoint_dir,
             filename='naics-{epoch:02d}-{val/contrastive_loss:.4f}',
@@ -475,8 +513,10 @@ def train(
         
         early_stopping = EarlyStopping(
             monitor='val/contrastive_loss',
-            patience=5,
-            mode='min'
+            patience=3,  # Reduced from 5 to prevent training beyond optimal point
+            mode='min',
+            min_delta=0.0001,  # Minimum improvement required
+            verbose=True
         )
         
         # TensorBoard logger - ensure directory exists first
@@ -536,8 +576,11 @@ def train(
             f'[/bold yellow]\n'
         )
         
-        # Pass checkpoint path to trainer.fit() if resuming
-        trainer.fit(model, datamodule, ckpt_path=checkpoint_path)
+        # Only pass checkpoint path to trainer.fit() if resuming the same stage
+        # If loading from a different stage, we've already loaded the weights above,
+        # so we don't pass ckpt_path to start training fresh
+        trainer_ckpt_path = checkpoint_path if resuming_same_stage else None
+        trainer.fit(model, datamodule, ckpt_path=trainer_ckpt_path)
         
         # Training complete
         logger.info('Training complete!')
@@ -570,16 +613,23 @@ def train_sequential(
         typer.Option(
             '--curricula',
             '-c',
-            help="List of curriculum configs (e.g., '01_stage,02_stage,03_stage'). Ignored if --chain is provided.",
+            help="List of curriculum configs (e.g., '01_text,02_text,03_text' or '01_graph,02_graph'). Ignored if --chain is provided.",
         ),
     ] = None,
     chain: Annotated[
         Optional[str],
         typer.Option(
             '--chain',
-            help='Chain configuration file (e.g., "chain_default"). Overrides --curricula.',
+            help='Chain configuration file (e.g., "chain_text" or "chain_graph"). Overrides --curricula.',
         ),
     ] = None,
+    curriculum_type: Annotated[
+        str,
+        typer.Option(
+            '--curriculum-type',
+            help="Curriculum type: 'text' or 'graph' (default: 'text')",
+        ),
+    ] = 'text',
     config_file: Annotated[
         str,
         typer.Option(
@@ -605,6 +655,29 @@ def train_sequential(
     
     configure_logging('train_sequential.log')
     
+    # Handle graph training
+    if curriculum_type == 'graph':
+        from naics_embedder.utils.config import ChainConfig as GraphChainConfig
+        from naics_embedder.model.hgcn import main as hgcn_main
+        
+        # Load chain configuration if provided
+        if chain:
+            chain_config = GraphChainConfig.from_yaml(chain, curriculum_type='graph')
+            curricula = chain_config.get_stage_names()
+            console.rule(f'[bold green]Graph Curriculum Training - {chain_config.chain_name}[/bold green]')
+            console.print(f'[bold]Chain:[/bold] {chain_config.chain_name}')
+            console.print(f'[bold]Stages to run:[/bold] {", ".join(curricula)}\n')
+            hgcn_main(config_file=config_file, chain_file=chain, curriculum_stages=None)
+        else:
+            # Use provided curricula or default
+            if curricula is None:
+                curricula = ['01_graph', '02_graph', '03_graph', '04_graph', '05_graph', '06_graph']
+            console.rule('[bold green]Graph Curriculum Training[/bold green]')
+            console.print(f'[bold]Stages to run:[/bold] {", ".join(curricula)}\n')
+            hgcn_main(config_file=config_file, chain_file=None, curriculum_stages=curricula)
+        return
+    
+    # Text training (original logic)
     # Load chain configuration if provided
     chain_config = None
     if chain:
@@ -613,7 +686,7 @@ def train_sequential(
             console.print(f'[bold red]Error:[/bold red] Chain config not found: {chain_path}')
             raise typer.Exit(code=1)
         
-        chain_config = ChainConfig.from_yaml(str(chain_path))
+        chain_config = ChainConfig.from_yaml(str(chain_path), curriculum_type='text')
         curricula = chain_config.get_stage_names()
         console.rule(f'[bold green]Sequential Curriculum Training - {chain_config.chain_name}[/bold green]')
         console.print(f'[bold]Chain:[/bold] {chain_config.chain_name}')
@@ -621,7 +694,7 @@ def train_sequential(
     else:
         # Use default curricula if not provided
         if curricula is None:
-            curricula = ['01_stage', '02_stage', '03_stage', '04_stage', '05_stage']
+            curricula = ['01_text', '02_text', '03_text', '04_text', '05_text']
         console.rule('[bold green]Sequential Curriculum Training[/bold green]')
         console.print(f'[bold]Stages to run:[/bold] {", ".join(curricula)}\n')
     
@@ -642,11 +715,11 @@ def train_sequential(
             
             # Try to find the last checkpoint from the last stage
             # We'll check the first curriculum's config to get the checkpoint dir
-            temp_cfg = Config.from_yaml(config_file, curriculum_name=curricula[0] if curricula else '01_stage')
+            temp_cfg = Config.from_yaml(config_file, curriculum_name=curricula[0] if curricula else '01_text')
             sequential_dir = Path(f'{temp_cfg.dirs.checkpoint_dir}/sequential_{stages}')
             
             # Find the last stage that has a checkpoint
-            for curriculum in reversed(curricula if curricula else ['01_stage', '02_stage', '03_stage', '04_stage', '05_stage']):
+            for curriculum in reversed(curricula if curricula else ['01_text', '02_text', '03_text', '04_text', '05_text']):
                 stage_checkpoint_dir = sequential_dir / curriculum
                 last_ckpt = stage_checkpoint_dir / 'last.ckpt'
                 if last_ckpt.exists():
@@ -672,10 +745,10 @@ def train_sequential(
             if checkpoint_path_obj.exists():
                 last_checkpoint = str(checkpoint_path_obj.resolve())
                 # Extract stage name from checkpoint path
-                # Path format: .../sequential_01-02-03/02_stage/last.ckpt
+                # Path format: .../sequential_01-02-03/02_text/last.ckpt
                 path_parts = Path(last_checkpoint).parts
                 for part in path_parts:
-                    if part.endswith('_stage'):
+                    if part.endswith('_text'):
                         stage_name = part
                         if curricula:
                             try:
@@ -702,7 +775,7 @@ def train_sequential(
         try:
 
             # Load configuration for this curriculum
-            cfg = Config.from_yaml(config_file, curriculum_name=curriculum)
+            cfg = Config.from_yaml(config_file, curriculum_name=curriculum, curriculum_type='text')
             
             # Apply chain-specific overrides if chain config is provided
             if chain_config:
@@ -765,6 +838,7 @@ def train_sequential(
                     moe_hidden_dim=cfg.model.moe.hidden_dim,
                     temperature=cfg.loss.temperature,
                     curvature=cfg.loss.curvature,
+                    hierarchy_weight=cfg.loss.hierarchy_weight,
                     learning_rate=cfg.training.learning_rate,
                     weight_decay=cfg.training.weight_decay,
                     warmup_steps=cfg.training.warmup_steps,
@@ -796,6 +870,7 @@ def train_sequential(
                     moe_hidden_dim=cfg.model.moe.hidden_dim,
                     temperature=cfg.loss.temperature,
                     curvature=cfg.loss.curvature,
+                    hierarchy_weight=cfg.loss.hierarchy_weight,
                     learning_rate=cfg.training.learning_rate,
                     weight_decay=cfg.training.weight_decay,
                     warmup_steps=cfg.training.warmup_steps,
@@ -826,8 +901,10 @@ def train_sequential(
             # Early stopping with stage-appropriate patience
             early_stopping = EarlyStopping(
                 monitor='val/contrastive_loss',
-                patience=3 if i < len(curricula) else 5,
-                mode='min'
+                patience=2 if i < len(curricula) else 3,  # Reduced to prevent overfitting
+                mode='min',
+                min_delta=0.0001,  # Minimum improvement required
+                verbose=True
             )
             
             # TensorBoard logger with stage info
@@ -1011,9 +1088,9 @@ def visualize(
         typer.Option(
             '--stage',
             '-s',
-            help="Stage name to filter (e.g., '02_stage')",
+            help="Stage name to filter (e.g., '02_text')",
         ),
-    ] = '02_stage',
+    ] = '02_text',
     log_file: Annotated[
         Optional[str],
         typer.Option(

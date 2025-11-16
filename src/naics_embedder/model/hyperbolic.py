@@ -260,7 +260,7 @@ def log_hyperbolic_diagnostics(
     }
     
     # Log basic diagnostics
-    logger_instance.info(
+    logger_instance.info( 
         f'Hyperbolic Embedding Diagnostics:\n'
         f'  • Manifold valid: {is_valid}\n'
         f'  • Lorentz norm: {diagnostics["lorentz_norm_mean"]:.6f} ± {diagnostics["lorentz_norm_std"]:.6f} '
@@ -288,4 +288,113 @@ def log_hyperbolic_diagnostics(
         )
     
     return diagnostics
+
+
+# -------------------------------------------------------------------------------------------------
+# Lorentz Operations Utility Class
+# -------------------------------------------------------------------------------------------------
+
+class LorentzOps:
+    '''
+    Static utility class for Lorentz model operations.
+    Provides functions for mapping between hyperboloid and tangent space, and computing distances.
+    '''
+    
+    @staticmethod
+    def log_map_zero(x_hyp: torch.Tensor, c: float = 1.0) -> torch.Tensor:
+        '''
+        Logarithmic map from hyperboloid to tangent space at origin.
+        
+        Maps a point on the Lorentz hyperboloid to the tangent space at the origin (1, 0, ..., 0).
+        
+        Args:
+            x_hyp: Point on hyperboloid, shape (batch_size, embedding_dim+1)
+            c: Curvature parameter (default: 1.0)
+        
+        Returns:
+            Tangent vector, shape (batch_size, embedding_dim+1)
+        '''
+        sqrt_c = torch.sqrt(torch.tensor(c, device=x_hyp.device))
+        
+        # Time coordinate (x0) and spatial coordinates (x1...xn)
+        x0 = x_hyp[:, 0:1]  # (batch_size, 1)
+        x_spatial = x_hyp[:, 1:]  # (batch_size, embedding_dim)
+        
+        # Compute norm of spatial part
+        norm_spatial = torch.norm(x_spatial, p=2, dim=1, keepdim=True)  # (batch_size, 1)
+        norm_spatial = torch.clamp(norm_spatial, min=1e-8)
+        
+        # Compute distance from origin
+        # For point (x0, x_spatial) on hyperboloid: x0^2 - ||x_spatial||^2 = 1/c
+        # Distance: d = sqrt(c) * arccosh(sqrt(c) * x0)
+        # For log map: v = (sqrt(c) * d / ||x_spatial||) * x_spatial
+        d = sqrt_c * torch.acosh(torch.clamp(sqrt_c * x0, min=1.0 + 1e-5))
+        
+        # Scale factor
+        scale = sqrt_c * d / norm_spatial
+        scale = torch.where(norm_spatial > 1e-8, scale, torch.zeros_like(scale))
+        
+        # Tangent vector: time component is 0, spatial components are scaled
+        v_spatial = scale * x_spatial
+        v_time = torch.zeros_like(x0)
+        
+        return torch.cat([v_time, v_spatial], dim=1)
+    
+    @staticmethod
+    def exp_map_zero(x_tan: torch.Tensor, c: float = 1.0) -> torch.Tensor:
+        '''
+        Exponential map from tangent space at origin to hyperboloid.
+        
+        Maps a tangent vector at the origin to a point on the Lorentz hyperboloid.
+        
+        Args:
+            x_tan: Tangent vector, shape (batch_size, embedding_dim+1)
+            c: Curvature parameter (default: 1.0)
+        
+        Returns:
+            Point on hyperboloid, shape (batch_size, embedding_dim+1)
+        '''
+        sqrt_c = torch.sqrt(torch.tensor(c, device=x_tan.device))
+        
+        # Time component should be 0 for tangent at origin, but handle general case
+        v_time = x_tan[:, 0:1]  # (batch_size, 1)
+        v_spatial = x_tan[:, 1:]  # (batch_size, embedding_dim)
+        
+        # Compute norm of tangent vector (spatial part)
+        norm_v = torch.norm(v_spatial, p=2, dim=1, keepdim=True)  # (batch_size, 1)
+        norm_v = torch.clamp(norm_v, min=1e-8)
+        
+        # Exponential map formula
+        # x0 = cosh(sqrt(c) * ||v|| / sqrt(c)) = cosh(||v||)
+        # x_spatial = (sqrt(c) * sinh(||v||) / ||v||) * v
+        x0 = torch.cosh(norm_v / sqrt_c)
+        sinh_term = torch.sinh(norm_v / sqrt_c)
+        x_spatial = (sinh_term / norm_v) * v_spatial
+        
+        return torch.cat([x0, x_spatial], dim=1)
+    
+    @staticmethod
+    def lorentz_distance(u: torch.Tensor, v: torch.Tensor, c: float = 1.0) -> torch.Tensor:
+        '''
+        Compute Lorentzian distance between two points on the hyperboloid.
+        
+        Args:
+            u: First point on hyperboloid, shape (batch_size, embedding_dim+1)
+            v: Second point on hyperboloid, shape (batch_size, embedding_dim+1)
+            c: Curvature parameter (default: 1.0)
+        
+        Returns:
+            Distances, shape (batch_size,)
+        '''
+        # Compute Lorentz inner product: ⟨u, v⟩_L = Σᵢ uᵢvᵢ - u₀v₀
+        uv = u * v
+        dot_product = torch.sum(uv[:, 1:], dim=1) - uv[:, 0]
+        
+        # Clamp to ensure valid arccosh argument
+        clamped_dot = torch.clamp(dot_product, max=-1.0 - 1e-5)
+        
+        sqrt_c = torch.sqrt(torch.tensor(c, device=u.device))
+        dist = sqrt_c * torch.acosh(-clamped_dot)
+        
+        return dist
 

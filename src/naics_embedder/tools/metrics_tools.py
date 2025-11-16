@@ -41,7 +41,7 @@ except ImportError:
 
 
 def visualize_metrics(
-    stage: str = '02_stage',
+    stage: str = '02_text',
     log_file: Optional[Path] = None,
     output_dir: Optional[Path] = None,
     project_root: Optional[Path] = None
@@ -50,7 +50,7 @@ def visualize_metrics(
     Visualize training metrics from log files.
     
     Args:
-        stage: Stage name to filter (e.g., '02_stage')
+        stage: Stage name to filter (e.g., '02_text')
         log_file: Path to log file (default: logs/train_sequential.log)
         output_dir: Output directory for plots (default: outputs/visualizations/)
         project_root: Project root directory (default: current working directory)

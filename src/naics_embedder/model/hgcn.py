@@ -3,13 +3,11 @@
 # -------------------------------------------------------------------------------------------------
 
 import json
-from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import polars as pl
-import polars.selectors as cs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,64 +16,20 @@ from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops
 
-from naics_embedder.utils.lorentz_operations import LorentzOps
-from naics_embedder.utils.training_data_loader import Config as LoaderCfg
-from naics_embedder.utils.training_data_loader import create_dataloader
+from naics_embedder.model.hyperbolic import LorentzOps
+from naics_embedder.data_loader.training_data_loader import Config as LoaderCfg
+from naics_embedder.data_loader.training_data_loader import create_dataloader
 from naics_embedder.utils.utilities import pick_device, setup_directory
 from naics_embedder.utils.validation_metrics import compute_validation_metrics
+from naics_embedder.utils.config import GraphConfig, GraphCurriculumConfig
 
 # -------------------------------------------------------------------------------------------------
 # Config
 # -------------------------------------------------------------------------------------------------
 
-@dataclass
-class Config:
-    encodings_parquet: str = './output/hyperbolic_projection/encodings.parquet'
-    relations_parquet: str = './data/naics_relations.parquet'
-    training_pairs_path: str = './data/naics_training_pairs.parquet'
-
-    output_dir: str = './output/hgcn/'
-    output_parquet: str = './output/hgcn/encodings.parquet'
-
-    tangent_dim: int = 31  # spatial dims in tangent space
-    n_hgcn_layers: int = 2
-    dropout: float = 0.10
-    learnable_curvature: bool = True
-    learnable_loss_weights: bool = True
-
-    # Curriculum parameters (will be updated per stage)
-    num_epochs: int = 8
-    epoch_every: int = 1
-    batch_size: int = 64
-    lr: float = 0.00075
-    warmup_ratio: float = 0.2  # NEW: Fraction of epochs for warmup
-    temperature_start: float = 0.10  # NEW: Starting temperature for loss scaling
-    temperature_end: float = 0.08  # NEW: Ending temperature
-    weight_decay: float = 1e-5
-    gradient_clip_norm: float = 1.0
-
-    triplet_margin: float = 1.0
-    w_triplet: float = 1.0
-    w_per_level: float = 0.5
-
-    k_total: int = 48
-    pct_excluded: float = 0.0
-    pct_hard: float = 0.05
-    pct_medium: float = 0.15
-    pct_easy: float = 0.55
-    pct_unrelated: float = 0.25
-
-    n_positive_samples: int = 2048
-    allowed_relations: Optional[List[str]] = None
-    min_code_level: Optional[int] = None
-    max_code_level: Optional[int] = None
-
-    shuffle: bool = True
-    num_workers: int = 4
-    pin_memory: bool = True
-
-    device: str = 'auto'
-    seed: int = 42
+# Config is now imported from naics_embedder.utils.config as GraphConfig
+# Using GraphConfig for type hints
+Config = GraphConfig
 
 
 # -------------------------------------------------------------------------------------------------
@@ -279,7 +233,11 @@ def load_embeddings(
     parquet_path: str, 
     device: torch.device
 ) -> Tuple[torch.Tensor, torch.Tensor, pl.DataFrame]:
+    '''
+    Load hyperbolic embeddings from parquet file.
     
+    Expects columns prefixed with 'hyp_e' (e.g., hyp_e0, hyp_e1, ...) for embeddings.
+    '''
     df = (
         pl
         .read_parquet(
@@ -287,11 +245,14 @@ def load_embeddings(
         )
     )
 
+    # Find embedding columns (hyp_e* pattern)
+    embedding_cols = [col for col in df.columns if col.startswith('hyp_e')]
+    if not embedding_cols:
+        raise ValueError(f'No embedding columns found (expected hyp_e* pattern) in {parquet_path}')
+    
     emb = (
         df
-        .select(
-            cs.starts_with('hyp_e')
-        )
+        .select(embedding_cols)
         .to_torch(dtype=pl.Float32)
         .to(device)
     )
@@ -341,22 +302,42 @@ def load_edge_index(relations_path: str, device: torch.device) -> torch.Tensor:
 
 
 def create_contrastive_dataloader(cfg: Config) -> torch.utils.data.DataLoader:
+    '''
+    Create contrastive dataloader from GraphConfig.
+    
+    Uses curriculum configuration if available, otherwise uses base config values.
+    '''
+    # Get curriculum config if available
+    curriculum_dict = {}
+    if cfg.curriculum:
+        curriculum_dict = cfg.curriculum.model_dump()
+    
+    # Create loader config, merging base config with curriculum overrides
+    # Derive descriptions_parquet path from encodings_parquet path
+    descriptions_path = str(Path(cfg.encodings_parquet).parent.parent / 'naics_descriptions.parquet')
+    if not Path(descriptions_path).exists():
+        # Fallback to default
+        descriptions_path = './data/naics_descriptions.parquet'
+    
     loader_cfg = LoaderCfg(
         training_pairs_path=cfg.training_pairs_path,
+        descriptions_parquet=descriptions_path,
         batch_size=cfg.batch_size,
         shuffle=cfg.shuffle,
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
-        n_positive_samples=cfg.n_positive_samples,
-        k_total=cfg.k_total,
-        pct_excluded=cfg.pct_excluded,
-        pct_hard=cfg.pct_hard,
-        pct_medium=cfg.pct_medium,
-        pct_easy=cfg.pct_easy,
-        pct_unrelated=cfg.pct_unrelated,
-        allowed_relations=cfg.allowed_relations,
-        min_code_level=cfg.min_code_level,
-        max_code_level=cfg.max_code_level,
+        n_positive_samples=curriculum_dict.get('n_positives', cfg.n_positive_samples),
+        n_negatives=curriculum_dict.get('n_negatives', cfg.k_total),
+        anchor_level=curriculum_dict.get('anchor_level'),
+        relation_margin=curriculum_dict.get('relation_margin'),
+        distance_margin=curriculum_dict.get('distance_margin'),
+        positive_level=curriculum_dict.get('positive_level'),
+        positive_relation=curriculum_dict.get('positive_relation'),
+        positive_distance=curriculum_dict.get('positive_distance'),
+        negative_level=curriculum_dict.get('negative_level'),
+        negative_relation=curriculum_dict.get('negative_relation'),
+        negative_distance=curriculum_dict.get('negative_distance'),
+        seed=cfg.seed
     )
 
     return create_dataloader(loader_cfg)
@@ -554,37 +535,59 @@ def train_stage(
 
 
 def train_curriculum(
-    curriculum: Dict[int, Dict[str, Any]],
+    curriculum_stages: List[str],
     model: nn.Module,
     embeddings: nn.Parameter,
     data: Data,
     levels: torch.Tensor,
     base_cfg: Config,
     device: torch.device,
+    config_file: str = 'conf/config.yaml',
 ) -> Tuple[torch.Tensor, List[Dict[str, Any]]]:
     
     '''
     Train through all curriculum stages sequentially.
+    
+    Args:
+        curriculum_stages: List of curriculum stage names (e.g., ['01_graph', '02_graph', ...])
+        model: HGCN model
+        embeddings: Initial embeddings parameter
+        data: PyG Data object with edge_index
+        levels: Hierarchy levels tensor
+        base_cfg: Base GraphConfig
+        device: Device to train on
+        config_file: Path to base config file
     '''
 
     all_logs = []
     current_embeddings = embeddings
-    for stage_num in sorted(curriculum.keys()):
-        stage_cfg_dict = curriculum[stage_num]
-
-        # Create a new config for this stage
-        stage_cfg = Config(**{**asdict(base_cfg), **stage_cfg_dict})
+    
+    for stage_idx, stage_name in enumerate(curriculum_stages, 1):
+        # Load curriculum config for this stage
+        from naics_embedder.utils.config import GraphConfig
+        stage_cfg = GraphConfig.from_yaml(
+            config_file,
+            curriculum_name=stage_name,
+            curriculum_type='graph'
+        )
+        
+        # Merge with base config (base config provides defaults)
+        base_dict = base_cfg.model_dump()
+        stage_dict = stage_cfg.model_dump()
+        # Override base with stage-specific values
+        merged_dict = {**base_dict, **stage_dict}
+        stage_cfg = GraphConfig(**merged_dict)
 
         # Create dataloader for this stage
         loader = create_contrastive_dataloader(stage_cfg)
         print(
-            f'\nStage {stage_num} dataloader: {len(loader.dataset)} pairs | '
-            f'batch={stage_cfg.batch_size} | k_total={stage_cfg.k_total}'
+            f'\nStage {stage_idx}/{len(curriculum_stages)} ({stage_name}) dataloader: {len(loader.dataset)} pairs | '
+            f'batch={stage_cfg.batch_size} | n_negatives={stage_cfg.curriculum.n_negatives if stage_cfg.curriculum else stage_cfg.k_total}'
         )
 
         # Train this stage
         final_emb, stage_log = train_stage(
-            stage_num, model, current_embeddings, data, levels, loader, stage_cfg
+            stage_idx, model, current_embeddings, data, levels, loader, stage_cfg
         )
 
         # Update embeddings for next stage
@@ -595,10 +598,11 @@ def train_curriculum(
         outdir.mkdir(parents=True, exist_ok=True)
 
         checkpoint = {
-            'stage': stage_num,
+            'stage': stage_idx,
+            'stage_name': stage_name,
             'state_dict': model.state_dict(),
             'embeddings': final_emb.detach().cpu(),
-            'config': asdict(stage_cfg),
+            'config': stage_cfg.model_dump(),
             'log': stage_log,
         }
 
@@ -606,8 +610,8 @@ def train_curriculum(
             checkpoint['final_log_var_triplet'] = model.log_var_triplet.item()
             checkpoint['final_log_var_level'] = model.log_var_level.item()
 
-        torch.save(checkpoint, f'{outdir}/stage_{stage_num}_checkpoint.pt')
-        print(f'Saved checkpoint: {outdir}/stage_{stage_num}_checkpoint.pt')
+        torch.save(checkpoint, f'{outdir}/stage_{stage_idx:02d}_{stage_name}_checkpoint.pt')
+        print(f'Saved checkpoint: {outdir}/stage_{stage_idx:02d}_{stage_name}_checkpoint.pt')
 
         all_logs.extend(stage_log)
 
@@ -662,7 +666,7 @@ def save_outputs(
     save_dict = {
         'state_dict': model.state_dict(),
         'embeddings': final_emb.detach().cpu(),
-        'config': asdict(cfg),
+        'config': cfg.model_dump(),
     }
 
     if model.learnable_loss_weights:
@@ -675,7 +679,7 @@ def save_outputs(
         json.dump(log, f, indent=2)
 
     with open(f'{outdir}/config.json', 'w') as f:
-        json.dump(asdict(cfg), f, indent=2)
+        json.dump(cfg.model_dump(), f, indent=2)
 
     print(f'\n{"=" * 80}')
     print('TRAINING COMPLETE')
@@ -703,141 +707,49 @@ def save_outputs(
 # -------------------------------------------------------------------------------------------------
 
 
-def main():
+def main(
+    config_file: str = 'conf/config.yaml',
+    chain_file: Optional[str] = None,
+    curriculum_stages: Optional[List[str]] = None,
+):
     '''
     Main entry point for curriculum-based HGCN training.
+    
+    Args:
+        config_file: Path to base config YAML file
+        chain_file: Path to chain config file (e.g., 'chain_graph') - overrides curriculum_stages
+        curriculum_stages: List of curriculum stage names (e.g., ['01_graph', '02_graph', ...])
     '''
-
-    # Base configuration
-    base_cfg = Config()
+    # Load base configuration
+    base_cfg = GraphConfig.from_yaml(config_file, curriculum_type='graph')
 
     # Output directory cleanup / setup
     outdir = setup_directory(base_cfg.output_dir)
 
-    # Define curriculum
-    curriculum = {
-        1: {
-            'num_epochs': 10,
-            'n_positive_samples': 2560,
-            'lr': 5.0e-04,
-            'warmup_ratio': 0.30,
-            'temperature_start': 0.15,
-            'temperature_end': 0.12,
-            'k_total': 32,
-            'pct_hard': 0.00,
-            'pct_medium': 0.20,
-            'pct_easy': 0.65,
-            'pct_unrelated': 0.15,
-            'allowed_relations': ['child'],
-            'min_code_level': 2,
-            'max_code_level': 6,
-        },
-        2: {
-            'num_epochs': 12,
-            'n_positive_samples': 2048,
-            'lr': 2.5e-04,
-            'warmup_ratio': 0.25,
-            'temperature_start': 0.12,
-            'temperature_end': 0.10,
-            'k_total': 32,
-            'pct_excluded': 0.00,
-            'pct_hard': 0.05,
-            'pct_medium': 0.25,
-            'pct_easy': 0.55,
-            'pct_unrelated': 0.15,
-            'allowed_relations': ['child', 'sibling'],
-            'min_code_level': 2,
-            'max_code_level': 6,
-        },
-        3: {
-            'num_epochs': 10,
-            'n_positive_samples': 1536,
-            'lr': 1.25e-04,
-            'warmup_ratio': 0.20,
-            'temperature_start': 0.10,
-            'temperature_end': 0.095,
-            'k_total': 48,
-            'pct_excluded': 0.05,
-            'pct_hard': 0.15,
-            'pct_medium': 0.30,
-            'pct_easy': 0.40,
-            'pct_unrelated': 0.10,
-            'allowed_relations': ['child', 'sibling', 'grandchild', 'nephew/niece'],
-            'min_code_level': 3,
-            'max_code_level': 6,
-        },
-        4: {
-            'num_epochs': 10,
-            'n_positive_samples': 1024,
-            'lr': 7.5e-05,
-            'warmup_ratio': 0.15,
-            'temperature_start': 0.095,
-            'temperature_end': 0.09,
-            'k_total': 48,
-            'pct_excluded': 0.05,
-            'pct_hard': 0.30,
-            'pct_medium': 0.35,
-            'pct_easy': 0.30,
-            'pct_unrelated': 0.0,
-            'allowed_relations': [
-                'child',
-                'sibling',
-                'grandchild',
-                'great-grandchild',
-                'grand-nephew/niece',
-                'cousin',
-            ],
-            'min_code_level': 4,
-            'max_code_level': 6,
-        },
-        5: {
-            'num_epochs': 10,
-            'n_positive_samples': 768,
-            'lr': 3.75e-05,
-            'warmup_ratio': 0.15,
-            'temperature_start': 0.09,
-            'temperature_end': 0.085,
-            'k_total': 48,
-            'pct_excluded': 0.0,
-            'pct_hard': 0.35,
-            'pct_medium': 0.30,
-            'pct_easy': 0.30,
-            'pct_unrelated': 0.05,
-            'allowed_relations': [
-                'child',
-                'sibling',
-                'grandchild',
-                'great-grandchild',
-                'great-great-grandchild',
-                'nephew/niece',
-                'grand-nephew/niece',
-                'cousin',
-            ],
-            'min_code_level': 2,
-            'max_code_level': 6,
-        },
-        6: {
-            'num_epochs': 12,
-            'n_positive_samples': 256,
-            'lr': 5.0e-05,
-            'warmup_ratio': 0.30,
-            'temperature_start': 0.095,
-            'temperature_end': 0.090,
-            'k_total': 48,
-            'pct_excluded': 0.0,
-            'pct_hard': 0.15,
-            'pct_medium': 0.35,
-            'pct_easy': 0.45,
-            'pct_unrelated': 0.05,
-            'min_code_level': 2,
-            'max_code_level': 6,
-        },
-    }
-
-    print('=' * 80)
-    print('HGCN CURRICULUM TRAINING')
-    print('=' * 80)
-    print(f'Curriculum stages: {len(curriculum)}')
+    # Determine curriculum stages
+    if chain_file:
+        from naics_embedder.utils.config import ChainConfig
+        chain_config = ChainConfig.from_yaml(chain_file, curriculum_type='graph')
+        curriculum_stages = chain_config.get_stage_names()
+        print('=' * 80)
+        print('HGCN CURRICULUM TRAINING')
+        print('=' * 80)
+        print(f'Chain: {chain_config.chain_name}')
+        print(f'Curriculum stages: {len(curriculum_stages)}')
+    elif curriculum_stages:
+        print('=' * 80)
+        print('HGCN CURRICULUM TRAINING')
+        print('=' * 80)
+        print(f'Curriculum stages: {len(curriculum_stages)}')
+    else:
+        # Default: use all graph curriculum stages
+        curriculum_stages = ['01_graph', '02_graph', '03_graph', '04_graph', '05_graph', '06_graph']
+        print('=' * 80)
+        print('HGCN CURRICULUM TRAINING')
+        print('=' * 80)
+        print(f'Using default curriculum stages: {len(curriculum_stages)}')
+    
+    print(f'Stages: {", ".join(curriculum_stages)}')
     print(f'Output directory: {outdir}')
     print()
 
@@ -872,11 +784,11 @@ def main():
 
     # Train through curriculum
     final_emb, full_log = train_curriculum(
-        curriculum, model, embeddings, data, levels, base_cfg, device
+        curriculum_stages, model, embeddings, data, levels, base_cfg, device, config_file
     )
 
     # Save final outputs
-    save_outputs(outdir, final_emb, df, base_cfg, model, full_log)
+    save_outputs(str(outdir), final_emb, df, base_cfg, model, full_log)
 
 
 if __name__ == '__main__':

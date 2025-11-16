@@ -310,8 +310,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Visualize training metrics')
-    parser.add_argument('--stage', type=str, default='02_stage',
-                       help='Stage name to filter (default: 02_stage)')
+    parser.add_argument('--stage', type=str, default='02_text',
+                       help='Stage name to filter (default: 02_text)')
     parser.add_argument('--log-file', type=Path, 
                        default=project_root / 'logs' / 'train_sequential.log',
                        help='Path to log file')

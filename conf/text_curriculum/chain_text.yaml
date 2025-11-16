@@ -1,0 +1,18 @@
+chain_name: text_curriculum
+
+stages:
+  - name: 01_text
+    max_epochs: 16
+    learning_rate: 2e-4
+  - name: 02_text  
+    max_epochs: 20
+    learning_rate: 1e-4
+  - name: 03_text
+    max_epochs: 24
+    learning_rate: 1e-5
+  - name: 04_text
+    max_epochs: 24
+    learning_rate: 2e-5
+  - name: 05_text
+    max_epochs: 16
+    learning_rate: 5e-5

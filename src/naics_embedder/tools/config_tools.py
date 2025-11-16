@@ -73,7 +73,7 @@ def show_current_config(config_path: str = './conf/config.yaml'):
         return
     
     stage_panels = []
-    for stage_file in sorted(curriculum_dir.glob('*_stage.yaml')):
+    for stage_file in sorted(curriculum_dir.glob('*_text.yaml')):
         stage_num = stage_file.stem.split('_')[0]
         try:
             curriculum = load_curriculum(stage_file)
