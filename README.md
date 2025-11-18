@@ -211,6 +211,12 @@ After cloning the repository, run the setup script to configure git, zsh, oh-my-
 ./scripts/setup.sh
 ```
 
+Or use the Makefile:
+
+```bash
+make setup
+```
+
 This will:
 - Configure git user.name and user.email (if not already set)
 - Install zsh (if not installed)
@@ -245,6 +251,43 @@ runcmd:
 ```
 
 Git will automatically use these environment variables if they're set, and they take precedence over `git config` settings. This way, you don't need to run the setup script to configure git—it's already set when you log in.
+
+**For Lambda Labs (lambda.ai) instances:**
+
+Lambda Labs instances typically come with Ubuntu and basic tools pre-installed, but don't support cloud-init scripts. After connecting to your Lambda Labs instance:
+
+1. Clone the repository (if not already cloned):
+   ```bash
+   git clone <your-repo-url>
+   cd naics-embedder
+   ```
+
+2. Run the Lambda-specific setup script:
+   ```bash
+   ./scripts/lambda-setup.sh
+   ```
+   
+   Or use the Makefile:
+   ```bash
+   make lambda-setup
+   ```
+
+   This script is identical to `setup.sh` but optimized for Lambda Labs' default Ubuntu environment.
+
+3. Alternatively, you can use the standard setup script:
+   ```bash
+   ./scripts/setup.sh
+   # or
+   make setup
+   ```
+
+Both scripts will install uv, configure git, set up zsh/oh-my-zsh/Spaceship, and prepare your environment.
+
+**Quick reference:**
+- `make setup` or `./scripts/setup.sh` - Standard setup for most environments
+- `make lambda-setup` or `./scripts/lambda-setup.sh` - Setup optimized for Lambda Labs
+- `make install` - Install project dependencies (requires uv)
+- `make help` - Show all available make targets
 
 ### 8.1 Training the Contrastive Model
 

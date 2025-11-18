@@ -1,22 +1,25 @@
 #!/bin/bash
-# Setup script for NAICS Embedder project
-# This script configures git, zsh, oh-my-zsh, and the development environment
+# Setup script specifically for Lambda Labs instances
+# Lambda Labs instances typically come with Ubuntu and basic tools pre-installed
+# This script sets up the NAICS Embedder project environment
 
 set -e
 
-echo "Setting up NAICS Embedder project..."
+echo "Setting up NAICS Embedder project on Lambda Labs..."
 
-# Install uv if not installed (required for this project)
+# Lambda Labs instances usually have git pre-installed, but check anyway
+if ! command -v git &> /dev/null; then
+    echo "Installing git..."
+    sudo apt-get update && sudo apt-get install -y git
+fi
+
+# Install uv if not installed
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Add uv to PATH for current session
     export PATH="$HOME/.cargo/bin:$PATH"
-    # Also add to .bashrc/.zshrc for future sessions
-    if [ -f "$HOME/.bashrc" ] && ! grep -q "\.cargo/bin" "$HOME/.bashrc"; then
-        echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.bashrc"
-    fi
-    if [ -f "$HOME/.zshrc" ] && ! grep -q "\.cargo/bin" "$HOME/.zshrc"; then
+    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.bashrc"
+    if [ -f "$HOME/.zshrc" ]; then
         echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.zshrc"
     fi
     echo "uv installed"
@@ -27,16 +30,9 @@ fi
 # Ensure uv is in PATH
 export PATH="$HOME/.cargo/bin:$PATH"
 
-# Check if git is installed
-if ! command -v git &> /dev/null; then
-    echo "Git is not installed. Please install git first."
-    exit 1
-fi
-
 # Configure git user (if not already set)
-# Check in order: 1) existing git config, 2) environment variables, 3) prompt user
+# Lambda Labs instances typically don't have git configured
 if [ -z "$(git config --global user.name)" ]; then
-    # Check environment variables first
     if [ -n "$GIT_AUTHOR_NAME" ]; then
         git_name="$GIT_AUTHOR_NAME"
         echo "Using GIT_AUTHOR_NAME from environment: $git_name"
@@ -56,7 +52,6 @@ else
 fi
 
 if [ -z "$(git config --global user.email)" ]; then
-    # Check environment variables first
     if [ -n "$GIT_AUTHOR_EMAIL" ]; then
         git_email="$GIT_AUTHOR_EMAIL"
         echo "Using GIT_AUTHOR_EMAIL from environment: $git_email"
@@ -78,16 +73,7 @@ fi
 # Install zsh if not installed
 if ! command -v zsh &> /dev/null; then
     echo "Installing zsh..."
-    if command -v apt-get &> /dev/null; then
-        sudo apt-get update && sudo apt-get install -y zsh
-    elif command -v yum &> /dev/null; then
-        sudo yum install -y zsh
-    elif command -v brew &> /dev/null; then
-        brew install zsh
-    else
-        echo "Cannot install zsh automatically. Please install zsh manually."
-        exit 1
-    fi
+    sudo apt-get update && sudo apt-get install -y zsh
     echo "zsh installed"
 else
     echo "zsh is already installed: $(zsh --version)"
@@ -209,3 +195,4 @@ echo ""
 echo "To activate zsh now, run: zsh"
 echo "Or log out and log back in to use zsh as your default shell."
 echo ""
+
