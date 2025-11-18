@@ -6,9 +6,11 @@ import logging
 import time
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
+import polars as pl
 import pytorch_lightning as pyl
+import torch
 import typer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -17,9 +19,11 @@ from rich.panel import Panel
 from typing_extensions import Annotated
 
 from naics_embedder.data_loader.datamodule import NAICSDataModule
+from naics_embedder.data_loader.tokenization_cache import tokenization_cache
 from naics_embedder.model.naics_model import NAICSContrastiveModel
 from naics_embedder.utils.backend import get_device
-from naics_embedder.utils.config import ChainConfig, Config, list_available_curricula, parse_override_value
+from naics_embedder.utils.utilities import pick_device
+from naics_embedder.utils.config import ChainConfig, Config, TokenizationConfig, list_available_curricula, parse_override_value
 from naics_embedder.utils.console import configure_logging
 
 # -------------------------------------------------------------------------------------------------
@@ -63,6 +67,183 @@ warnings.filterwarnings(
 
 console = Console()
 logger = logging.getLogger(__name__)
+
+
+# -------------------------------------------------------------------------------------------------
+# Embedding Generation
+# -------------------------------------------------------------------------------------------------
+
+def generate_embeddings_from_checkpoint(
+    checkpoint_path: str,
+    config: Config,
+    output_path: Optional[str] = None,
+    curriculum_name: Optional[str] = None,
+    batch_size: int = 32
+) -> str:
+    """
+    Generate hyperbolic embeddings parquet file from a trained checkpoint.
+    
+    This function loads a trained model checkpoint, runs inference on all NAICS codes,
+    and saves the hyperbolic embeddings to a parquet file in the format expected by HGCN training.
+    
+    Args:
+        checkpoint_path: Path to the PyTorch Lightning checkpoint file
+        config: Config object with model and data paths
+        output_path: Optional output path for embeddings parquet. If None, uses default location.
+        curriculum_name: Optional curriculum name for output directory naming
+        batch_size: Batch size for inference
+        
+    Returns:
+        Path to the generated embeddings parquet file
+    """
+    logger.info('=' * 80)
+    logger.info('GENERATING EMBEDDINGS FROM CHECKPOINT')
+    logger.info('=' * 80)
+    logger.info(f'Checkpoint: {checkpoint_path}')
+    
+    # Determine output path
+    if output_path is None:
+        # Use default location: ./output/hyperbolic_projection/encodings.parquet
+        output_dir = Path('./output/hyperbolic_projection')
+        if curriculum_name:
+            output_dir = output_dir / curriculum_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(output_dir / 'encodings.parquet')
+    
+    output_path_obj = Path(output_path)
+    output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f'Output: {output_path}')
+    
+    # Load device
+    device = pick_device('auto')  # Auto-detect device
+    logger.info(f'Device: {device}')
+    
+    # Load model from checkpoint
+    logger.info('Loading model from checkpoint...')
+    model = NAICSContrastiveModel.load_from_checkpoint(
+        checkpoint_path,
+        map_location=device
+    )
+    model.eval()
+    model.to(device)
+    logger.info('Model loaded successfully')
+    
+    # Load descriptions parquet
+    descriptions_path = config.data_loader.streaming.descriptions_parquet
+    logger.info(f'Loading NAICS descriptions from: {descriptions_path}')
+    
+    df = pl.read_parquet(descriptions_path).sort('index')
+    logger.info(f'Loaded {df.height:,} NAICS codes')
+    
+    # Load tokenization cache
+    tokenization_cfg = TokenizationConfig(
+        descriptions_parquet=descriptions_path,
+        tokenizer_name=config.data_loader.tokenization.tokenizer_name,
+        max_length=config.data_loader.tokenization.max_length
+    )
+    
+    logger.info('Loading tokenization cache...')
+    token_cache = tokenization_cache(tokenization_cfg, use_locking=False)
+    logger.info('Tokenization cache loaded')
+    
+    # Generate embeddings in batches
+    logger.info(f'Generating embeddings (batch_size={batch_size})...')
+    all_embeddings = []
+    all_indices = []
+    all_levels = []
+    all_codes = []
+    
+    num_batches = (df.height + batch_size - 1) // batch_size
+    
+    with torch.no_grad():
+        for batch_idx in range(num_batches):
+            start_idx = batch_idx * batch_size
+            end_idx = min(start_idx + batch_size, df.height)
+            batch_df = df.slice(start_idx, end_idx - start_idx)
+            
+            # Prepare batch inputs
+            channel_inputs = {
+                'title': {'input_ids': [], 'attention_mask': []},
+                'description': {'input_ids': [], 'attention_mask': []},
+                'excluded': {'input_ids': [], 'attention_mask': []},
+                'examples': {'input_ids': [], 'attention_mask': []}
+            }
+            
+            batch_indices = []
+            batch_levels = []
+            batch_codes = []
+            
+            for row in batch_df.iter_rows(named=True):
+                idx = row['index']
+                batch_indices.append(idx)
+                batch_levels.append(row['level'])
+                batch_codes.append(row['code'])
+                
+                # Get tokenized inputs from cache
+                tokens = token_cache[idx]
+                
+                for channel in ['title', 'description', 'excluded', 'examples']:
+                    channel_inputs[channel]['input_ids'].append(tokens[channel]['input_ids'])
+                    channel_inputs[channel]['attention_mask'].append(tokens[channel]['attention_mask'])
+            
+            # Stack tensors
+            for channel in channel_inputs:
+                channel_inputs[channel]['input_ids'] = torch.stack(
+                    channel_inputs[channel]['input_ids']
+                ).to(device)
+                channel_inputs[channel]['attention_mask'] = torch.stack(
+                    channel_inputs[channel]['attention_mask']
+                ).to(device)
+            
+            # Run inference
+            output = model(channel_inputs)
+            embeddings = output['embedding']  # Hyperbolic embeddings (batch_size, embedding_dim+1)
+            
+            # Store embeddings
+            all_embeddings.append(embeddings.cpu())
+            all_indices.extend(batch_indices)
+            all_levels.extend(batch_levels)
+            all_codes.extend(batch_codes)
+            
+            if (batch_idx + 1) % 10 == 0 or batch_idx == num_batches - 1:
+                logger.info(f'  Processed {end_idx:,} / {df.height:,} codes ({(end_idx/df.height)*100:.1f}%)')
+    
+    # Concatenate all embeddings
+    logger.info('Concatenating embeddings...')
+    all_embeddings_tensor = torch.cat(all_embeddings, dim=0)  # (N, embedding_dim+1)
+    embedding_dim = all_embeddings_tensor.shape[1]
+    
+    logger.info(f'Generated embeddings: shape={all_embeddings_tensor.shape}')
+    
+    # Convert to numpy
+    embeddings_np = all_embeddings_tensor.numpy()
+    
+    # Create DataFrame with hyp_e* columns
+    emb_schema = {f'hyp_e{i}': pl.Float64 for i in range(embedding_dim)}
+    emb_df = pl.DataFrame(embeddings_np, schema=emb_schema)
+    
+    # Combine with metadata
+    base_df = pl.DataFrame({
+        'index': all_indices,
+        'level': all_levels,
+        'code': all_codes
+    })
+    
+    result_df = base_df.hstack(emb_df)
+    
+    # Save to parquet
+    logger.info(f'Saving embeddings to: {output_path}')
+    result_df.write_parquet(output_path)
+    
+    logger.info('=' * 80)
+    logger.info('EMBEDDING GENERATION COMPLETE')
+    logger.info('=' * 80)
+    logger.info(f'Embeddings saved: {output_path}')
+    logger.info(f'Total codes: {df.height:,}')
+    logger.info(f'Embedding dimension: {embedding_dim}')
+    
+    return output_path
 
 
 def train(
@@ -288,7 +469,9 @@ def train(
         # Handle checkpoint resumption
         checkpoint_path = None
         if ckpt_path:
-            if ckpt_path.lower() == 'last':
+            # Check if user wants to auto-detect last checkpoint (supports both 'last' and 'last.ckpt')
+            ckpt_path_lower = ckpt_path.lower()
+            if ckpt_path_lower == 'last' or ckpt_path_lower == 'last.ckpt':
                 # Auto-detect last checkpoint
                 checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
                 last_ckpt = checkpoint_dir / 'last.ckpt'
@@ -455,15 +638,52 @@ def train(
         logger.info('Training complete!')
         logger.info(f'Best model checkpoint: {checkpoint_callback.best_model_path}')
         
+        # Check if early stopping was triggered and get the best loss
+        early_stop_triggered = early_stopping.stopped_epoch > 0
+        best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
+        
+        if early_stop_triggered and best_loss is not None:
+            logger.info(f'Early stopping triggered at epoch {early_stopping.stopped_epoch} with best loss: {best_loss:.6f}')
+        
         console.print(
             f'\n[bold green]✓ Training completed successfully![/bold green]\n'
             f'Best checkpoint: [cyan]{checkpoint_callback.best_model_path}[/cyan]\n'
         )
         
+        # Print the loss that decided early stopping as the final metric
+        if best_loss is not None:
+            label = "Final evaluation metric (early stopping)" if early_stop_triggered else "Final evaluation metric"
+            console.print(
+                f'[bold]{label}:[/bold] '
+                f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
+            )
+            logger.info(f'{label}: val/contrastive_loss = {best_loss:.6f}')
+        
         # Save final config
         config_output_path = checkpoint_dir / 'config.yaml'
         cfg.to_yaml(str(config_output_path))
         console.print(f'Config saved: [cyan]{config_output_path}[/cyan]\n')
+        
+        # Prompt to generate embeddings for HGCN training
+        console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
+        generate_embeddings = typer.confirm(
+            'Generate embeddings parquet file from this checkpoint?',
+            default=False
+        )
+        
+        if generate_embeddings:
+            logger.info('Generating embeddings from checkpoint...')
+            embeddings_path = generate_embeddings_from_checkpoint(
+                checkpoint_path=checkpoint_callback.best_model_path,
+                config=cfg,
+                output_path=None,  # Will use default location
+                curriculum_name=curriculum
+            )
+            console.print(
+                f'\n[bold green]✓ Embeddings generated successfully![/bold green]\n'
+                f'Embeddings saved to: [cyan]{embeddings_path}[/cyan]\n'
+                f'This file can be used for HGCN training.\n'
+            )
         
     except Exception as e:
         logger.error(f'Training failed: {e}', exc_info=True)
@@ -621,10 +841,26 @@ def train_sequential(
             # Store checkpoint for next stage
             last_checkpoint = checkpoint_callback.best_model_path
             
+            # Check if early stopping was triggered and get the best loss
+            early_stop_triggered = early_stopping.stopped_epoch > 0
+            best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
+            
+            if early_stop_triggered and best_loss is not None:
+                logger.info(f'Early stopping triggered at epoch {early_stopping.stopped_epoch} with best loss: {best_loss:.6f}')
+            
             console.print(
                 f'\n[green]✓[/green] Stage {i} complete. '
                 f'Best checkpoint: [cyan]{last_checkpoint}[/cyan]\n'
             )
+            
+            # Print the loss that decided early stopping as the final metric
+            if best_loss is not None:
+                label = "Final evaluation metric (early stopping)" if early_stop_triggered else "Final evaluation metric"
+                console.print(
+                    f'[bold]{label}:[/bold] '
+                    f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
+                )
+                logger.info(f'{label}: val/contrastive_loss = {best_loss:.6f}')
             
             # Brief pause between stages
             if i < len(curricula):
@@ -647,3 +883,33 @@ def train_sequential(
     
     console.rule('[bold green]Sequential Training Complete![/bold green]')
     console.print(f'\n[bold]Final checkpoint:[/bold] [cyan]{last_checkpoint}[/cyan]\n')
+    
+    # Prompt to generate embeddings for HGCN training
+    if last_checkpoint:
+        console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
+        generate_embeddings = typer.confirm(
+            f'Generate embeddings parquet file from final checkpoint ({Path(last_checkpoint).name})?',
+            default=False
+        )
+        
+        if generate_embeddings:
+            # Use the config from the last stage
+            final_curriculum = curricula[-1] if curricula else 'default'
+            final_cfg = Config.from_yaml(
+                config_file,
+                curriculum_name=final_curriculum,
+                curriculum_type=curriculum_type
+            )
+            
+            logger.info('Generating embeddings from final checkpoint...')
+            embeddings_path = generate_embeddings_from_checkpoint(
+                checkpoint_path=last_checkpoint,
+                config=final_cfg,
+                output_path=None,  # Will use default location
+                curriculum_name=final_curriculum
+            )
+            console.print(
+                f'\n[bold green]✓ Embeddings generated successfully![/bold green]\n'
+                f'Embeddings saved to: [cyan]{embeddings_path}[/cyan]\n'
+                f'This file can be used for HGCN training.\n'
+            )

@@ -6,8 +6,8 @@ relation_margin: null
 distance_margin: null
 
 # Positive filtering
-positive_level: [1, 2, 3, 4]
-positive_relation: null
+positive_level: null
+positive_relation: [1, 2, 3, 4, 5, 6, 7]
 positive_distance: null
 
 # Negative sampling
@@ -16,5 +16,5 @@ negative_relation: null
 negative_distance: null
 
 # num samples
-n_positives: 16
-n_negatives: 8
+n_positives: 4
+n_negatives: 24

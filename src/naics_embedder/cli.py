@@ -421,7 +421,9 @@ def train(
         # Handle checkpoint resumption
         checkpoint_path = None
         if ckpt_path:
-            if ckpt_path.lower() == 'last':
+            # Check if user wants to auto-detect last checkpoint (supports both 'last' and 'last.ckpt')
+            ckpt_path_lower = ckpt_path.lower()
+            if ckpt_path_lower == 'last' or ckpt_path_lower == 'last.ckpt':
                 # Auto-detect last checkpoint
                 checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
                 last_ckpt = checkpoint_dir / 'last.ckpt'
@@ -588,10 +590,26 @@ def train(
         logger.info('Training complete!')
         logger.info(f'Best model checkpoint: {checkpoint_callback.best_model_path}')
         
+        # Check if early stopping was triggered and get the best loss
+        early_stop_triggered = early_stopping.stopped_epoch > 0
+        best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
+        
+        if early_stop_triggered and best_loss is not None:
+            logger.info(f'Early stopping triggered at epoch {early_stopping.stopped_epoch} with best loss: {best_loss:.6f}')
+        
         console.print(
             f'\n[bold green]✓ Training completed successfully![/bold green]\n'
             f'Best checkpoint: [cyan]{checkpoint_callback.best_model_path}[/cyan]\n'
         )
+        
+        # Print the loss that decided early stopping as the final metric
+        if best_loss is not None:
+            label = "Final evaluation metric (early stopping)" if early_stop_triggered else "Final evaluation metric"
+            console.print(
+                f'[bold]{label}:[/bold] '
+                f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
+            )
+            logger.info(f'{label}: val/contrastive_loss = {best_loss:.6f}')
         
         # Save final config
         config_output_path = checkpoint_dir / 'config.yaml'
@@ -705,7 +723,9 @@ def train_sequential(
     
     # Handle initial checkpoint if provided
     if ckpt_path:
-        if ckpt_path.lower() == 'last':
+        # Check if user wants to auto-detect last checkpoint (supports both 'last' and 'last.ckpt')
+        ckpt_path_lower = ckpt_path.lower()
+        if ckpt_path_lower == 'last' or ckpt_path_lower == 'last.ckpt':
             # Try to find last checkpoint from sequential training
             # We need to determine the checkpoint directory structure
             if chain_config:
@@ -952,10 +972,26 @@ def train_sequential(
             # Store checkpoint path for next stage
             last_checkpoint = checkpoint_callback.best_model_path
             
+            # Check if early stopping was triggered and get the best loss
+            early_stop_triggered = early_stopping.stopped_epoch > 0
+            best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
+            
+            if early_stop_triggered and best_loss is not None:
+                logger.info(f'Early stopping triggered at epoch {early_stopping.stopped_epoch} with best loss: {best_loss:.6f}')
+            
             console.print(
                 f'[green]✓[/green] Stage {i} complete. '
                 f'Best checkpoint: [cyan]{last_checkpoint}[/cyan]\n'
             )
+            
+            # Print the loss that decided early stopping as the final metric
+            if best_loss is not None:
+                label = "Final evaluation metric (early stopping)" if early_stop_triggered else "Final evaluation metric"
+                console.print(
+                    f'[bold]{label}:[/bold] '
+                    f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
+                )
+                logger.info(f'{label}: val/contrastive_loss = {best_loss:.6f}')
             
             # Optional: Run evaluation on test set between stages
             if i < len(curricula):
