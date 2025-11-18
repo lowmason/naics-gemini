@@ -203,6 +203,49 @@ project modules.
 
 ## 8. Onboarding Guide
 
+### 8.0 Initial Setup
+
+After cloning the repository, run the setup script to configure git, zsh, oh-my-zsh, and Spaceship theme:
+
+```bash
+./scripts/setup.sh
+```
+
+This will:
+- Configure git user.name and user.email (if not already set)
+- Install zsh (if not installed)
+- Install oh-my-zsh
+- Install Spaceship prompt theme
+- Configure `.zshrc` with Spaceship theme
+- Set zsh as your default shell
+- Set up project-specific git settings
+
+**Personal customizations:** Create `~/.zshrc.local` for your personal zsh customizations (aliases, functions, etc.). See `scripts/zshrc.local.example` for a template.
+
+**Alternative: Setting git config via environment variables**
+
+Instead of using `git config --global`, you can set git author/committer information using environment variables. This is useful for cloud environments where you want to configure git automatically when the instance is created.
+
+**Option 1: Add to your shell profile** (`~/.zshrc` or `~/.bashrc`):
+```bash
+export GIT_AUTHOR_NAME="Your Name"
+export GIT_AUTHOR_EMAIL="your.email@example.com"
+export GIT_COMMITTER_NAME="Your Name"
+export GIT_COMMITTER_EMAIL="your.email@example.com"
+```
+
+**Option 2: Use cloud-init/user-data scripts** (for automatic setup on instance creation):
+```yaml
+#cloud-config
+runcmd:
+  - echo 'export GIT_AUTHOR_NAME="Your Name"' >> /home/ubuntu/.zshrc
+  - echo 'export GIT_AUTHOR_EMAIL="your.email@example.com"' >> /home/ubuntu/.zshrc
+  - echo 'export GIT_COMMITTER_NAME="Your Name"' >> /home/ubuntu/.zshrc
+  - echo 'export GIT_COMMITTER_EMAIL="your.email@example.com"' >> /home/ubuntu/.zshrc
+```
+
+Git will automatically use these environment variables if they're set, and they take precedence over `git config` settings. This way, you don't need to run the setup script to configure git—it's already set when you log in.
+
 ### 8.1 Training the Contrastive Model
 
 1. Prepare the NAICS dataset with four text channels.
