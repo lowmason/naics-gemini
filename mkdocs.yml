@@ -1,29 +1,23 @@
-site_name: NAICS Hyperbolic Embedding System
+site_name: naics-embedder
 site_description: Hyperbolic contrastive learning and HGCN refinement for NAICS taxonomy
 site_author: Lowell Mason
+site_url: https://lowmason.github.io/naics-embedder/
 repo_name: lowmason/naics-embedder
 repo_url: https://github.com/lowmason/naics-embedder
-edit_uri: edit/main/docs/
 
 theme:
   name: mkdocs 
   language: en
   features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.indexes
-    - content.code.copy
-    - content.action.edit
-    - toc.follow
-    - content.tabs.link
-    - search.suggest
-    - search.highlight
-    - content.footnote.tooltips
+    - awesome-nav
 
   palette:
     - scheme: slate
       primary: teal
       accent: cyan
+
+  extra_css:
+    - css/custom.css
 
 markdown_extensions:
   - admonition
@@ -40,28 +34,11 @@ markdown_extensions:
   - pymdownx.tabbed
   - pymdownx.mark
 
-extra_css:
-  - stylesheets/extra.css
-
 plugins:
-  - search
+  - awesome-nav
   - mkdocstrings:
       handlers:
         python:
           options:
             show_source: false
             show_root_full_path: false
-
-nav:
-  - Home: index.md
-  - Architecture:
-      - System Overview: architecture.md
-  - Training:
-      - Contrastive Model: training.md
-      - HGCN Refinement: embeddings.md
-  - API Reference:
-      - Encoder: api/encoder.md
-      - Mixture of Experts: api/moe.md
-      - Hyperbolic Ops: api/hyperbolic.md
-      - Contrastive Loss: api/loss.md
-      - HGCN: api/hgcn.md
