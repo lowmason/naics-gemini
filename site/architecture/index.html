@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <meta name="author" content="Lowell Mason">
+        <link rel="canonical" href="https://lowmason.github.io/naics-embedder/architecture/">
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>System Overview - naics-embedder</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/fontawesome.min.css" rel="stylesheet">
+        <link href="../css/brands.min.css" rel="stylesheet">
+        <link href="../css/solid.min.css" rel="stylesheet">
+        <link href="../css/v4-font-face.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" >
+        <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" disabled>
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand" href="..">naics-embedder</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar-collapse" aria-controls="navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="nav-item">
+                                <a href=".." class="nav-link">Home</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="./" class="nav-link active" aria-current="page">System Overview</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="#" class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown"  aria-expanded="false">Training Overview</a>
+                                <ul class="dropdown-menu">
+                                    
+<li>
+    <a href="../text_training/" class="dropdown-item">Text Training</a>
+</li>
+                                    
+<li>
+    <a href="../hgcn_training/" class="dropdown-item">HGCN Training</a>
+</li>
+                                </ul>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../usage/" class="nav-link">Usage</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="#" class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown"  aria-expanded="false">API Reference</a>
+                                <ul class="dropdown-menu">
+                                    
+<li>
+    <a href="../api/cli/" class="dropdown-item">CLI</a>
+</li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Data Preparation</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/download_data/" class="dropdown-item">Download and Preprocess Data</a>
+</li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Compute Distance Measures</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/compute_relations/" class="dropdown-item">Relationship Measures</a>
+</li>
+            
+<li>
+    <a href="../api/compute_distances/" class="dropdown-item">Graph Distance Measures</a>
+</li>
+    </ul>
+  </li>
+            
+<li>
+    <a href="../api/create_triplets/" class="dropdown-item">Create Contrastive Training Triplets</a>
+</li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Data Loading</a>
+    <ul class="dropdown-menu">
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Text Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/tokenization_cache/" class="dropdown-item">Tokenization</a>
+</li>
+            
+<li>
+    <a href="../api/streaming_dataset/" class="dropdown-item">Streaming DataSet</a>
+</li>
+            
+<li>
+    <a href="../api/datamodule/" class="dropdown-item">DataLoader</a>
+</li>
+    </ul>
+  </li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">HGCN Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/hgcn_streaming_dataset/" class="dropdown-item">Streaming DataSet</a>
+</li>
+            
+<li>
+    <a href="../api/hgcn_datamodule/" class="dropdown-item">DataLoader</a>
+</li>
+    </ul>
+  </li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Training</a>
+    <ul class="dropdown-menu">
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Text Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/encoder/" class="dropdown-item">Encoder</a>
+</li>
+            
+<li>
+    <a href="../api/moe/" class="dropdown-item">Mixture of Experts</a>
+</li>
+            
+<li>
+    <a href="../api/hyperbolic/" class="dropdown-item">Hyperbolic Operations</a>
+</li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Loss Functions</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/contrastive_loss/" class="dropdown-item">Contrastive</a>
+</li>
+            
+<li>
+    <a href="../api/hierarchy_preservation_loss/" class="dropdown-item">Hierarchy Preservation</a>
+</li>
+            
+<li>
+    <a href="../api/rank_order_preservation_loss/" class="dropdown-item">Rank Order Preservation</a>
+</li>
+    </ul>
+  </li>
+            
+<li>
+    <a href="../api/evaluation/" class="dropdown-item">Evaluation</a>
+</li>
+    </ul>
+  </li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">HGCN Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/hgcn/" class="dropdown-item">HGCN</a>
+</li>
+    </ul>
+  </li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Tools</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/config_tools/" class="dropdown-item">Current Training Configuration</a>
+</li>
+            
+<li>
+    <a href="../api/metrics_tools/" class="dropdown-item">Training Metrics</a>
+</li>
+            
+<li>
+    <a href="../api/evaluate_training/" class="dropdown-item">Training Evaluation</a>
+</li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Utilities</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="../api/backend/" class="dropdown-item">Backend</a>
+</li>
+            
+<li>
+    <a href="../api/console/" class="dropdown-item">Console</a>
+</li>
+            
+<li>
+    <a href="../api/config/" class="dropdown-item">Configuration</a>
+</li>
+            
+<li>
+    <a href="../api/utilities/" class="dropdown-item">General Utilities</a>
+</li>
+    </ul>
+  </li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ms-md-auto">
+                            <li class="nav-item">
+                                <a rel="prev" href=".." class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../text_training/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/lowmason/naics-embedder/edit/master/docs/architecture.md" class="nav-link">Edit on lowmason/naics-embedder
+                                    </a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-bs-toggle="collapse" data-bs-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-body-tertiary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-bs-level="1"><a href="#system-architecture" class="nav-link">System Architecture</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="2"><a href="#table-of-contents" class="nav-link">Table of Contents</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#system-overview" class="nav-link">System Overview</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#architecture-components" class="nav-link">Architecture Components</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#data-flow" class="nav-link">Data Flow</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#training-pipeline" class="nav-link">Training Pipeline</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#mathematical-foundations" class="nav-link">Mathematical Foundations</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#design-decisions" class="nav-link">Design Decisions</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#component-dependencies" class="nav-link">Component Dependencies</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#configuration" class="nav-link">Configuration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="system-architecture">System Architecture<a class="headerlink" href="#system-architecture" title="Permanent link">&para;</a></h1>
+<p>This document provides a comprehensive overview of the NAICS Hyperbolic Embedding System architecture, detailing each component, data flow, and design decisions.</p>
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ol>
+<li><a href="#system-overview">System Overview</a></li>
+<li><a href="#architecture-components">Architecture Components</a></li>
+<li><a href="#data-flow">Data Flow</a></li>
+<li><a href="#training-pipeline">Training Pipeline</a></li>
+<li><a href="#mathematical-foundations">Mathematical Foundations</a></li>
+<li><a href="#design-decisions">Design Decisions</a></li>
+</ol>
+<hr />
+<h2 id="system-overview">System Overview<a class="headerlink" href="#system-overview" title="Permanent link">&para;</a></h2>
+<p>The NAICS Hyperbolic Embedding System is a unified framework for learning hierarchical representations of the North American Industry Classification System (NAICS) taxonomy. The system combines:</p>
+<ul>
+<li><strong>Multi-channel text encoding</strong> using transformer-based encoders</li>
+<li><strong>Mixture-of-Experts (MoE) fusion</strong> for adaptive feature combination</li>
+<li><strong>Hyperbolic contrastive learning</strong> in Lorentz space</li>
+<li><strong>False-negative mitigation</strong> via curriculum clustering</li>
+<li><strong>Hierarchy preservation</strong> through specialized loss functions</li>
+<li><strong>Optional HGCN refinement</strong> for graph-based structure integration</li>
+</ul>
+<p>The final output is a set of <strong>Lorentz-model hyperbolic embeddings</strong> that preserve the hierarchical structure of the NAICS taxonomy while capturing semantic relationships from text descriptions.</p>
+<hr />
+<h2 id="architecture-components">Architecture Components<a class="headerlink" href="#architecture-components" title="Permanent link">&para;</a></h2>
+<h3 id="1-multi-channel-text-encoder">1. Multi-Channel Text Encoder<a class="headerlink" href="#1-multi-channel-text-encoder" title="Permanent link">&para;</a></h3>
+<p>The system processes each NAICS code through four independent text channels:</p>
+<ul>
+<li><strong>Title</strong>: Short code name (e.g., "Software Publishers")</li>
+<li><strong>Description</strong>: Detailed explanation of the code</li>
+<li><strong>Examples</strong>: Representative examples of businesses in this category</li>
+<li><strong>Excluded</strong>: Codes explicitly excluded from this category</li>
+</ul>
+<h4 id="implementation">Implementation<a class="headerlink" href="#implementation" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="n">MultiChannelEncoder</span><span class="p">(</span>
+    <span class="n">base_model_name</span><span class="o">=</span><span class="s1">&#39;sentence-transformers/all-mpnet-base-v2&#39;</span><span class="p">,</span>
+    <span class="n">lora_r</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+    <span class="n">lora_alpha</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+    <span class="n">num_experts</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">curvature</span><span class="o">=</span><span class="mf">1.0</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><strong>Key Features:</strong></p>
+<ul>
+<li><strong>LoRA Adaptation</strong>: Each channel uses a separate LoRA-adapted transformer encoder</li>
+<li>Reduces trainable parameters while maintaining expressiveness</li>
+<li>Universal LoRA targeting (<code>target_modules='all-linear'</code>) works with any transformer architecture</li>
+<li>
+<p>Default: <code>r=8</code>, <code>alpha=16</code>, <code>dropout=0.1</code></p>
+</li>
+<li>
+<p><strong>Gradient Checkpointing</strong>: Enabled by default to reduce memory usage</p>
+</li>
+<li>Trades computation for memory during backpropagation</li>
+<li>
+<p>Critical for large batch sizes or limited GPU memory</p>
+</li>
+<li>
+<p><strong>Channel Independence</strong>: Each channel learns specialized representations</p>
+</li>
+<li>Title encoder focuses on concise category names</li>
+<li>Description encoder captures detailed semantics</li>
+<li>Examples encoder learns from representative instances</li>
+<li>Excluded encoder learns negative semantics</li>
+</ul>
+<p><strong>Output</strong>: Four Euclidean embeddings <code>(E_title, E_desc, E_examples, E_excluded)</code>, each of dimension <code>embedding_dim</code> (typically 768 for MPNet).</p>
+<hr />
+<h3 id="2-mixture-of-experts-moe-fusion">2. Mixture-of-Experts (MoE) Fusion<a class="headerlink" href="#2-mixture-of-experts-moe-fusion" title="Permanent link">&para;</a></h3>
+<p>The four channel embeddings are concatenated and passed through a Mixture-of-Experts layer for adaptive fusion.</p>
+<h4 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="n">MixtureOfExperts</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="n">embedding_dim</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span>  <span class="c1"># 4 channels concatenated</span>
+    <span class="n">hidden_dim</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span>
+    <span class="n">num_experts</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">top_k</span><span class="o">=</span><span class="mi">2</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><strong>Components:</strong></p>
+<ol>
+<li><strong>Gating Network</strong>: Linear layer that computes expert selection scores</li>
+<li>Input: Concatenated channel embeddings <code>(batch_size, embedding_dim * 4)</code></li>
+<li>
+<p>Output: Expert scores <code>(batch_size, num_experts)</code></p>
+</li>
+<li>
+<p><strong>Top-K Selection</strong>: Selects the <code>top_k=2</code> most relevant experts per input</p>
+</li>
+<li>Reduces computation while maintaining expressiveness</li>
+<li>
+<p>Softmax normalization over selected experts</p>
+</li>
+<li>
+<p><strong>Expert Networks</strong>: Each expert is a 2-layer MLP:</p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><code>Linear(input_dim → hidden_dim) → ReLU → Dropout(0.1) → Linear(hidden_dim → input_dim)
+</code></pre></div>
+<ol>
+<li><strong>Load Balancing</strong>: Auxiliary loss ensures even expert utilization</li>
+<li>Prevents expert collapse (all inputs routed to same expert)</li>
+<li>Coefficient: <code>load_balancing_coef=0.01</code></li>
+</ol>
+<p><strong>Output</strong>: Fused Euclidean embedding <code>E_fused</code> of dimension <code>embedding_dim</code>, projected back from <code>embedding_dim * 4</code> via a linear projection layer.</p>
+<hr />
+<h3 id="3-hyperbolic-projection">3. Hyperbolic Projection<a class="headerlink" href="#3-hyperbolic-projection" title="Permanent link">&para;</a></h3>
+<p>The fused Euclidean embedding is projected into <strong>Lorentz-model hyperbolic space</strong> to align with hierarchical structure.</p>
+<h4 id="lorentz-model">Lorentz Model<a class="headerlink" href="#lorentz-model" title="Permanent link">&para;</a></h4>
+<p>The Lorentz model represents hyperbolic space as points on a hyperboloid:</p>
+<ul>
+<li><strong>Coordinates</strong>: <code>(x₀, x₁, ..., xₙ)</code> where:</li>
+<li><code>x₀</code> is the time coordinate (hyperbolic radius)</li>
+<li><code>x₁...xₙ</code> are spatial coordinates</li>
+<li><strong>Constraint</strong>: <code>-x₀² + x₁² + ... + xₙ² = -1/c</code> (Lorentz inner product)</li>
+<li><strong>Curvature</strong>: <code>c</code> controls the curvature of the space (default: <code>c=1.0</code>)</li>
+</ul>
+<h4 id="implementation_1">Implementation<a class="headerlink" href="#implementation_1" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="n">HyperbolicProjection</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="n">embedding_dim</span><span class="p">,</span>
+    <span class="n">curvature</span><span class="o">=</span><span class="mf">1.0</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><strong>Projection Process:</strong></p>
+<ol>
+<li><strong>Linear Projection</strong>: Maps Euclidean embedding to tangent space</li>
+<li><code>Linear(embedding_dim → embedding_dim + 1)</code></li>
+<li>
+<p>Adds the time coordinate dimension</p>
+</li>
+<li>
+<p><strong>Exponential Map</strong>: Maps from tangent space to hyperboloid</p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><code>x₀ = cosh(||v|| / √c)
+x_rest = (sinh(||v|| / √c) * v) / ||v||
+</code></pre></div>
+<ul>
+<li>Ensures points satisfy the Lorentz constraint</li>
+<li>Numerically stable with clamping</li>
+</ul>
+<p><strong>Output</strong>: Hyperbolic embedding <code>E_hyp</code> of shape <code>(batch_size, embedding_dim + 1)</code> on the Lorentz hyperboloid.</p>
+<hr />
+<h3 id="4-hyperbolic-contrastive-learning">4. Hyperbolic Contrastive Learning<a class="headerlink" href="#4-hyperbolic-contrastive-learning" title="Permanent link">&para;</a></h3>
+<p>Contrastive learning is performed directly in hyperbolic space using <strong>Lorentzian geodesic distances</strong>.</p>
+<h4 id="hyperbolic-infonce-loss">Hyperbolic InfoNCE Loss<a class="headerlink" href="#hyperbolic-infonce-loss" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="n">HyperbolicInfoNCELoss</span><span class="p">(</span>
+    <span class="n">embedding_dim</span><span class="o">=</span><span class="n">embedding_dim</span><span class="p">,</span>
+    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.07</span><span class="p">,</span>
+    <span class="n">curvature</span><span class="o">=</span><span class="mf">1.0</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><strong>Distance Computation:</strong></p>
+<p>Lorentzian distance between two points <code>u, v</code> on the hyperboloid:</p>
+<div class="highlight"><pre><span></span><code>d(u, v) = √c * arccosh(-⟨u, v⟩_L)
+</code></pre></div>
+<p>where the Lorentz inner product is:</p>
+<div class="highlight"><pre><span></span><code>⟨u, v⟩_L = u₁v₁ + ... + uₙvₙ - u₀v₀
+</code></pre></div>
+<p><strong>Loss Function:</strong></p>
+<p>Standard InfoNCE loss with hyperbolic distances:</p>
+<div class="highlight"><pre><span></span><code>L = -log(exp(-d(anchor, positive) / τ) / Σᵢ exp(-d(anchor, negativeᵢ) / τ))
+</code></pre></div>
+<p>where <code>τ</code> is the temperature parameter (default: <code>0.07</code>).</p>
+<p><strong>False-Negative Mitigation:</strong></p>
+<p>A curriculum-based procedure removes semantically similar negatives:</p>
+<ol>
+<li><strong>Clustering</strong>: Periodically cluster embeddings using KMeans (default: every 5 epochs after epoch 10)</li>
+<li><strong>Masking</strong>: Identify negatives sharing cluster label with anchor</li>
+<li><strong>Exclusion</strong>: Mask these false negatives from the contrastive denominator</li>
+</ol>
+<p>This prevents the model from incorrectly separating close hierarchical neighbors.</p>
+<hr />
+<h3 id="5-hierarchy-preservation-loss">5. Hierarchy Preservation Loss<a class="headerlink" href="#5-hierarchy-preservation-loss" title="Permanent link">&para;</a></h3>
+<p>Additional loss component that directly optimizes hierarchy preservation by matching embedding distances to tree distances.</p>
+<h4 id="implementation_2">Implementation<a class="headerlink" href="#implementation_2" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="n">HierarchyPreservationLoss</span><span class="p">(</span>
+    <span class="n">tree_distances</span><span class="o">=</span><span class="n">ground_truth_distances</span><span class="p">,</span>
+    <span class="n">code_to_idx</span><span class="o">=</span><span class="n">code_to_idx</span><span class="p">,</span>
+    <span class="n">weight</span><span class="o">=</span><span class="mf">0.325</span><span class="p">,</span>  <span class="c1"># Default weight</span>
+    <span class="n">min_distance</span><span class="o">=</span><span class="mf">0.1</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><strong>Loss Computation:</strong></p>
+<p>For each pair of codes in the batch:</p>
+<div class="highlight"><pre><span></span><code>L_hierarchy = weight * MSE(embedding_distance, tree_distance)
+</code></pre></div>
+<ul>
+<li><strong>Embedding Distance</strong>: Lorentzian geodesic distance between hyperbolic embeddings</li>
+<li><strong>Tree Distance</strong>: Ground truth distance in the NAICS taxonomy tree</li>
+<li><strong>Weight</strong>: Controls the importance of hierarchy preservation (default: <code>0.325</code>)</li>
+</ul>
+<p>This loss encourages the embedding space to directly reflect the hierarchical structure of NAICS.</p>
+<hr />
+<h3 id="6-rank-order-preservation-loss-lambdarank">6. Rank Order Preservation Loss (LambdaRank)<a class="headerlink" href="#6-rank-order-preservation-loss-lambdarank" title="Permanent link">&para;</a></h3>
+<p>Global ranking optimization using LambdaRank to preserve rank order relationships.</p>
+<h4 id="implementation_3">Implementation<a class="headerlink" href="#implementation_3" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="n">LambdaRankLoss</span><span class="p">(</span>
+    <span class="n">tree_distances</span><span class="o">=</span><span class="n">ground_truth_distances</span><span class="p">,</span>
+    <span class="n">code_to_idx</span><span class="o">=</span><span class="n">code_to_idx</span><span class="p">,</span>
+    <span class="n">weight</span><span class="o">=</span><span class="mf">0.275</span><span class="p">,</span>  <span class="c1"># Default weight</span>
+    <span class="n">sigma</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">ndcg_k</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><strong>Key Features:</strong></p>
+<ul>
+<li><strong>Position-Aware</strong>: Optimizes NDCG@k (Normalized Discounted Cumulative Gain)</li>
+<li><strong>Gradient Weighting</strong>: Uses LambdaRank gradients that weight pairs by their impact on ranking</li>
+<li><strong>Global Optimization</strong>: Considers all pairs, not just anchor-positive-negative triplets</li>
+</ul>
+<p>This loss ensures that the relative ordering of codes in the embedding space matches their hierarchical relationships.</p>
+<hr />
+<h3 id="7-radius-regularization">7. Radius Regularization<a class="headerlink" href="#7-radius-regularization" title="Permanent link">&para;</a></h3>
+<p>Prevents hyperbolic embeddings from collapsing to the origin or expanding too far.</p>
+<h4 id="implementation_4">Implementation<a class="headerlink" href="#implementation_4" title="Permanent link">&para;</a></h4>
+<p>Regularization term that encourages embeddings to maintain reasonable hyperbolic radii:</p>
+<div class="highlight"><pre><span></span><code>L_radius = radius_reg_weight * ||r - target_radius||²
+</code></pre></div>
+<p>where <code>r</code> is the hyperbolic radius (time coordinate <code>x₀</code>) and <code>target_radius</code> is a learned or fixed value.</p>
+<p><strong>Default Weight</strong>: <code>0.01</code></p>
+<hr />
+<h3 id="8-evaluation-metrics">8. Evaluation Metrics<a class="headerlink" href="#8-evaluation-metrics" title="Permanent link">&para;</a></h3>
+<p>The system computes comprehensive evaluation metrics during training:</p>
+<h4 id="hierarchy-metrics">Hierarchy Metrics<a class="headerlink" href="#hierarchy-metrics" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Cophenetic Correlation</strong>: Measures how well embedding distances preserve tree structure</li>
+<li><strong>Spearman Correlation</strong>: Rank-order correlation between embedding and tree distances</li>
+<li><strong>NDCG@k</strong>: Position-aware ranking quality metric (k ∈ {5, 10, 20})</li>
+<li><strong>Distortion</strong>: Mean, median, and std deviation of distance distortions</li>
+</ul>
+<h4 id="embedding-statistics">Embedding Statistics<a class="headerlink" href="#embedding-statistics" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Lorentz Norm</strong>: Mean and violations of the Lorentz constraint</li>
+<li><strong>Hyperbolic Radius</strong>: Mean and std of hyperbolic radii</li>
+<li><strong>Pairwise Distances</strong>: Mean and std of embedding distances</li>
+</ul>
+<h4 id="collapse-detection">Collapse Detection<a class="headerlink" href="#collapse-detection" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Norm CV</strong>: Coefficient of variation of embedding norms</li>
+<li><strong>Distance CV</strong>: Coefficient of variation of pairwise distances</li>
+<li><strong>Variance Collapse</strong>: Detects if embeddings collapse to a single point</li>
+</ul>
+<hr />
+<h2 id="data-flow">Data Flow<a class="headerlink" href="#data-flow" title="Permanent link">&para;</a></h2>
+<h3 id="forward-pass">Forward Pass<a class="headerlink" href="#forward-pass" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>NAICS Code (4 text channels)
+    ↓
+[Multi-Channel Encoder]
+    ├─→ Title Encoder (LoRA) → E_title
+    ├─→ Description Encoder (LoRA) → E_desc
+    ├─→ Examples Encoder (LoRA) → E_examples
+    └─→ Excluded Encoder (LoRA) → E_excluded
+    ↓
+[Concatenate] → (embedding_dim * 4)
+    ↓
+[MoE Fusion] → E_fused (embedding_dim)
+    ↓
+[Hyperbolic Projection] → E_hyp (embedding_dim + 1)
+    ↓
+[Lorentz Hyperboloid]
+</code></pre></div>
+<h3 id="training-step">Training Step<a class="headerlink" href="#training-step" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Batch: (anchors, positives, negatives)
+    ↓
+[Forward Pass] → Hyperbolic embeddings
+    ↓
+[Compute Distances]
+    ├─→ Anchor-Positive distances
+    └─→ Anchor-Negative distances
+    ↓
+[Apply False-Negative Mask] (if available)
+    ↓
+[Hyperbolic InfoNCE Loss]
+    ↓
+[Additional Losses]
+    ├─→ Hierarchy Preservation Loss
+    ├─→ LambdaRank Loss
+    ├─→ Radius Regularization
+    └─→ MoE Load Balancing Loss
+    ↓
+[Total Loss] → Backpropagation
+</code></pre></div>
+<hr />
+<h2 id="training-pipeline">Training Pipeline<a class="headerlink" href="#training-pipeline" title="Permanent link">&para;</a></h2>
+<h3 id="single-stage-training">Single-Stage Training<a class="headerlink" href="#single-stage-training" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Data Loading</strong>: Stream triplets (anchor, positive, negatives) based on curriculum config</li>
+<li><strong>Forward Pass</strong>: Encode and project to hyperbolic space</li>
+<li><strong>Loss Computation</strong>: Combine contrastive, hierarchy, and ranking losses</li>
+<li><strong>Backpropagation</strong>: Update encoder, MoE, and projection parameters</li>
+<li><strong>Evaluation</strong>: Compute metrics every N epochs</li>
+<li><strong>Early Stopping</strong>: Monitor validation loss with patience</li>
+</ol>
+<h3 id="sequential-curriculum-training">Sequential Curriculum Training<a class="headerlink" href="#sequential-curriculum-training" title="Permanent link">&para;</a></h3>
+<p>Multiple stages with progressive difficulty:</p>
+<ul>
+<li><strong>Stage 1</strong>: Coarse-grained relationships (e.g., level 2-3 codes)</li>
+<li><strong>Stage 2</strong>: Finer-grained relationships (e.g., level 3-4 codes)</li>
+<li><strong>Stage 3+</strong>: Specialized relationships or edge cases</li>
+</ul>
+<p>Each stage:</p>
+<ol>
+<li>Loads checkpoint from previous stage</li>
+<li>Trains with stage-specific curriculum</li>
+<li>Saves best checkpoint for next stage</li>
+</ol>
+<h3 id="false-negative-curriculum">False-Negative Curriculum<a class="headerlink" href="#false-negative-curriculum" title="Permanent link">&para;</a></h3>
+<p>After initial training (default: epoch 10), periodically:</p>
+<ol>
+<li>Generate embeddings for all codes</li>
+<li>Cluster embeddings using KMeans (default: 500 clusters)</li>
+<li>Update pseudo-labels based on cluster assignments</li>
+<li>Mask false negatives in subsequent training</li>
+</ol>
+<hr />
+<h2 id="mathematical-foundations">Mathematical Foundations<a class="headerlink" href="#mathematical-foundations" title="Permanent link">&para;</a></h2>
+<h3 id="hyperbolic-geometry">Hyperbolic Geometry<a class="headerlink" href="#hyperbolic-geometry" title="Permanent link">&para;</a></h3>
+<p>The system uses the <strong>Lorentz model</strong> of hyperbolic space, which has several advantages:</p>
+<ol>
+<li><strong>Differentiable</strong>: Smooth operations suitable for gradient-based optimization</li>
+<li><strong>Numerically Stable</strong>: Well-conditioned distance computations</li>
+<li><strong>Hierarchical Structure</strong>: Natural representation for tree-like data</li>
+</ol>
+<h4 id="lorentz-inner-product">Lorentz Inner Product<a class="headerlink" href="#lorentz-inner-product" title="Permanent link">&para;</a></h4>
+<p>For two points <code>u = (u₀, u₁, ..., uₙ)</code> and <code>v = (v₀, v₁, ..., vₙ)</code>:</p>
+<div class="highlight"><pre><span></span><code>⟨u, v⟩_L = Σᵢ₌₁ⁿ uᵢvᵢ - u₀v₀
+</code></pre></div>
+<h4 id="lorentz-distance">Lorentz Distance<a class="headerlink" href="#lorentz-distance" title="Permanent link">&para;</a></h4>
+<p>Geodesic distance on the hyperboloid:</p>
+<div class="highlight"><pre><span></span><code>d(u, v) = √c * arccosh(-⟨u, v⟩_L)
+</code></pre></div>
+<h4 id="exponential-map">Exponential Map<a class="headerlink" href="#exponential-map" title="Permanent link">&para;</a></h4>
+<p>Maps from tangent space to hyperboloid:</p>
+<div class="highlight"><pre><span></span><code>exp₀(v) = (cosh(||v||/√c), sinh(||v||/√c) * v/||v||)
+</code></pre></div>
+<h3 id="contrastive-learning">Contrastive Learning<a class="headerlink" href="#contrastive-learning" title="Permanent link">&para;</a></h3>
+<p>The InfoNCE loss maximizes agreement between anchor-positive pairs while minimizing agreement with negatives:</p>
+<div class="highlight"><pre><span></span><code>L = -log(exp(sim(anchor, positive) / τ) / Σᵢ exp(sim(anchor, negativeᵢ) / τ))
+</code></pre></div>
+<p>In hyperbolic space, similarity is defined as negative distance:</p>
+<div class="highlight"><pre><span></span><code>sim(u, v) = -d(u, v)
+</code></pre></div>
+<hr />
+<h2 id="design-decisions">Design Decisions<a class="headerlink" href="#design-decisions" title="Permanent link">&para;</a></h2>
+<h3 id="why-hyperbolic-space">Why Hyperbolic Space?<a class="headerlink" href="#why-hyperbolic-space" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Hierarchical Structure</strong>: Hyperbolic space naturally represents tree-like hierarchies</li>
+<li><strong>Distance Properties</strong>: Geodesic distances capture hierarchical relationships</li>
+<li><strong>Capacity</strong>: More capacity than Euclidean space for hierarchical data</li>
+</ol>
+<h3 id="why-lorentz-model">Why Lorentz Model?<a class="headerlink" href="#why-lorentz-model" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Differentiability</strong>: Smooth operations for gradient-based learning</li>
+<li><strong>Numerical Stability</strong>: Well-conditioned distance computations</li>
+<li><strong>Standard Form</strong>: Widely used in machine learning literature</li>
+</ol>
+<h3 id="why-multi-channel-encoding">Why Multi-Channel Encoding?<a class="headerlink" href="#why-multi-channel-encoding" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Rich Semantics</strong>: Different text fields capture different aspects</li>
+<li><strong>Specialization</strong>: Each channel can learn field-specific patterns</li>
+<li><strong>Robustness</strong>: Reduces reliance on any single text field</li>
+</ol>
+<h3 id="why-moe-fusion">Why MoE Fusion?<a class="headerlink" href="#why-moe-fusion" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Adaptive Combination</strong>: Learns how to combine channels based on context</li>
+<li><strong>Efficiency</strong>: Top-k routing reduces computation</li>
+<li><strong>Expressiveness</strong>: Multiple experts capture diverse fusion patterns</li>
+</ol>
+<h3 id="why-lora">Why LoRA?<a class="headerlink" href="#why-lora" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Parameter Efficiency</strong>: Reduces trainable parameters by ~90%</li>
+<li><strong>Flexibility</strong>: Can adapt any transformer architecture</li>
+<li><strong>Memory Efficiency</strong>: Enables larger batch sizes</li>
+</ol>
+<h3 id="why-false-negative-mitigation">Why False-Negative Mitigation?<a class="headerlink" href="#why-false-negative-mitigation" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Hierarchical Ambiguity</strong>: Close codes in hierarchy may be sampled as negatives</li>
+<li><strong>Curriculum Learning</strong>: Gradually refines negative sampling as embeddings improve</li>
+<li><strong>Better Representations</strong>: Prevents model from incorrectly separating similar codes</li>
+</ol>
+<hr />
+<h2 id="component-dependencies">Component Dependencies<a class="headerlink" href="#component-dependencies" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>NAICSContrastiveModel
+    ├─→ MultiChannelEncoder
+    │   ├─→ 4x LoRA-adapted Transformers
+    │   ├─→ MixtureOfExperts
+    │   └─→ HyperbolicProjection
+    ├─→ HyperbolicInfoNCELoss
+    ├─→ HierarchyPreservationLoss (optional)
+    ├─→ LambdaRankLoss (optional)
+    └─→ Evaluation Components
+        ├─→ EmbeddingEvaluator
+        ├─→ EmbeddingStatistics
+        └─→ HierarchyMetrics
+</code></pre></div>
+<hr />
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>Key hyperparameters (see <code>conf/config.yaml</code>):</p>
+<ul>
+<li><strong>Model</strong>: <code>base_model_name</code>, <code>lora_r</code>, <code>lora_alpha</code>, <code>num_experts</code>, <code>top_k</code></li>
+<li><strong>Hyperbolic</strong>: <code>curvature</code>, <code>temperature</code></li>
+<li><strong>Loss Weights</strong>: <code>hierarchy_weight</code>, <code>rank_order_weight</code>, <code>radius_reg_weight</code></li>
+<li><strong>Training</strong>: <code>learning_rate</code>, <code>weight_decay</code>, <code>warmup_steps</code></li>
+<li><strong>False Negatives</strong>: <code>fn_curriculum_start_epoch</code>, <code>fn_cluster_every_n_epochs</code>, <code>fn_num_clusters</code></li>
+</ul>
+<hr /></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="../js/bootstrap.bundle.min.js"></script>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js"></script>
+
+        <div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>

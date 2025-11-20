@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <meta name="author" content="Lowell Mason">
+        
+        <link rel="shortcut icon" href="/naics-embedder/img/favicon.ico">
+        <title>naics-embedder</title>
+        <link href="/naics-embedder/css/bootstrap.min.css" rel="stylesheet">
+        <link href="/naics-embedder/css/fontawesome.min.css" rel="stylesheet">
+        <link href="/naics-embedder/css/brands.min.css" rel="stylesheet">
+        <link href="/naics-embedder/css/solid.min.css" rel="stylesheet">
+        <link href="/naics-embedder/css/v4-font-face.min.css" rel="stylesheet">
+        <link href="/naics-embedder/css/base.css" rel="stylesheet">
+        <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" >
+        <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" disabled>
+        <link href="/naics-embedder/assets/_mkdocstrings.css" rel="stylesheet">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand" href="/naics-embedder/.">naics-embedder</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar-collapse" aria-controls="navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="nav-item">
+                                <a href="/naics-embedder/." class="nav-link">Home</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="/naics-embedder/architecture/" class="nav-link">System Overview</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="#" class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown"  aria-expanded="false">Training Overview</a>
+                                <ul class="dropdown-menu">
+                                    
+<li>
+    <a href="/naics-embedder/text_training/" class="dropdown-item">Text Training</a>
+</li>
+                                    
+<li>
+    <a href="/naics-embedder/hgcn_training/" class="dropdown-item">HGCN Training</a>
+</li>
+                                </ul>
+                            </li>
+                            <li class="nav-item">
+                                <a href="/naics-embedder/usage/" class="nav-link">Usage</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="#" class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown"  aria-expanded="false">API Reference</a>
+                                <ul class="dropdown-menu">
+                                    
+<li>
+    <a href="/naics-embedder/api/cli/" class="dropdown-item">CLI</a>
+</li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Data Preparation</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/download_data/" class="dropdown-item">Download and Preprocess Data</a>
+</li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Compute Distance Measures</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/compute_relations/" class="dropdown-item">Relationship Measures</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/compute_distances/" class="dropdown-item">Graph Distance Measures</a>
+</li>
+    </ul>
+  </li>
+            
+<li>
+    <a href="/naics-embedder/api/create_triplets/" class="dropdown-item">Create Contrastive Training Triplets</a>
+</li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Data Loading</a>
+    <ul class="dropdown-menu">
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Text Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/tokenization_cache/" class="dropdown-item">Tokenization</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/streaming_dataset/" class="dropdown-item">Streaming DataSet</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/datamodule/" class="dropdown-item">DataLoader</a>
+</li>
+    </ul>
+  </li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">HGCN Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/hgcn_streaming_dataset/" class="dropdown-item">Streaming DataSet</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/hgcn_datamodule/" class="dropdown-item">DataLoader</a>
+</li>
+    </ul>
+  </li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Training</a>
+    <ul class="dropdown-menu">
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Text Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/encoder/" class="dropdown-item">Encoder</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/moe/" class="dropdown-item">Mixture of Experts</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/hyperbolic/" class="dropdown-item">Hyperbolic Operations</a>
+</li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Loss Functions</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/contrastive_loss/" class="dropdown-item">Contrastive</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/hierarchy_preservation_loss/" class="dropdown-item">Hierarchy Preservation</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/rank_order_preservation_loss/" class="dropdown-item">Rank Order Preservation</a>
+</li>
+    </ul>
+  </li>
+            
+<li>
+    <a href="/naics-embedder/api/evaluation/" class="dropdown-item">Evaluation</a>
+</li>
+    </ul>
+  </li>
+            
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">HGCN Training</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/hgcn/" class="dropdown-item">HGCN</a>
+</li>
+    </ul>
+  </li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Tools</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/config_tools/" class="dropdown-item">Current Training Configuration</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/metrics_tools/" class="dropdown-item">Training Metrics</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/evaluate_training/" class="dropdown-item">Training Evaluation</a>
+</li>
+    </ul>
+  </li>
+                                    
+  <li class="dropdown-submenu">
+    <a href="#" class="dropdown-item">Utilities</a>
+    <ul class="dropdown-menu">
+            
+<li>
+    <a href="/naics-embedder/api/backend/" class="dropdown-item">Backend</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/console/" class="dropdown-item">Console</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/config/" class="dropdown-item">Configuration</a>
+</li>
+            
+<li>
+    <a href="/naics-embedder/api/utilities/" class="dropdown-item">General Utilities</a>
+</li>
+    </ul>
+  </li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ms-md-auto">
+                            <li class="nav-item">
+                                <a href="https://github.com/lowmason/naics-embedder" class="nav-link">lowmason/naics-embedder</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+
+    <div class="row-fluid">
+      <div id="main-content" class="span12">
+        <h1 id="404-page-not-found" style="text-align: center">404</h1>
+        <p style="text-align: center"><strong>Page not found</strong></p>
+      </div>
+    </div>
+
+
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="/naics-embedder/js/bootstrap.bundle.min.js"></script>
+        <script>
+            var base_url = "/naics-embedder/",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="/naics-embedder/js/base.js"></script>
+
+        <div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>
