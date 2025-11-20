@@ -35,7 +35,8 @@ markdown_extensions:
   - pymdownx.mark
 
 plugins:
-  - awesome-nav
+  - awesome-nav:
+      filename: .nav.yml
   - mkdocstrings:
       handlers:
         python:
