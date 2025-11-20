@@ -98,6 +98,7 @@ MixtureOfExperts(
    - Softmax normalization over selected experts
 
 3. **Expert Networks**: Each expert is a 2-layer MLP:
+
    ```
    Linear(input_dim → hidden_dim) → ReLU → Dropout(0.1) → Linear(hidden_dim → input_dim)
    ```
@@ -140,10 +141,12 @@ HyperbolicProjection(
    - Adds the time coordinate dimension
 
 2. **Exponential Map**: Maps from tangent space to hyperboloid
+
    ```
    x₀ = cosh(||v|| / √c)
    x_rest = (sinh(||v|| / √c) * v) / ||v||
    ```
+
    - Ensures points satisfy the Lorentz constraint
    - Numerically stable with clamping
 
@@ -369,6 +372,7 @@ Multiple stages with progressive difficulty:
 - **Stage 3+**: Specialized relationships or edge cases
 
 Each stage:
+
 1. Loads checkpoint from previous stage
 2. Trains with stage-specific curriculum
 3. Saves best checkpoint for next stage
@@ -504,9 +508,3 @@ Key hyperparameters (see `conf/config.yaml`):
 - **False Negatives**: `fn_curriculum_start_epoch`, `fn_cluster_every_n_epochs`, `fn_num_clusters`
 
 ---
-
-## Further Reading
-
-- [Training Guide](training.md) - How to train the model
-- [API Reference](api/) - Detailed API documentation
-- [Embeddings Guide](embeddings.md) - Using trained embeddings

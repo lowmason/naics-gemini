@@ -3,7 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Callable
 
 import torch
 import torch.nn as nn
@@ -135,7 +135,7 @@ class HierarchyPreservationLoss(nn.Module):
         self,
         embeddings: torch.Tensor,
         codes: List[str],
-        lorentz_distance_fn
+        lorentz_distance_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
     ) -> torch.Tensor:
         """
         Compute hierarchy preservation loss.
@@ -244,7 +244,7 @@ class RankOrderPreservationLoss(nn.Module):
         self,
         embeddings: torch.Tensor,
         codes: List[str],
-        lorentz_distance_fn
+        lorentz_distance_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
     ) -> torch.Tensor:
         """
         Compute rank order preservation loss.
@@ -496,7 +496,7 @@ class LambdaRankLoss(nn.Module):
         anchor_codes: List[str],
         positive_codes: List[str],
         negative_codes: List[List[str]],
-        lorentz_distance_fn,
+        lorentz_distance_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         batch_size: int,
         k_negatives: int
     ) -> torch.Tensor:

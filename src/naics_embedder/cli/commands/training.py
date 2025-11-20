@@ -6,7 +6,7 @@ import logging
 import time
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import polars as pl
 import pytorch_lightning as pyl
@@ -22,9 +22,14 @@ from naics_embedder.data_loader.datamodule import NAICSDataModule
 from naics_embedder.data_loader.tokenization_cache import tokenization_cache
 from naics_embedder.model.naics_model import NAICSContrastiveModel
 from naics_embedder.utils.backend import get_device
-from naics_embedder.utils.utilities import pick_device
-from naics_embedder.utils.config import ChainConfig, Config, TokenizationConfig, list_available_curricula, parse_override_value
+from naics_embedder.utils.config import (
+    Config,
+    TokenizationConfig,
+    list_available_curricula,
+    parse_override_value,
+)
 from naics_embedder.utils.console import configure_logging
+from naics_embedder.utils.utilities import pick_device
 
 # -------------------------------------------------------------------------------------------------
 # Suppress warnings
@@ -80,7 +85,7 @@ def generate_embeddings_from_checkpoint(
     curriculum_name: Optional[str] = None,
     batch_size: int = 32
 ) -> str:
-    """
+    '''
     Generate hyperbolic embeddings parquet file from a trained checkpoint.
     
     This function loads a trained model checkpoint, runs inference on all NAICS codes,
@@ -95,7 +100,7 @@ def generate_embeddings_from_checkpoint(
         
     Returns:
         Path to the generated embeddings parquet file
-    """
+    '''
     logger.info('=' * 80)
     logger.info('GENERATING EMBEDDINGS FROM CHECKPOINT')
     logger.info('=' * 80)
@@ -344,8 +349,8 @@ def train(
         logger.info('Loading configuration...')
         if curriculum_type == 'graph':
             # For graph training, use GraphConfig and hgcn module
-            from naics_embedder.utils.config import GraphConfig
             from naics_embedder.model.hgcn import main as hgcn_main
+            from naics_embedder.utils.config import GraphConfig
             cfg = GraphConfig.from_yaml(config_file, curriculum_name=curriculum, curriculum_type='graph')
             # Call HGCN training directly
             hgcn_main(config_file=config_file, curriculum_stages=[curriculum] if curriculum != 'default' else None)
@@ -415,12 +420,12 @@ def train(
             
             # Conservative batch size suggestion
             current_batch_size = cfg.data_loader.batch_size
-            if gpu_memory_info["free_gb"] > 8.0 and current_batch_size < 12:
+            if gpu_memory_info['free_gb'] > 8.0 and current_batch_size < 12:
                 # Suggest 2x-3x current batch size conservatively
                 suggested_batch = min(12, current_batch_size * 2)
                 if suggested_batch > current_batch_size:
                     summary_list_4.append(
-                        f'\n[yellow]Batch Size Suggestion:[/yellow]'
+                        '\n[yellow]Batch Size Suggestion:[/yellow]'
                     )
                     summary_list_4.append(
                         f'  • Current: {current_batch_size}'
@@ -429,8 +434,8 @@ def train(
                         f'  • Suggested: {suggested_batch} (conservative estimate)'
                     )
                     summary_list_4.append(
-                        f'  • [dim]Note: gpu_tools.py estimates are optimistic; '
-                        f'reduce suggested values by ~50%[/dim]'
+                        '  • [dim]Note: gpu_tools.py estimates are optimistic; '
+                        'reduce suggested values by ~50%[/dim]'
                     )
                     summary_list_4.append(
                         f'  • [dim]Override with: data.batch_size={suggested_batch}[/dim]'
@@ -548,10 +553,10 @@ def train(
                 resuming_same_stage = False
             
             if resuming_same_stage:
-                logger.info(f'Checkpoint is from same stage - will resume training from checkpoint')
+                logger.info('Checkpoint is from same stage - will resume training from checkpoint')
                 console.print('[cyan]Resuming training from checkpoint (will continue from saved epoch)[/cyan]\n')
             else:
-                logger.info(f'Checkpoint is from different stage - will load weights only, start fresh training')
+                logger.info('Checkpoint is from different stage - will load weights only, start fresh training')
                 console.print('[cyan]Loading weights from previous stage checkpoint, starting fresh training[/cyan]\n')
         
         checkpoint_callback = ModelCheckpoint(
@@ -652,7 +657,7 @@ def train(
         
         # Print the loss that decided early stopping as the final metric
         if best_loss is not None:
-            label = "Final evaluation metric (early stopping)" if early_stop_triggered else "Final evaluation metric"
+            label = 'Final evaluation metric (early stopping)' if early_stop_triggered else 'Final evaluation metric'
             console.print(
                 f'[bold]{label}:[/bold] '
                 f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
@@ -728,12 +733,12 @@ def train_sequential(
         ),
     ] = None,
 ):
-    """
+    '''
     Run sequential curriculum training with automatic checkpoint handoff.
     
     Trains through multiple curriculum stages, automatically loading the best checkpoint
     from each stage as the initialization for the next stage.
-    """
+    '''
     
     # Your full train_sequential implementation here
     # (Lines 651-981 from your original cli.py)
@@ -855,7 +860,7 @@ def train_sequential(
             
             # Print the loss that decided early stopping as the final metric
             if best_loss is not None:
-                label = "Final evaluation metric (early stopping)" if early_stop_triggered else "Final evaluation metric"
+                label = 'Final evaluation metric (early stopping)' if early_stop_triggered else 'Final evaluation metric'
                 console.print(
                     f'[bold]{label}:[/bold] '
                     f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'

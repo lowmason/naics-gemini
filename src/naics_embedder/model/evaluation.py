@@ -3,12 +3,15 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import torch
 import torch.nn.functional as F
 
 from naics_embedder.utils.backend import get_device
+
+if TYPE_CHECKING:
+    from naics_embedder.model.naics_model import NAICSContrastiveModel
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +27,7 @@ class EmbeddingEvaluator:
         '''
         Evaluator for embedding quality metrics.
         
-        Args:
-            device: Device to run computations on
+        Device is automatically detected via get_device().
         ''' 
         
         self.device, _, _ = get_device()
@@ -150,8 +152,7 @@ class RetrievalMetrics:
         '''
         Metrics for evaluating retrieval quality.
         
-        Args:
-            device: Device to run computations on
+        Device is automatically detected via get_device().
         '''
 
         self.device, _, _ = get_device()
@@ -347,8 +348,7 @@ class HierarchyMetrics:
         '''
         Metrics for evaluating hierarchy preservation.
         
-        Args:
-            device: Device to run computations on
+        Device is automatically detected via get_device().
         '''
 
         self.device, _, _ = get_device()
@@ -656,8 +656,7 @@ class EmbeddingStatistics:
         '''
         Statistics for analyzing embedding space.
         
-        Args:
-            device: Device to run computations on
+        Device is automatically detected via get_device().
         '''
 
         self.device, _, _ = get_device()
@@ -789,24 +788,25 @@ class NAICSEvaluationRunner:
     
     def __init__(
         self,
-        model
+        model: 'NAICSContrastiveModel'
     ):
         
         '''
         Complete evaluation runner for NAICS embeddings.
         
         Args:
-            model: Trained NAICSContrastiveModel
-            device: Device to run on
+            model: Trained NAICSContrastiveModel instance
+        
+        Device is automatically detected via get_device().
         '''
 
         self.model = model
         self.device, _, _ = get_device()
         
-        self.embedding_eval = EmbeddingEvaluator(self.device)
-        self.retrieval_metrics = RetrievalMetrics(self.device)
-        self.hierarchy_metrics = HierarchyMetrics(self.device)
-        self.embedding_stats = EmbeddingStatistics(self.device)
+        self.embedding_eval = EmbeddingEvaluator()
+        self.retrieval_metrics = RetrievalMetrics()
+        self.hierarchy_metrics = HierarchyMetrics()
+        self.embedding_stats = EmbeddingStatistics()
     
     
     def evaluate(

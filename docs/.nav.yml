@@ -1,0 +1,45 @@
+---
+nav:
+  - Home: index.md
+  - System Overview: architecture.md
+  - Training Overview:
+      - Text Training: text_training.md
+      - HGCN Training: hgcn_training.md
+  - Usage: usage.md
+  - API Reference:
+      - CLI: api/cli.md
+      - Data Preparation:
+          - Download and Preprocess Data: api/download_data.md
+          - Compute Distance Measures:
+              - Relationship Measures: api/compute_relations.md
+              - Graph Distance Measures: api/compute_distances.md
+          - Create Contrastive Training Triplets: api/create_triplets.md
+      - Data Loading:
+          - Text Training:
+              - Tokenization: api/tokenization_cache.md
+              - Streaming DataSet: api/streaming_dataset.md
+              - DataLoader: api/datamodule.md
+          - HGCN Training:
+              - Streaming DataSet: api/hgcn_streaming_dataset.md
+              - DataLoader: api/hgcn_datamodule.md
+      - Training:
+          - Text Training:
+              - Encoder: api/encoder.md
+              - Mixture of Experts: api/moe.md
+              - Hyperbolic Operations: api/hyperbolic.md
+              - Loss Functions:
+                  - Contrastive: api/contrastive_loss.md
+                  - Hierarchy Preservation: api/hierarchy_preservation_loss.md
+                  - Rank Order Preservation: api/rank_order_preservation_loss.md
+              - Evaluation: api/evaluation.md
+          - HGCN Training:
+              - HGCN: api/hgcn.md
+      - Tools:
+          - Current Training Configuration: api/config_tools.md
+          - Training Metrics: api/metrics_tools.md
+          - Training Evaluation: api/evaluate_training.md
+      - Utilities:
+          - Backend: api/backend.md
+          - Console: api/console.md
+          - Configuration: api/config.md
+          - General Utilities: api/utilities.md

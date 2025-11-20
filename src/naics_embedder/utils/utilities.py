@@ -143,11 +143,11 @@ def get_indices_codes(
 ) -> Union[List[str], List[int], Dict[str, int], Dict[int, str]]:
 
     '''
-    Extract indices and NAICS codes from a Polars DataFrame.
+    Extract indices and NAICS codes from a parquet file.
     
     Args:
-        parquet_df (pl.DataFrame): The input DataFrame containing 'index' and 'naics_code' columns.
-        return_type (str): One of 'codes', 'indices', 'code_to_idx', 'idx_to_code'.
+        parquet_path: Path to the parquet file containing 'index' and 'naics_code' columns.
+        return_type: One of 'codes', 'indices', 'code_to_idx', 'idx_to_code'.
         
     Returns:
         One of the following based on return_type:
