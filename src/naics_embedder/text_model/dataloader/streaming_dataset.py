@@ -234,11 +234,82 @@ def sample_positives(
 # Phase 1 Sampling Utilities
 # -------------------------------------------------------------------------------------------------
 
+def _load_relation_matrix(
+    relation_matrix_path: str,
+    code_to_idx: Dict[str, int],
+    idx_to_code: Dict[int, str]
+) -> Dict[Tuple[str, str], float]:
+    
+    '''
+    Load relation matrix and create a lookup dictionary.
+    
+    The distarelationnce matrix has columns like 'idx_0-code_11', 'idx_1-code_111', etc.
+    where the column name format is 'idx_{matrix_idx}-code_{code}'.
+    Each row corresponds to an anchor code in sorted order.
+    
+    Note: The relation matrix uses sorted code order for indices, which may differ
+    from the 'index' column in descriptions.parquet. We use code strings as keys.
+    
+    Args:
+        relation_matrix_path: Path to relation matrix parquet file
+        code_to_idx: Mapping from code to index (from descriptions parquet)
+        idx_to_code: Mapping from index to code (from descriptions parquet)
+    
+    Returns:
+        Dictionary mapping (anchor_code, negative_code) -> relation_distance
+    '''
+    
+    logger.info('Loading relation matrix for Phase 1 sampling...')
+    
+    df = pl.read_parquet(relation_matrix_path)
+    
+    # Create lookup dictionary using code strings as keys
+    relation_lookup = {}
+    
+    # Build mapping from column name to negative code
+    col_to_negative_code = {}
+    for col in df.columns:
+        # Column format: 'idx_{matrix_idx}-code_{code}'
+        parts = col.split('-')
+        if len(parts) != 2:
+            continue
+        
+        # Extract code from second part (e.g., 'code_111' -> '111')
+        code_str = parts[1].replace('code_', '')
+        
+        if code_str in code_to_idx:
+            col_to_negative_code[col] = code_str
+    
+    # Get all codes sorted by code string (matching relation matrix row order)
+    # The relation matrix rows are in sorted code order
+    codes_sorted = sorted(code_to_idx.keys())
+    
+    # Build lookup: (anchor_code, negative_code) -> relation
+    for row_idx, anchor_code in enumerate(codes_sorted):
+        if row_idx >= df.height:
+            break
+        
+        # For each column (negative)
+        for col, negative_code in col_to_negative_code.items():
+            if col not in df.columns:
+                continue
+            
+            # Get relation value from the row and column
+            relation_val = df.select(pl.col(col)).row(row_idx)[0]
+            
+            if relation_val is not None:
+                relation_lookup[(anchor_code, negative_code)] = float(relation_val)
+    
+    logger.info(f'Loaded {len(relation_lookup):,} distance entries')
+    return relation_lookup
+
+
 def _load_distance_matrix(
     distance_matrix_path: str,
     code_to_idx: Dict[str, int],
     idx_to_code: Dict[int, str]
 ) -> Dict[Tuple[str, str], float]:
+    
     '''
     Load distance matrix and create a lookup dictionary.
     
@@ -257,6 +328,7 @@ def _load_distance_matrix(
     Returns:
         Dictionary mapping (anchor_code, negative_code) -> tree_distance
     '''
+    
     logger.info('Loading distance matrix for Phase 1 sampling...')
     
     df = pl.read_parquet(distance_matrix_path)
@@ -497,6 +569,7 @@ def _get_final_cache_path(cfg: StreamingConfig) -> Path:
 # -------------------------------------------------------------------------------------------------
 
 def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]:
+    
     '''Create a generator that yields triplets for training.'''
     
     # Identify worker process
