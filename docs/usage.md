@@ -240,16 +240,6 @@ uv run naics-embedder train --curriculum 01_text
 uv run naics-embedder train-seq --curricula 01_text 02_text 03_text 04_text 05_text
 ```
 
-### GPU Optimization
-
-```bash
-# Check GPU configuration and get recommendations
-uv run naics-embedder tools gpu --auto
-
-# Apply optimized configuration
-uv run naics-embedder tools gpu --auto --apply
-```
-
 ### View Configuration
 
 ```bash

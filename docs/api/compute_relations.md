@@ -1,4 +1,4 @@
 # Compute Relations API
 
-::: naics_embedder.data_generation.compute_relations
+::: naics_embedder.data.compute_relations
 

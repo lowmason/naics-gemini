@@ -21,7 +21,7 @@ from naics_embedder.graph_model.dataloader.hgcn_datamodule import create_dataloa
 from naics_embedder.text_model.hyperbolic import LorentzOps
 from naics_embedder.utils.config import GraphConfig
 from naics_embedder.utils.utilities import pick_device, setup_directory
-from naics_embedder.utils.validation_metrics import compute_validation_metrics
+from naics_embedder.graph_model.evaluation import compute_validation_metrics
 
 # -------------------------------------------------------------------------------------------------
 # Config

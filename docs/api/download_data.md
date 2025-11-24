@@ -1,4 +1,4 @@
 # Download Data API
 
-::: naics_embedder.data_generation.download_data
+::: naics_embedder.data.download_data
 

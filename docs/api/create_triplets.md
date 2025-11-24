@@ -1,4 +1,4 @@
 # Create Triplets API
 
-::: naics_embedder.data_generation.create_triplets
+::: naics_embedder.data.create_triplets
 

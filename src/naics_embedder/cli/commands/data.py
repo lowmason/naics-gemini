@@ -5,10 +5,10 @@
 import typer
 from rich.console import Console
 
-from naics_embedder.data_generation.compute_distances import calculate_pairwise_distances
-from naics_embedder.data_generation.compute_relations import calculate_pairwise_relations
-from naics_embedder.data_generation.create_triplets import generate_training_triplets
-from naics_embedder.data_generation.download_data import download_preprocess_data
+from naics_embedder.data.compute_distances import calculate_pairwise_distances
+from naics_embedder.data.compute_relations import calculate_pairwise_relations
+from naics_embedder.data.create_triplets import generate_training_triplets
+from naics_embedder.data.download_data import download_preprocess_data
 from naics_embedder.utils.console import configure_logging
 
 console = Console()
