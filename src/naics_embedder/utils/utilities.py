@@ -145,7 +145,6 @@ def get_indices_codes(
     Extract indices and NAICS codes from a parquet file.
     
     Args:
-        parquet_path: Path to the parquet file containing 'index' and 'naics_code' columns.
         return_type: One of 'codes', 'indices', 'code_to_idx', 'idx_to_code'.
         
     Returns:

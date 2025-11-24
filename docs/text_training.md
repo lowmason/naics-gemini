@@ -493,7 +493,3 @@ TensorBoard provides metrics for distributed training:
 - `train/global_batch/global_hard_negatives_used`: Whether global hard negatives are active
 
 ---
-
-## Additional Resources
-
-- [Architecture Documentation](architecture.md) - Model architecture details
