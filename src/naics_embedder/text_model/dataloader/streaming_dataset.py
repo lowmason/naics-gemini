@@ -239,7 +239,7 @@ def _load_distance_matrix(
     code_to_idx: Dict[str, int],
     idx_to_code: Dict[int, str]
 ) -> Dict[Tuple[str, str], float]:
-    """
+    '''
     Load distance matrix and create a lookup dictionary.
     
     The distance matrix has columns like 'idx_0-code_11', 'idx_1-code_111', etc.
@@ -256,7 +256,7 @@ def _load_distance_matrix(
     
     Returns:
         Dictionary mapping (anchor_code, negative_code) -> tree_distance
-    """
+    '''
     logger.info('Loading distance matrix for Phase 1 sampling...')
     
     df = pl.read_parquet(distance_matrix_path)
@@ -341,7 +341,7 @@ def _compute_phase1_weights(
     alpha: float = 1.5,
     exclusion_weight: float = 100.0
 ) -> np.ndarray:
-    """
+    '''
     Compute Phase 1 sampling weights for candidate negatives.
     
     Args:
@@ -356,7 +356,7 @@ def _compute_phase1_weights(
     
     Returns:
         Array of sampling weights (unnormalized)
-    """
+    '''
     weights = np.zeros(len(candidate_negatives))
     
     for i, neg in enumerate(candidate_negatives):

@@ -1,8 +1,8 @@
-"""
+'''
 Configuration display tools.
 
 Display current training and curriculum configuration.
-"""
+'''
 
 import yaml
 from pathlib import Path
@@ -16,12 +16,12 @@ console = Console()
 
 
 def show_current_config(config_path: str = './conf/config.yaml'):
-    """
+    '''
     Display current training and curriculum configuration.
     
     Args:
         config_path: Path to main configuration file
-    """
+    '''
     
     config_path_obj = Path(config_path)
     if not config_path_obj.exists():
@@ -108,13 +108,13 @@ def show_current_config(config_path: str = './conf/config.yaml'):
 
 
 def load_config(config_path: str = './conf/config.yaml'):
-    """Load main configuration file."""
+    '''Load main configuration file.'''
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
 
 def load_curriculum(curriculum_path: str):
-    """Load curriculum stage file."""
+    '''Load curriculum stage file.'''
     with open(curriculum_path, 'r') as f:
         return yaml.safe_load(f)
 

@@ -1,6 +1,6 @@
-"""
+'''
 Visualize training metrics from log files.
-"""
+'''
 
 import re
 import sys
@@ -21,7 +21,7 @@ except ImportError:
 
 
 def parse_log_file(log_file: Path, stage: Optional[str] = None) -> List[Dict]:
-    """Parse training log file and extract evaluation metrics."""
+    '''Parse training log file and extract evaluation metrics.'''
     
     with open(log_file, 'r') as f:
         content = f.read()
@@ -127,7 +127,7 @@ def parse_log_file(log_file: Path, stage: Optional[str] = None) -> List[Dict]:
 
 
 def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
-    """Create visualization plots for the metrics."""
+    '''Create visualization plots for the metrics.'''
     
     if not metrics:
         print("No metrics found to visualize!")
@@ -222,7 +222,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     
     if metrics:
         latest = metrics[-1]
-        summary_text = f"""
+        summary_text = f'''
         LATEST METRICS (Epoch {latest.get('epoch', 'N/A')})
         
         Hyperbolic Radius:
@@ -242,11 +242,11 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
         
         Status:
           Collapse: {'Yes' if latest.get('collapse', False) else 'No'}
-        """
+        '''
         
         if len(metrics) > 1:
             first = metrics[0]
-            trends = f"""
+            trends = f'''
         TRENDS (Epoch {first.get('epoch', 'N/A')} → {latest.get('epoch', 'N/A')})
         
         Radius:      {first.get('radius_mean', 0):.4f} → {latest.get('radius_mean', 0):.4f}
@@ -254,7 +254,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
         Train Loss:  {first.get('train_loss', 'N/A')} → {latest.get('train_loss', 'N/A')}
         Val Loss:    {first.get('val_loss', 'N/A')} → {latest.get('val_loss', 'N/A')}
         Distance CV: {(f"{first.get('dist_cv', 0):.4f}" if 'dist_cv' in first and first.get('dist_cv') is not None else 'N/A')} → {(f"{latest.get('dist_cv', 0):.4f}" if 'dist_cv' in latest and latest.get('dist_cv') is not None else 'N/A')}
-        """
+        '''
             summary_text += trends
         
         ax6.text(0.1, 0.5, summary_text, fontsize=10, 
@@ -272,7 +272,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
 
 
 def print_analysis(metrics: List[Dict], stage: str):
-    """Print detailed analysis of the metrics."""
+    '''Print detailed analysis of the metrics.'''
     
     if not metrics:
         print("No metrics to analyze!")
@@ -374,7 +374,7 @@ def print_analysis(metrics: List[Dict], stage: str):
 
 
 def main():
-    """Main entry point."""
+    '''Main entry point.'''
     import argparse
     
     parser = argparse.ArgumentParser(description='Visualize training metrics')

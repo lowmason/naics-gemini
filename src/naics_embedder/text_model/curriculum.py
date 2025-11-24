@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------------------------------------
 
 class CurriculumScheduler:
-    """
+    '''
     Structure-Aware Dynamic Curriculum (SADC) scheduler that manages training phases.
     
     Implements three-phase curriculum learning:
@@ -28,7 +28,7 @@ class CurriculumScheduler:
     
     3. Phase 3 (70-100%): False Negative Mitigation
        - Activate clustering-based False Negative Elimination (FNE)
-    """
+    '''
     
     def __init__(
         self,
@@ -37,7 +37,7 @@ class CurriculumScheduler:
         phase2_end: float = 0.7,
         phase3_end: float = 1.0
     ):
-        """
+        '''
         Initialize curriculum scheduler.
         
         Args:
@@ -45,7 +45,7 @@ class CurriculumScheduler:
             phase1_end: End of Phase 1 as fraction of max_epochs (default: 0.3)
             phase2_end: End of Phase 2 as fraction of max_epochs (default: 0.7)
             phase3_end: End of Phase 3 as fraction of max_epochs (default: 1.0)
-        """
+        '''
         self.max_epochs = max_epochs
         self.phase1_end = phase1_end
         self.phase2_end = phase2_end
@@ -64,7 +64,7 @@ class CurriculumScheduler:
         )
     
     def get_phase(self, current_epoch: int) -> int:
-        """
+        '''
         Get current phase based on epoch.
         
         Args:
@@ -72,7 +72,7 @@ class CurriculumScheduler:
         
         Returns:
             Phase number (1, 2, or 3)
-        """
+        '''
         if current_epoch <= self.phase1_end_epoch:
             return 1
         elif current_epoch <= self.phase2_end_epoch:
@@ -81,7 +81,7 @@ class CurriculumScheduler:
             return 3
     
     def get_epoch_progress(self, current_epoch: int) -> float:
-        """
+        '''
         Get training progress as fraction of max_epochs.
         
         Args:
@@ -89,11 +89,11 @@ class CurriculumScheduler:
         
         Returns:
             Progress fraction in [0, 1]
-        """
+        '''
         return min(current_epoch / self.max_epochs, 1.0)
     
     def get_curriculum_flags(self, current_epoch: int) -> Dict[str, bool]:
-        """
+        '''
         Get curriculum flags for current epoch.
         
         Args:
@@ -106,7 +106,7 @@ class CurriculumScheduler:
             - enable_hard_negative_mining: Enable Lorentzian hard negative mining
             - enable_router_guided_sampling: Enable Router-Guided sampling for MoE
             - enable_clustering: Enable clustering-based FNE
-        """
+        '''
         phase = self.get_phase(current_epoch)
         progress = self.get_epoch_progress(current_epoch)
         
@@ -121,7 +121,7 @@ class CurriculumScheduler:
         return flags
     
     def should_update_clustering(self, current_epoch: int, cluster_every_n_epochs: int) -> bool:
-        """
+        '''
         Check if clustering should be updated based on curriculum phase.
         
         Args:
@@ -130,7 +130,7 @@ class CurriculumScheduler:
         
         Returns:
             True if clustering should be updated
-        """
+        '''
         phase = self.get_phase(current_epoch)
         if phase < 3:
             return False  # Only update in Phase 3
@@ -143,13 +143,13 @@ class CurriculumScheduler:
         return epochs_in_phase3 % cluster_every_n_epochs == 0
     
     def log_phase_transition(self, current_epoch: int, previous_phase: Optional[int] = None):
-        """
+        '''
         Log phase transition if epoch changed phase.
         
         Args:
             current_epoch: Current training epoch (0-indexed)
             previous_phase: Previous phase number (if known)
-        """
+        '''
         current_phase = self.get_phase(current_epoch)
         
         if previous_phase is not None and current_phase != previous_phase:
@@ -179,7 +179,7 @@ class CurriculumScheduler:
         tree_distances: Optional[Dict] = None,
         relations: Optional[Dict] = None
     ) -> list:
-        """
+        '''
         Get sampling weights for negative samples based on curriculum phase.
         
         Args:
@@ -190,7 +190,7 @@ class CurriculumScheduler:
         
         Returns:
             List of sampling weights (normalized probabilities)
-        """
+        '''
         # Default: uniform weights
         weights = [1.0] * len(negative_codes)
         

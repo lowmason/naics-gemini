@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------------------------------------
 
 class HyperbolicKMeans:
-    """
+    '''
     K-Means clustering algorithm compatible with the Lorentz model of hyperbolic space.
     
     This implementation performs clustering directly in hyperbolic space using:
@@ -31,7 +31,7 @@ class HyperbolicKMeans:
     1. Distances computed using Lorentzian geodesic distance
     2. Centroids computed using Fréchet mean on hyperboloid
     3. Initialization ensures centers are on the hyperboloid
-    """
+    '''
     
     def __init__(
         self,
@@ -42,7 +42,7 @@ class HyperbolicKMeans:
         random_state: Optional[int] = None,
         verbose: bool = False
     ):
-        """
+        '''
         Initialize Hyperbolic K-Means.
         
         Args:
@@ -52,7 +52,7 @@ class HyperbolicKMeans:
             tol: Convergence tolerance (default: 1e-4)
             random_state: Random seed for initialization (default: None)
             verbose: Whether to print convergence messages (default: False)
-        """
+        '''
         self.n_clusters = n_clusters
         self.curvature = curvature
         self.max_iter = max_iter
@@ -74,7 +74,7 @@ class HyperbolicKMeans:
         embeddings: torch.Tensor,
         n_clusters: int
     ) -> torch.Tensor:
-        """
+        '''
         Initialize cluster centers on the hyperboloid.
         
         Uses k-means++ style initialization adapted for hyperbolic space:
@@ -88,7 +88,7 @@ class HyperbolicKMeans:
         
         Returns:
             Initial cluster centers (n_clusters, D+1) on hyperboloid
-        """
+        '''
         device = embeddings.device
         n_samples, embedding_dim = embeddings.shape
         
@@ -132,7 +132,7 @@ class HyperbolicKMeans:
         initial_guess: Optional[torch.Tensor] = None,
         max_iter: int = 10
     ) -> torch.Tensor:
-        """
+        '''
         Compute Fréchet mean (hyperbolic centroid) of points on hyperboloid.
         
         The Fréchet mean minimizes the sum of squared Lorentzian distances.
@@ -149,7 +149,7 @@ class HyperbolicKMeans:
         
         Returns:
             Fréchet mean on hyperboloid (1, D+1)
-        """
+        '''
         if points.shape[0] == 1:
             return points
         
@@ -193,7 +193,7 @@ class HyperbolicKMeans:
         return current_mean
     
     def _log_map(self, base: torch.Tensor, point: torch.Tensor) -> torch.Tensor:
-        """
+        '''
         Logarithmic map from hyperboloid to tangent space at base point.
         
         Maps a point on the hyperboloid to the tangent space at the base point.
@@ -205,7 +205,7 @@ class HyperbolicKMeans:
         
         Returns:
             Tangent vector (1, D+1)
-        """
+        '''
         # Simplified log map: project to tangent space at origin, then parallel transport
         # For efficiency, we use an approximation
         # Full implementation would use parallel transport
@@ -224,7 +224,7 @@ class HyperbolicKMeans:
         return tangent_vec
     
     def _exp_map(self, base: torch.Tensor, tangent_vec: torch.Tensor) -> torch.Tensor:
-        """
+        '''
         Exponential map from tangent space at base point to hyperboloid.
         
         Maps a tangent vector at the base point to a point on the hyperboloid.
@@ -235,7 +235,7 @@ class HyperbolicKMeans:
         
         Returns:
             Point on hyperboloid (1, D+1)
-        """
+        '''
         # Simplified exp map: use exponential map at origin, then parallel transport
         # For efficiency, we use an approximation
         # Full implementation would use parallel transport
@@ -260,7 +260,7 @@ class HyperbolicKMeans:
         return new_point
     
     def _project_to_hyperboloid(self, point: torch.Tensor) -> torch.Tensor:
-        """
+        '''
         Project a point to the hyperboloid to satisfy Lorentz constraint.
         
         Ensures: -x₀² + x₁² + ... + xₙ² = -1/c
@@ -270,7 +270,7 @@ class HyperbolicKMeans:
         
         Returns:
             Projected point on hyperboloid (1, D+1)
-        """
+        '''
         x0 = point[:, 0:1]
         x_spatial = point[:, 1:]
         
@@ -300,7 +300,7 @@ class HyperbolicKMeans:
         return torch.cat([target_x0, x_spatial_scaled], dim=1)
     
     def fit(self, embeddings: torch.Tensor) -> 'HyperbolicKMeans':
-        """
+        '''
         Fit the K-Means model to hyperbolic embeddings.
         
         Args:
@@ -308,7 +308,7 @@ class HyperbolicKMeans:
         
         Returns:
             self
-        """
+        '''
         device = embeddings.device
         n_samples = embeddings.shape[0]
         
@@ -395,7 +395,7 @@ class HyperbolicKMeans:
         return self
     
     def fit_predict(self, embeddings: torch.Tensor) -> np.ndarray:
-        """
+        '''
         Fit the model and return cluster labels.
         
         Args:
@@ -403,14 +403,14 @@ class HyperbolicKMeans:
         
         Returns:
             Cluster labels (N,)
-        """
+        '''
         self.fit(embeddings)
         if self.labels_ is None:
             raise RuntimeError("Labels not set after fit")
         return self.labels_
     
     def predict(self, embeddings: torch.Tensor) -> np.ndarray:
-        """
+        '''
         Predict cluster labels for new embeddings.
         
         Args:
@@ -418,7 +418,7 @@ class HyperbolicKMeans:
         
         Returns:
             Cluster labels (N,)
-        """
+        '''
         if self.cluster_centers_ is None:
             raise ValueError("Model must be fitted before prediction")
         

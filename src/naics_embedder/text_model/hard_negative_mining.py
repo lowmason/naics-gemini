@@ -18,25 +18,25 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------------------------------------
 
 class LorentzianHardNegativeMiner(nn.Module):
-    """
+    '''
     Phase 2 Hard Negative Mining: Select negatives that are geometrically close
     in the learned hyperbolic space using Lorentzian distance.
     
     For each anchor, selects the top-k negatives with the smallest Lorentzian distance.
-    """
+    '''
     
     def __init__(
         self,
         curvature: float = 1.0,
         safety_epsilon: float = 1e-5
     ):
-        """
+        '''
         Initialize hard negative miner.
         
         Args:
             curvature: Hyperbolic curvature parameter c
             safety_epsilon: Small epsilon for safety checks to prevent NaN
-        """
+        '''
         super().__init__()
         self.curvature = curvature
         self.safety_epsilon = safety_epsilon
@@ -45,7 +45,7 @@ class LorentzianHardNegativeMiner(nn.Module):
         self.lorentz_distance = LorentzDistance(curvature)
     
     def compute_lorentz_norm(self, x: torch.Tensor) -> torch.Tensor:
-        """
+        '''
         Compute Lorentz norm: ||x||_L = sqrt(⟨x, x⟩_L)
         
         For a point on the hyperboloid: ⟨x, x⟩_L = -1/c
@@ -56,7 +56,7 @@ class LorentzianHardNegativeMiner(nn.Module):
         
         Returns:
             Lorentz norms (batch_size,)
-        """
+        '''
         # Lorentz inner product with itself
         time_coord = x[:, 0]  # x₀
         spatial_coords = x[:, 1:]  # x₁...xₙ
@@ -79,7 +79,7 @@ class LorentzianHardNegativeMiner(nn.Module):
         u: torch.Tensor,
         v: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
+        '''
         Safety check: Ensure ⟨u, v⟩_L < -1 to prevent NaN in gradients.
         
         Args:
@@ -90,7 +90,7 @@ class LorentzianHardNegativeMiner(nn.Module):
             Tuple of (safe_dot_product, is_valid)
             - safe_dot_product: Clamped Lorentz inner product
             - is_valid: Boolean tensor indicating if all pairs are valid
-        """
+        '''
         # Compute Lorentz inner product
         if v.dim() == 3:
             # Batched case: u (batch_size, D+1), v (batch_size, k, D+1)
@@ -120,7 +120,7 @@ class LorentzianHardNegativeMiner(nn.Module):
         k: int,
         return_distances: bool = False
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """
+        '''
         Mine top-k hardest negatives for each anchor based on Lorentzian distance.
         
         Args:
@@ -135,7 +135,7 @@ class LorentzianHardNegativeMiner(nn.Module):
             Tuple of:
             - hard_negatives: Selected hard negatives (batch_size, k, embedding_dim+1)
             - distances: Optional distances (batch_size, k) if return_distances=True
-        """
+        '''
         batch_size = anchor_emb.shape[0]
         
         # Reshape candidate_negatives if needed
@@ -203,27 +203,27 @@ class LorentzianHardNegativeMiner(nn.Module):
 # -------------------------------------------------------------------------------------------------
 
 class RouterGuidedNegativeMiner(nn.Module):
-    """
+    '''
     Router-Guided Negative Mining: Select negatives that confuse the Gating Network.
     
     Prevents "Expert Collapse" where a single expert handles all easy negatives by
     mining negatives where the router assigns high probability to the same experts as the anchor.
     
     Uses KL-Divergence or Cosine Similarity to measure confusion between gate distributions.
-    """
+    '''
     
     def __init__(
         self,
         metric: str = 'kl_divergence',
         temperature: float = 1.0
     ):
-        """
+        '''
         Initialize router-guided negative miner.
         
         Args:
             metric: Confusion metric to use ('kl_divergence' or 'cosine_similarity')
             temperature: Temperature for KL-divergence computation (higher = more uniform)
-        """
+        '''
         super().__init__()
         self.metric = metric
         self.temperature = temperature
@@ -236,7 +236,7 @@ class RouterGuidedNegativeMiner(nn.Module):
         anchor_gate_probs: torch.Tensor,
         negative_gate_probs: torch.Tensor
     ) -> torch.Tensor:
-        """
+        '''
         Compute KL-divergence between anchor and negative gate distributions.
         
         KL(P_anchor || P_negative) = sum(P_anchor * log(P_anchor / P_negative))
@@ -251,7 +251,7 @@ class RouterGuidedNegativeMiner(nn.Module):
         
         Returns:
             KL-divergence scores (batch_size, k_negatives) - lower = more confusion
-        """
+        '''
         # Add small epsilon for numerical stability
         eps = 1e-8
         
@@ -276,7 +276,7 @@ class RouterGuidedNegativeMiner(nn.Module):
         anchor_gate_probs: torch.Tensor,
         negative_gate_probs: torch.Tensor
     ) -> torch.Tensor:
-        """
+        '''
         Compute cosine similarity between anchor and negative gate distributions.
         
         Higher cosine similarity means more confusion (similar distributions).
@@ -287,7 +287,7 @@ class RouterGuidedNegativeMiner(nn.Module):
         
         Returns:
             Cosine similarity scores (batch_size, k_negatives)
-        """
+        '''
         # Normalize to unit vectors
         anchor_norm = torch.norm(anchor_gate_probs, dim=1, keepdim=True)  # (batch_size, 1)
         anchor_normalized = anchor_gate_probs / (anchor_norm + 1e-8)
@@ -308,7 +308,7 @@ class RouterGuidedNegativeMiner(nn.Module):
         anchor_gate_probs: torch.Tensor,
         negative_gate_probs: torch.Tensor
     ) -> torch.Tensor:
-        """
+        '''
         Compute confusion scores between anchor and negative gate distributions.
         
         Args:
@@ -319,7 +319,7 @@ class RouterGuidedNegativeMiner(nn.Module):
             Confusion scores (batch_size, k_negatives)
             - For KL-divergence: lower scores = more confusion (similar distributions)
             - For cosine similarity: higher scores = more confusion (similar distributions)
-        """
+        '''
         if self.metric == 'kl_divergence':
             scores = self.compute_kl_divergence(anchor_gate_probs, negative_gate_probs)
             # Lower KL-divergence = more confusion, so we negate for consistency
@@ -340,7 +340,7 @@ class RouterGuidedNegativeMiner(nn.Module):
         k: int,
         return_scores: bool = False
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """
+        '''
         Mine top-k router-hard negatives that confuse the gating network.
         
         Args:
@@ -354,7 +354,7 @@ class RouterGuidedNegativeMiner(nn.Module):
             Tuple of:
             - router_hard_negatives: Selected router-hard negatives (batch_size, k, embedding_dim+1)
             - scores: Optional confusion scores (batch_size, k) if return_scores=True
-        """
+        '''
         batch_size = anchor_gate_probs.shape[0]
         num_candidates = negative_gate_probs.shape[1]
         
@@ -392,27 +392,27 @@ class RouterGuidedNegativeMiner(nn.Module):
 # -------------------------------------------------------------------------------------------------
 
 class NormAdaptiveMargin(nn.Module):
-    """
+    '''
     Norm-adaptive margin for triplet loss that decays as anchor's norm increases.
     
     Formula: m(a) = m_0 * sech(||a||_L)
     
     This ensures that anchors near the leaf boundary (large norm) have smaller margins,
     making the loss more adaptive to the hyperbolic geometry.
-    """
+    '''
     
     def __init__(
         self,
         base_margin: float = 0.5,
         curvature: float = 1.0
     ):
-        """
+        '''
         Initialize norm-adaptive margin.
         
         Args:
             base_margin: Base margin m_0
             curvature: Hyperbolic curvature parameter c
-        """
+        '''
         super().__init__()
         self.base_margin = base_margin
         self.curvature = curvature
@@ -421,7 +421,7 @@ class NormAdaptiveMargin(nn.Module):
         self.lorentz_distance = LorentzDistance(curvature)
     
     def compute_lorentz_norm(self, x: torch.Tensor) -> torch.Tensor:
-        """
+        '''
         Compute Lorentz norm (hyperbolic radius) for embeddings.
         
         Args:
@@ -429,7 +429,7 @@ class NormAdaptiveMargin(nn.Module):
         
         Returns:
             Lorentz norms (batch_size,)
-        """
+        '''
         time_coord = x[:, 0]  # x₀
         spatial_coords = x[:, 1:]  # x₁...xₙ
         
@@ -445,7 +445,7 @@ class NormAdaptiveMargin(nn.Module):
         return lorentz_norm
     
     def forward(self, anchor_emb: torch.Tensor) -> torch.Tensor:
-        """
+        '''
         Compute norm-adaptive margin for each anchor.
         
         Args:
@@ -453,7 +453,7 @@ class NormAdaptiveMargin(nn.Module):
         
         Returns:
             Adaptive margins (batch_size,)
-        """
+        '''
         # Compute Lorentz norm for each anchor
         lorentz_norms = self.compute_lorentz_norm(anchor_emb)  # (batch_size,)
         

@@ -1,1 +1,1 @@
-"""Text model module for NAICS embeddings."""
+'''Text model module for NAICS embeddings.'''

@@ -7,6 +7,7 @@ from itertools import combinations
 from typing import Dict, List, Optional, Tuple
 
 import networkx as nx
+import numpy as np
 import polars as pl
 
 from naics_embedder.utils.config import RelationsConfig, load_config
@@ -200,6 +201,40 @@ def _get_relations(
 
 
 # -------------------------------------------------------------------------------------------------
+# Relation matrix
+# -------------------------------------------------------------------------------------------------
+    
+def _get_relation_matrix(df: pl.DataFrame) -> pl.DataFrame:
+
+    '''Create relation matrix from relations_df DataFrame.'''
+    
+    codes = sorted(set(df['code_i'].to_list() + df['code_j'].to_list()))
+    n_codes = len(codes)
+
+    code_to_idx = {code: idx for idx, code in enumerate(codes)}
+
+    rel_matrix = np.zeros((n_codes, n_codes), dtype=float)
+    for row in df.iter_rows(named=True):
+        i = code_to_idx[row['code_i']]
+        j = code_to_idx[row['code_j']]
+        dist = row['relation_id']
+        rel_matrix[i, j] = dist
+        rel_matrix[j, i] = dist
+
+    rel_matrix_schema = []
+    for code, idx in code_to_idx.items():
+        rel_matrix_schema.append((f'idx_{idx}-code_{code}', pl.Float64))
+    
+    return (
+        pl
+        .from_numpy(
+            data=rel_matrix,
+            schema=rel_matrix_schema
+        )
+    )
+
+
+# -------------------------------------------------------------------------------------------------
 # Distance stats
 # -------------------------------------------------------------------------------------------------
 
@@ -341,7 +376,7 @@ def calculate_pairwise_relations() -> pl.DataFrame:
                        .fill_null('unrelated')
         )
         .sort('idx_i', 'idx_j')
-    )
+    ) 
 
     (
         relations_df
@@ -350,12 +385,26 @@ def calculate_pairwise_relations() -> pl.DataFrame:
         )
     )
 
-    _relation_stats(relations_df)
+    #_relation_stats(relations_df)
 
     _parquet_stats(
         parquet_df=relations_df,
         message='NAICS pairwise relations written to',
         output_parquet=cfg.output_parquet,
+        logger=logger
+    )
+    
+    relations_matrix = _get_relation_matrix(relations_df)
+
+    (
+        relations_matrix
+        .write_parquet(cfg.relation_matrix_parquet)
+    )  
+
+    _parquet_stats(
+        parquet_df=relations_matrix,
+        message='NAICS relations matrix written to',
+        output_parquet=cfg.relation_matrix_parquet,
         logger=logger
     )
 

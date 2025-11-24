@@ -116,11 +116,11 @@ class HyperbolicInfoNCELoss(nn.Module):
 # -------------------------------------------------------------------------------------------------
 
 class HierarchyPreservationLoss(nn.Module):
-    """
+    '''
     Loss component that encourages embedding distances to match tree distances.
     This directly optimizes hierarchy preservation by penalizing deviations from
     ground truth tree structure.
-    """
+    '''
     
     def __init__(
         self,
@@ -142,7 +142,7 @@ class HierarchyPreservationLoss(nn.Module):
         codes: List[str],
         lorentz_distance_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
     ) -> torch.Tensor:
-        """
+        '''
         Compute hierarchy preservation loss.
         
         Args:
@@ -152,7 +152,7 @@ class HierarchyPreservationLoss(nn.Module):
         
         Returns:
             Loss scalar
-        """
+        '''
         # Get indices for codes that exist in ground truth
         valid_indices = []
         valid_codes = []
@@ -219,7 +219,7 @@ class HierarchyPreservationLoss(nn.Module):
 # -------------------------------------------------------------------------------------------------
 
 class RankOrderPreservationLoss(nn.Module):
-    """
+    '''
     Loss component that explicitly optimizes for rank order preservation (Spearman correlation).
     
     This loss penalizes violations of rank order: if code A is closer to code B than to code C
@@ -227,7 +227,7 @@ class RankOrderPreservationLoss(nn.Module):
     
     This directly optimizes for Spearman correlation by ensuring relative distance ordering
     matches ground truth ordering.
-    """
+    '''
     
     def __init__(
         self,
@@ -251,7 +251,7 @@ class RankOrderPreservationLoss(nn.Module):
         codes: List[str],
         lorentz_distance_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
     ) -> torch.Tensor:
-        """
+        '''
         Compute rank order preservation loss.
         
         For each anchor code, we check if the relative ordering of distances to other codes
@@ -264,7 +264,7 @@ class RankOrderPreservationLoss(nn.Module):
             
         Returns:
             Loss scalar
-        """
+        '''
         # Get indices for codes that exist in ground truth
         valid_indices = []
         valid_codes = []
@@ -361,7 +361,7 @@ class RankOrderPreservationLoss(nn.Module):
 # -------------------------------------------------------------------------------------------------
 
 class LambdaRankLoss(nn.Module):
-    """
+    '''
     LambdaRank loss for global ranking optimization.
     
     Unlike pairwise ranking loss, LambdaRank considers the full ranking list
@@ -374,7 +374,7 @@ class LambdaRankLoss(nn.Module):
     
     This is particularly effective for contrastive learning where we have
     1 positive and k negatives (e.g., 24-32 negatives) per anchor.
-    """
+    '''
     
     def __init__(
         self,
@@ -398,7 +398,7 @@ class LambdaRankLoss(nn.Module):
         distances: torch.Tensor,
         k: Optional[int] = None
     ) -> torch.Tensor:
-        """
+        '''
         Compute NDCG (Normalized Discounted Cumulative Gain).
         
         Args:
@@ -408,7 +408,7 @@ class LambdaRankLoss(nn.Module):
             
         Returns:
             NDCG score (scalar)
-        """
+        '''
         if k is None:
             k = len(relevance_scores)
         k = min(k, len(relevance_scores))
@@ -441,7 +441,7 @@ class LambdaRankLoss(nn.Module):
         distances: torch.Tensor,
         ndcg_k: int
     ) -> torch.Tensor:
-        """
+        '''
         Compute LambdaRank lambdas (gradients).
         
         Lambda for pair (i, j) = |delta_NDCG| * (1 / (1 + exp(sigma * (s_i - s_j))))
@@ -454,7 +454,7 @@ class LambdaRankLoss(nn.Module):
             
         Returns:
             Lambdas for each pair (N, N)
-        """
+        '''
         N = len(relevance_scores)
         lambdas = torch.zeros((N, N), device=distances.device)
         
@@ -505,7 +505,7 @@ class LambdaRankLoss(nn.Module):
         batch_size: int,
         k_negatives: int
     ) -> torch.Tensor:
-        """
+        '''
         Compute LambdaRank loss.
         
         For each anchor, creates a ranking list: [positive, negative_1, ..., negative_k]
@@ -524,7 +524,7 @@ class LambdaRankLoss(nn.Module):
             
         Returns:
             Loss scalar
-        """
+        '''
         # Reshape negatives: (batch_size * k_negatives, D+1) -> (batch_size, k_negatives, D+1)
         negative_embs_reshaped = negative_embs.view(batch_size, k_negatives, -1)
         

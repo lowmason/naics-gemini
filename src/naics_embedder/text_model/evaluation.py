@@ -504,7 +504,7 @@ class HierarchyMetrics:
         k_values: List[int] = [5, 10, 20],
         min_distance: float = 0.1
     ) -> Dict[str, torch.Tensor]:
-        """
+        '''
         Compute NDCG@k for ranking evaluation.
         
         For each anchor code, ranks all other codes by embedding distance and
@@ -518,7 +518,7 @@ class HierarchyMetrics:
             
         Returns:
             Dictionary with NDCG@k for each k value
-        """
+        '''
         embedding_distances = embedding_distances.to(self.device)
         tree_distances = tree_distances.to(self.device)
         

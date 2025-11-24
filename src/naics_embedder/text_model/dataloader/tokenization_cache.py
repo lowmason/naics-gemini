@@ -165,7 +165,7 @@ def _load_tokenization_cache(
 # -------------------------------------------------------------------------------------------------
 
 def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[object]:
-    """
+    '''
     Acquire an exclusive lock on a lock file.
     
     Args:
@@ -174,7 +174,7 @@ def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[object]:
         
     Returns:
         Lock file object if acquired, None if timeout
-    """
+    '''
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     
     try:
@@ -199,7 +199,7 @@ def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[object]:
 
 
 def _release_lock(lock_file: Optional[object]) -> None:
-    """Release the lock and close the file."""
+    '''Release the lock and close the file.'''
     if lock_file is None:
         return
         

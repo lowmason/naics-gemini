@@ -1,7 +1,7 @@
-"""
+'''
 Comprehensive evaluation script for training stages.
 Extracts metrics from logs and TensorBoard, generates visualizations, and creates reports.
-"""
+'''
 
 import sys
 from pathlib import Path
@@ -28,12 +28,12 @@ except ImportError:
 
 
 def extract_tensorboard_metrics(tb_dir: Path, stage: str) -> Dict[int, Dict[str, float]]:
-    """
+    '''
     Extract metrics from TensorBoard event files.
     
     Returns:
         Dictionary mapping epoch -> {metric_name: value}
-    """
+    '''
     if not HAS_TENSORBOARD:
         return {}
     
@@ -122,7 +122,7 @@ def extract_tensorboard_metrics(tb_dir: Path, stage: str) -> Dict[int, Dict[str,
 
 
 def load_json_metrics(metrics_file: Path) -> List[Dict]:
-    """Load evaluation metrics from JSON file."""
+    '''Load evaluation metrics from JSON file.'''
     if not metrics_file.exists():
         return []
     
@@ -135,7 +135,7 @@ def load_json_metrics(metrics_file: Path) -> List[Dict]:
 
 
 def merge_tensorboard_metrics(log_metrics: List[Dict], tb_metrics: Dict[int, Dict[str, float]]) -> List[Dict]:
-    """Merge TensorBoard metrics into log metrics."""
+    '''Merge TensorBoard metrics into log metrics.'''
     for metric in log_metrics:
         epoch = metric.get('epoch')
         if epoch is not None and epoch in tb_metrics:
@@ -149,7 +149,7 @@ def evaluate_stage(
     tb_dir: Path,
     output_dir: Path
 ) -> Dict:
-    """Evaluate a single training stage."""
+    '''Evaluate a single training stage.'''
     print(f"\n{'='*90}")
     print(f"Evaluating stage: {stage}")
     print(f"{'='*90}\n")
@@ -214,7 +214,7 @@ def evaluate_stage(
 
 
 def create_comparative_analysis(all_stage_results: List[Dict], output_dir: Path):
-    """Create comparative visualizations across all stages."""
+    '''Create comparative visualizations across all stages.'''
     if not HAS_MATPLOTLIB:
         print("Matplotlib not available, skipping comparative analysis")
         return
@@ -305,7 +305,7 @@ def create_comparative_analysis(all_stage_results: List[Dict], output_dir: Path)
 
 
 def generate_report(all_stage_results: List[Dict], output_dir: Path, configs: Dict[str, Dict]):
-    """Generate comprehensive evaluation report."""
+    '''Generate comprehensive evaluation report.'''
     output_dir.mkdir(parents=True, exist_ok=True)
     report_file = output_dir / 'evaluation_report.md'
     
@@ -415,7 +415,7 @@ def generate_report(all_stage_results: List[Dict], output_dir: Path, configs: Di
 
 
 def main():
-    """Main entry point."""
+    '''Main entry point.'''
     import argparse
     
     parser = argparse.ArgumentParser(description='Evaluate training stages')

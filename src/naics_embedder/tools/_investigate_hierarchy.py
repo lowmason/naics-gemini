@@ -1,8 +1,8 @@
-"""
+'''
 Investigate hierarchy preservation metrics.
 
 This script helps diagnose why hierarchy correlations might be low.
-"""
+'''
 
 from pathlib import Path
 from typing import Optional
@@ -22,7 +22,7 @@ except ImportError:
 
 
 def analyze_ground_truth_distances(distance_matrix_path: Path):
-    """Analyze the ground truth distance matrix."""
+    '''Analyze the ground truth distance matrix.'''
     
     print("=" * 80)
     print("GROUND TRUTH DISTANCE MATRIX ANALYSIS")
@@ -77,7 +77,7 @@ def analyze_ground_truth_distances(distance_matrix_path: Path):
 
 
 def check_evaluation_sample_size(config_path: Path):
-    """Check evaluation sample size configuration."""
+    '''Check evaluation sample size configuration.'''
     
     print("\n" + "=" * 80)
     print("EVALUATION CONFIGURATION")
@@ -104,13 +104,13 @@ def check_evaluation_sample_size(config_path: Path):
 
 
 def analyze_correlation_issues():
-    """Provide analysis of potential correlation issues."""
+    '''Provide analysis of potential correlation issues.'''
     
     print("\n" + "=" * 80)
     print("POTENTIAL ISSUES WITH LOW HIERARCHY CORRELATIONS")
     print("=" * 80)
     
-    print("""
+    print('''
     Based on your metrics (Cophenetic ~0.22, Spearman ~0.00), here are potential causes:
     
     1. EARLY TRAINING STAGE
@@ -141,11 +141,11 @@ def analyze_correlation_issues():
        - Verify that ground truth distances are computed correctly
        - Check if distance matrix has proper structure
        - Ensure evaluation codes match ground truth codes
-    """)
+    ''')
 
 
 def main(project_root: Optional[Path] = None):
-    """Main entry point."""
+    '''Main entry point.'''
     if project_root is None:
         project_root = Path.cwd()
     
@@ -168,7 +168,7 @@ def main(project_root: Optional[Path] = None):
     print("\n" + "=" * 80)
     print("RECOMMENDATIONS")
     print("=" * 80)
-    print("""
+    print('''
     1. CONTINUE TRAINING
        - You're only 25% through stage 02 (5/20 epochs)
        - Correlations often improve in later epochs
@@ -193,7 +193,7 @@ def main(project_root: Optional[Path] = None):
        - Check if stage 01 had better correlations
        - Stage 02 may be more difficult (more specific filtering)
        - This is expected in curriculum learning
-    """)
+    ''')
 
 
 if __name__ == '__main__':

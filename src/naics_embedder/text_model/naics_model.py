@@ -43,7 +43,7 @@ def gather_embeddings_global(
     local_embeddings: torch.Tensor,
     world_size: Optional[int] = None
 ) -> torch.Tensor:
-    """
+    '''
     Gather embeddings from all GPUs using all_gather with gradient support.
     
     Issue #19: Global Batch Sampling - Collect embeddings from all ranks
@@ -59,7 +59,7 @@ def gather_embeddings_global(
     Returns:
         Global embeddings tensor (N_global, D) where N_global = N_local * world_size
         Gradients will flow back through this operation during backprop.
-    """
+    '''
     if not dist.is_initialized():
         # Single GPU case: return local embeddings as-is
         return local_embeddings
@@ -93,7 +93,7 @@ def gather_negative_codes_global(
     local_negative_codes: List[List[str]],
     world_size: Optional[int] = None
 ) -> List[List[str]]:
-    """
+    '''
     Gather negative codes from all GPUs for false negative masking.
     
     Args:
@@ -102,7 +102,7 @@ def gather_negative_codes_global(
     
     Returns:
         Global negative codes list
-    """
+    '''
     if not dist.is_initialized():
         return local_negative_codes
     
@@ -261,11 +261,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
     
     
     def _load_ground_truth_distances(self, distance_matrix_path: str):
+        
         '''
         Load ground truth NAICS tree distances for evaluation.
-        
-        Issue #8: Replaced print statements with logger for consistent logging.
         '''
+        
         try:
             logger.info(
                 f'Loading ground truth distances from: {distance_matrix_path}'
@@ -312,11 +312,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
         batch_idx: int,
         false_negative_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        """
+        '''
         Compute contrastive loss with curriculum features (hard negative mining, etc.).
         
         This is a helper method used by both single-level and multi-level supervision paths.
-        """
+        '''
         # Phase 2: Hard Negative Mining (HNM) - Embedding-based and Router-guided
         enable_hard_negative_mining = self.current_curriculum_flags.get(
             'enable_hard_negative_mining', False
@@ -1262,11 +1262,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
             return float(value)
     
     def _log_negative_sample_distribution(self, batch: Dict):
-        """
+        '''
         Log distribution of negative sample types (child/sibling/cousin/distant).
         
         Issue #12: Track negative sample type distribution per curriculum phase.
-        """
+        '''
         if self.curriculum_scheduler is None:
             return
         
@@ -1769,7 +1769,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
             model_self = self
             
             def lr_lambda(step):
-                """Compute learning rate multiplier for current step."""
+                '''Compute learning rate multiplier for current step.'''
                 if step < warmup_steps:
                     # Linear warmup: from 0.01 * base_lr to base_lr
                     return 0.01 + 0.99 * (step / warmup_steps)

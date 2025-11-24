@@ -1,1 +1,1 @@
-"""Data loader for graph model."""
+'''Data loader for graph model.'''

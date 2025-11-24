@@ -1,8 +1,8 @@
-"""
+'''
 Metrics visualization and investigation tools.
 
 Provides functions to visualize training metrics and investigate hierarchy correlations.
-"""
+'''
 
 import sys
 from pathlib import Path
@@ -46,7 +46,7 @@ def visualize_metrics(
     output_dir: Optional[Path] = None,
     project_root: Optional[Path] = None
 ) -> Dict:
-    """
+    '''
     Visualize training metrics from log files.
     
     Args:
@@ -57,7 +57,7 @@ def visualize_metrics(
         
     Returns:
         Dictionary with metrics and output file path
-    """
+    '''
     if project_root is None:
         project_root = Path.cwd()
     
@@ -119,7 +119,7 @@ def investigate_hierarchy(
     config_path: Optional[Path] = None,
     project_root: Optional[Path] = None
 ) -> Dict:
-    """
+    '''
     Investigate why hierarchy preservation correlations might be low.
     
     Args:
@@ -129,7 +129,7 @@ def investigate_hierarchy(
         
     Returns:
         Dictionary with investigation results
-    """
+    '''
     if project_root is None:
         project_root = Path.cwd()
     

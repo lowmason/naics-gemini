@@ -31,7 +31,7 @@ def load_config(config_class: Type[T], yaml_path: str) -> T:
         Instance of config_class with values from YAML
         
     Example:
-        cfg = load_config(DownloadConfig, 'data_generation/download.yaml')
+        cfg = load_config(DownloadConfig, 'data/download.yaml')
     '''
     
     # Construct full path relative to conf/ directory
@@ -76,7 +76,7 @@ class DirConfig(BaseModel):
         description='Directory containing data files'
     )
     docs_dir: str = Field(
-        default='./doc',
+        default='./docs',
         description='Directory containing data files'
     )
     log_dir: str = Field(
@@ -214,6 +214,10 @@ class RelationsConfig(BaseModel):
         default='./data/naics_relations.parquet',
         description='Output relations parquet file'
     )
+    relation_matrix_parquet: str = Field(
+        default='./data/naics_relation_matrix.parquet',
+        description='Output relation matrix parquet file'
+    )
     
     relation_id: Dict[str, int] = Field(
         default={
@@ -268,8 +272,8 @@ class DistancesConfig(BaseModel):
         description='Output distances parquet file'
     )
     distance_matrix_parquet: str = Field(
-        default='./data/naics_distances.parquet',
-        description='Output distances parquet file'
+        default='./data/naics_distance_matrix.parquet',
+        description='Output distance matrix parquet file'
     )
     
     @classmethod
@@ -386,7 +390,7 @@ class TripletsConfig(BaseModel):
         return cls(**data)
 
 
-class DataGenerationConfig(BaseModel):
+class DataConfig(BaseModel):
 
     '''Data generation configuration.'''
     
@@ -1337,8 +1341,8 @@ class Config(BaseModel):
         default_factory=DirConfig,
         description='File system paths'
     )
-    data_generation: DataGenerationConfig = Field(
-        default_factory=DataGenerationConfig,
+    data: DataConfig = Field(
+        default_factory=DataConfig,
         description='Data generation configuration'
     )
     data_loader: DataLoaderConfig = Field(

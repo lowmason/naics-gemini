@@ -497,4 +497,3 @@ TensorBoard provides metrics for distributed training:
 ## Additional Resources
 
 - [Architecture Documentation](architecture.md) - Model architecture details
-- [API Documentation](api/) - Detailed API references for all components

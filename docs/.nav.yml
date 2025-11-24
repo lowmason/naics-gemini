@@ -1,8 +1,7 @@
 ---
 nav:
   - Home: index.md
-  - System Overview: architecture.md
-  - Advanced Features: features.md
+  - System Overview: overview.md
   - Training Overview:
       - Text Training: text_training.md
       - HGCN Training: hgcn_training.md
@@ -44,3 +43,4 @@ nav:
           - Console: api/console.md
           - Configuration: api/config.md
           - General Utilities: api/utilities.md
+  - Literature: literature.md

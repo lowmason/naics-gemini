@@ -1,1 +1,1 @@
-"""Data loader for text model."""
+'''Data loader for text model.'''

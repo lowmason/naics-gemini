@@ -31,7 +31,7 @@ _logged_configs = set()
 # -------------------------------------------------------------------------------------------------
 
 def _get_cache_key(cfg: StreamingConfig) -> str:
-    """Generate a cache key from StreamingConfig."""
+    '''Generate a cache key from StreamingConfig.'''
     cache_dict = {
         'descriptions_parquet': str(cfg.descriptions_parquet),
         'triplets_parquet': str(cfg.triplets_parquet),
@@ -53,7 +53,7 @@ def _get_cache_key(cfg: StreamingConfig) -> str:
 
 
 def _get_final_cache_path(cfg: StreamingConfig) -> Path:
-    """Get the cache file path for the final processed data (after weighted sampling)."""
+    '''Get the cache file path for the final processed data (after weighted sampling).'''
     cache_key = _get_cache_key(cfg)
     triplets_path = Path(cfg.triplets_parquet)
     cache_dir = triplets_path.parent / 'streaming_cache'
@@ -62,7 +62,7 @@ def _get_final_cache_path(cfg: StreamingConfig) -> Path:
 
 
 def _load_final_cache(cfg: StreamingConfig) -> Optional[List[Dict]]:
-    """Load final cached data if it exists."""
+    '''Load final cached data if it exists.'''
     cache_path = _get_final_cache_path(cfg)
     
     if not cache_path.exists():
@@ -78,7 +78,7 @@ def _load_final_cache(cfg: StreamingConfig) -> Optional[List[Dict]]:
 
 
 def _save_final_cache(data: List[Dict], cfg: StreamingConfig) -> None:
-    """Save final processed data (after weighted sampling) to cache."""
+    '''Save final processed data (after weighted sampling) to cache.'''
     cache_path = _get_final_cache_path(cfg)
     
     try:
@@ -99,7 +99,7 @@ def _save_final_cache(data: List[Dict], cfg: StreamingConfig) -> None:
 # -------------------------------------------------------------------------------------------------
 
 def _get_config_dict(cfg: StreamingConfig) -> Dict[str, Any]:
-    """Extract relevant config values for filtering."""
+    '''Extract relevant config values for filtering.'''
     keep = [
         'anchor_level', 'relation_margin', 'distance_margin', 
         'positive_level', 'positive_relation', 'positive_distance', 
@@ -122,7 +122,7 @@ def _get_weighted_sample(
     n_samples: int,
     seed: Optional[int] = None
 ) -> pl.DataFrame:
-    """Apply weighted sampling using Gumbel-max trick."""
+    '''Apply weighted sampling using Gumbel-max trick.'''
     rng = np.random.default_rng(seed) if seed is not None else np.random.default_rng()
     
     return (
@@ -142,7 +142,7 @@ def _get_weighted_sample(
 
 
 def _load_codes_and_indices(descriptions_parquet: str, worker_id: str) -> tuple[List[str], Dict[str, int]]:
-    """Load codes and code_to_idx mapping from cache or parquet."""
+    '''Load codes and code_to_idx mapping from cache or parquet.'''
     cache_dir = Path(descriptions_parquet).parent / 'codes_cache'
     codes_cache_path = cache_dir / 'codes_indices.pkl'
     
@@ -167,7 +167,7 @@ def _build_polars_query(
     code_to_idx: Dict[str, int],
     worker_id: str
 ) -> pl.DataFrame:
-    """Build and execute the Polars query to get triplets."""
+    '''Build and execute the Polars query to get triplets.'''
     # Organize codes by level
     level_dict = defaultdict(list)
     for code in codes:
@@ -279,7 +279,7 @@ def _apply_weighted_sampling(
     cfg: StreamingConfig,
     worker_id: str
 ) -> List[Dict]:
-    """Apply weighted sampling and convert to list of dicts."""
+    '''Apply weighted sampling and convert to list of dicts.'''
     df = (
         _get_weighted_sample(
             df_1,
@@ -309,7 +309,7 @@ def _apply_weighted_sampling(
 # -------------------------------------------------------------------------------------------------
 
 def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]:
-    """Create a generator that yields triplets for training."""
+    '''Create a generator that yields triplets for training.'''
     # Identify worker process
     worker_info = None
     try:
@@ -392,7 +392,7 @@ def create_streaming_dataset(
     token_cache: Dict[int, Dict[str, Any]],
     cfg: StreamingConfig
 ) -> Iterator[Dict[str, Any]]:
-    """Create streaming dataset that yields triplets with tokenized embeddings."""
+    '''Create streaming dataset that yields triplets with tokenized embeddings.'''
     # Get triplets iterator
     triplets_iterator = create_streaming_generator(cfg)
     

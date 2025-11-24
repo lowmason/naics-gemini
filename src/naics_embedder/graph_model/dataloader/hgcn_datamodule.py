@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Config:
-    """Configuration for training data loader."""
+    '''Configuration for training data loader.'''
     training_pairs_path: str = './data/naics_training_pairs.parquet'
     descriptions_parquet: str = './data/naics_descriptions.parquet'
     
@@ -61,7 +61,7 @@ class Config:
 # -------------------------------------------------------------------------------------------------
 
 def _get_config_dict(cfg: Config) -> Dict[str, Any]:
-    """Extract relevant config values for filtering."""
+    '''Extract relevant config values for filtering.'''
     keep = [
         'anchor_level', 'relation_margin', 'distance_margin', 
         'positive_level', 'positive_relation', 'positive_distance', 
@@ -85,7 +85,7 @@ def _get_weighted_sample(
     n_samples: int,
     seed: Optional[int] = None
 ) -> pl.DataFrame:
-    """Apply weighted sampling using Gumbel-max trick."""
+    '''Apply weighted sampling using Gumbel-max trick.'''
     rng = np.random.default_rng(seed) if seed is not None else np.random.default_rng()
     
     return (
@@ -109,7 +109,7 @@ def _build_polars_query(
     codes: List[str],
     code_to_idx: Dict[str, int]
 ) -> pl.DataFrame:
-    """Build and execute the Polars query to get triplets."""
+    '''Build and execute the Polars query to get triplets.'''
     # Organize codes by level
     level_dict = defaultdict(list)
     for code in codes:
@@ -218,7 +218,7 @@ def _apply_weighted_sampling(
     df_1: pl.DataFrame,
     cfg: Config
 ) -> List[Dict]:
-    """Apply weighted sampling and convert to list of dicts."""
+    '''Apply weighted sampling and convert to list of dicts.'''
     df = (
         _get_weighted_sample(
             df_1,
@@ -248,7 +248,7 @@ def _apply_weighted_sampling(
 # -------------------------------------------------------------------------------------------------
 
 class TripletDataset(Dataset):
-    """Dataset for loading triplets."""
+    '''Dataset for loading triplets.'''
     
     def __init__(self, data: List[Dict]):
         self.data = data
@@ -276,7 +276,7 @@ class TripletDataset(Dataset):
 
 
 def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
-    """Collate function for batching."""
+    '''Collate function for batching.'''
     anchor_idx = torch.tensor([item['anchor_idx'] for item in batch], dtype=torch.long)
     positive_idx = torch.tensor([item['positive_idx'] for item in batch], dtype=torch.long)
     
@@ -305,7 +305,7 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
 # -------------------------------------------------------------------------------------------------
 
 def create_dataloader(cfg: Config) -> DataLoader:
-    """
+    '''
     Create a PyTorch DataLoader for graph training.
     
     Uses weighted sampling by inverse of relation id (similar to streaming_dataset.py).
@@ -315,7 +315,7 @@ def create_dataloader(cfg: Config) -> DataLoader:
     
     Returns:
         DataLoader instance
-    """
+    '''
     # Load codes and indices
     codes = get_indices_codes(cfg.descriptions_parquet, return_type='codes')
     code_to_idx = get_indices_codes(cfg.descriptions_parquet, return_type='code_to_idx')

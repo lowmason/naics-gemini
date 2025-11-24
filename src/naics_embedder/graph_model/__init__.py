@@ -1,1 +1,1 @@
-"""Graph model module for NAICS embeddings."""
+'''Graph model module for NAICS embeddings.'''

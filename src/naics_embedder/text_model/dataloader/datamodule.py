@@ -23,12 +23,12 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------------------------------------
 
 def collate_fn(batch: List[Dict]) -> Dict:
-    """Collate function to batch triplets for training.
+    '''Collate function to batch triplets for training.
     
     Supports multi-level supervision (Issue #18):
     - Each item can have multiple positives (one per ancestor level)
     - All positives for an anchor share the same negatives
-    """
+    '''
     channels = ['title', 'description', 'excluded', 'examples']
     
     # Find maximum number of negatives in batch and pad shorter lists
@@ -146,7 +146,7 @@ def collate_fn(batch: List[Dict]) -> Dict:
 # -------------------------------------------------------------------------------------------------
 
 class GeneratorDataset(IterableDataset):
-    """Dataset wrapper for streaming generators."""
+    '''Dataset wrapper for streaming generators.'''
     
     def __init__(self, generator_fn, tokenization_cfg, *args, **kwargs):
         self.generator_fn = generator_fn
@@ -156,7 +156,7 @@ class GeneratorDataset(IterableDataset):
         self._token_cache = None
     
     def _get_token_cache(self):
-        """Lazily load token cache once per worker process."""
+        '''Lazily load token cache once per worker process.'''
         if self._token_cache is None:
             import time
             import random
@@ -193,7 +193,7 @@ class GeneratorDataset(IterableDataset):
         return self._token_cache
     
     def __iter__(self):
-        """Iterate over dataset with worker sharding."""
+        '''Iterate over dataset with worker sharding.'''
         worker_info = torch.utils.data.get_worker_info()
         token_cache = self._get_token_cache()
         generator = self.generator_fn(token_cache, *self.args, **self.kwargs)
@@ -215,7 +215,7 @@ class GeneratorDataset(IterableDataset):
 # -------------------------------------------------------------------------------------------------
 
 class NAICSDataModule(LightningDataModule):
-    """DataModule for NAICS embedding training."""
+    '''DataModule for NAICS embedding training.'''
     
     def __init__(
         self,
@@ -273,7 +273,7 @@ class NAICSDataModule(LightningDataModule):
         )
     
     def prepare_data(self):
-        """Build all caches before worker processes are spawned."""
+        '''Build all caches before worker processes are spawned.'''
         os.environ['TOKENIZERS_PARALLELISM'] = 'false'
         
         from naics_embedder.text_model.dataloader.tokenization_cache import tokenization_cache
@@ -305,7 +305,7 @@ class NAICSDataModule(LightningDataModule):
         self._build_streaming_cache(self.val_streaming_cfg, 'validation')
     
     def _build_streaming_cache(self, cfg: StreamingConfig, name: str):
-        """Build streaming query cache for a given config."""
+        '''Build streaming query cache for a given config.'''
         logger.info(f'Preparing streaming query cache ({name}) in main process...')
         cache_path = _get_final_cache_path(cfg)
         
@@ -334,7 +334,7 @@ class NAICSDataModule(LightningDataModule):
                 logger.warning(f'Cache file not found after build attempt')
     
     def train_dataloader(self) -> DataLoader:
-        """Create training dataloader."""
+        '''Create training dataloader.'''
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -344,7 +344,7 @@ class NAICSDataModule(LightningDataModule):
         )
     
     def val_dataloader(self) -> DataLoader:
-        """Create validation dataloader."""
+        '''Create validation dataloader.'''
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,

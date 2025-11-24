@@ -331,10 +331,10 @@ def calculate_pairwise_distances() -> pl.DataFrame:
             distance=pl.col('distance')
                        .fill_null(9.0)
         )
-        .with_columns(
-            distance=pl.col('distance')
-                       .rank('dense')
-        )
+        #.with_columns(
+        #    distance=pl.col('distance')
+        #               .rank('dense')
+        #)
         .sort('idx_i', 'idx_j')
     )
 
@@ -343,7 +343,7 @@ def calculate_pairwise_distances() -> pl.DataFrame:
         .write_parquet(cfg.distances_parquet)
     )
 
-    _distance_stats(naics_distances)   
+    #_distance_stats(naics_distances)   
 
     _parquet_stats(
         parquet_df=naics_distances,
