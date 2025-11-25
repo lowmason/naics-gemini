@@ -25,7 +25,6 @@ from naics_embedder.utils.backend import get_device
 from naics_embedder.utils.config import (
     Config,
     TokenizationConfig,
-    list_available_curricula,
     parse_override_value,
 )
 from naics_embedder.utils.console import configure_logging
@@ -82,22 +81,20 @@ def generate_embeddings_from_checkpoint(
     checkpoint_path: str,
     config: Config,
     output_path: Optional[str] = None,
-    curriculum_name: Optional[str] = None,
     batch_size: int = 32
 ) -> str:
     '''
     Generate hyperbolic embeddings parquet file from a trained checkpoint.
-    
+
     This function loads a trained model checkpoint, runs inference on all NAICS codes,
     and saves the hyperbolic embeddings to a parquet file in the format expected by HGCN training.
-    
+
     Args:
         checkpoint_path: Path to the PyTorch Lightning checkpoint file
         config: Config object with model and data paths
         output_path: Optional output path for embeddings parquet. If None, uses default location.
-        curriculum_name: Optional curriculum name for output directory naming
         batch_size: Batch size for inference
-        
+
     Returns:
         Path to the generated embeddings parquet file
     '''
@@ -105,16 +102,14 @@ def generate_embeddings_from_checkpoint(
     logger.info('GENERATING EMBEDDINGS FROM CHECKPOINT')
     logger.info('=' * 80)
     logger.info(f'Checkpoint: {checkpoint_path}')
-    
+
     # Determine output path
     if output_path is None:
         # Use default location: ./output/hyperbolic_projection/encodings.parquet
         output_dir = Path('./output/hyperbolic_projection')
-        if curriculum_name:
-            output_dir = output_dir / curriculum_name
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = str(output_dir / 'encodings.parquet')
-    
+
     output_path_obj = Path(output_path)
     output_path_obj.parent.mkdir(parents=True, exist_ok=True)
     
@@ -252,21 +247,6 @@ def generate_embeddings_from_checkpoint(
 
 
 def train(
-    curriculum: Annotated[
-        str,
-        typer.Option(
-            '--curriculum',
-            '-c',
-            help="Curriculum config name (e.g., '01_text', '02_text', '01_graph', '02_graph')",
-        ),
-    ] = 'default',
-    curriculum_type: Annotated[
-        str,
-        typer.Option(
-            '--curriculum-type',
-            help="Curriculum type: 'text' or 'graph' (default: 'text')",
-        ),
-    ] = 'text',
     config_file: Annotated[
         str,
         typer.Option(
@@ -274,13 +254,6 @@ def train(
             help='Path to base config YAML file',
         ),
     ] = 'conf/config.yaml',
-    list_curricula: Annotated[
-        bool,
-        typer.Option(
-            '--list-curricula',
-            help='List available curricula and exit',
-        ),
-    ] = False,
     ckpt_path: Annotated[
         Optional[str],
         typer.Option(
@@ -295,21 +268,10 @@ def train(
         ),
     ] = None,
 ):
-    
-    # List curricula and exit
-    if list_curricula:
-        curricula = list_available_curricula()
-        console.print('\n[bold]Available Curricula:[/bold]')
-        for curr in curricula:
-            console.print(f'  • {curr}')
-        console.print('')
-        return
-    
+
     configure_logging('train.log')
-    
-    console.rule(
-        f"[bold green]Training NAICS: Curriculum '[cyan]{curriculum}[/cyan]'[/bold green]"
-    )
+
+    console.rule('[bold green]Training NAICS Embedder[/bold green]')
     
     try:
 
@@ -347,16 +309,7 @@ def train(
 
         # Load configuration
         logger.info('Loading configuration...')
-        if curriculum_type == 'graph':
-            # For graph training, use GraphConfig and hgcn module
-            from naics_embedder.graph_model.hgcn import main as hgcn_main
-            from naics_embedder.utils.config import GraphConfig
-            cfg = GraphConfig.from_yaml(config_file, curriculum_name=curriculum, curriculum_type='graph')
-            # Call HGCN training directly
-            hgcn_main(config_file=config_file, curriculum_stages=[curriculum] if curriculum != 'default' else None)
-            return
-        else:
-            cfg = Config.from_yaml(config_file, curriculum_name=curriculum, curriculum_type='text')
+        cfg = Config.from_yaml(config_file)
         
         # Apply command-line overrides
         if overrides:
@@ -378,24 +331,17 @@ def train(
             
             cfg = cfg.override(override_dict)
         
-        # Display configuration summary w/ curriculum
+        # Display configuration summary
         summary_list_1 = [
             f'[bold]Experiment:[/bold] {cfg.experiment_name}',
-            f'[bold]Curriculum:[/bold] {cfg.curriculum.name}',
             f'[bold]Seed:[/bold] {cfg.seed}\n',
             '[cyan]Data:[/cyan]',
             f'  • Batch size: {cfg.data_loader.batch_size}',
             f'  • Num workers: {cfg.data_loader.num_workers}\n',
-            '[cyan]Curriculum:[/cyan]',
         ]
 
-        summary_list_2 = []
-        for k, v in cfg.curriculum.model_dump().items():
-            if k != 'name' and v is not None:
-                summary_list_2.append(f'  • {k}: {v}')
-
         summary_list_3 = [
-            '\n[cyan]Model:[/cyan]',
+            '[cyan]Model:[/cyan]',
             f'  • Base: {cfg.model.base_model_name.split("/")[-1]}',
             f'  • LoRA rank: {cfg.model.lora.r}',
             '  • MoE: ',
@@ -441,7 +387,7 @@ def train(
                         f'  • [dim]Override with: data.batch_size={suggested_batch}[/dim]'
                     )
 
-        summary = '\n'.join(summary_list_1 + summary_list_2 + summary_list_3 + summary_list_4)
+        summary = '\n'.join(summary_list_1 + summary_list_3 + summary_list_4)
 
         console.print(
             Panel(
@@ -464,7 +410,7 @@ def train(
             descriptions_path=cfg.data_loader.streaming.descriptions_parquet,
             triplets_path=cfg.data_loader.streaming.triplets_parquet,
             tokenizer_name=cfg.data_loader.tokenization.tokenizer_name,
-            streaming_config=cfg.curriculum.model_dump(),
+            streaming_config=cfg.data_loader.streaming.model_dump(),
             batch_size=cfg.data_loader.batch_size,
             num_workers=cfg.data_loader.num_workers,
             val_split=cfg.data_loader.val_split,
@@ -681,8 +627,7 @@ def train(
             embeddings_path = generate_embeddings_from_checkpoint(
                 checkpoint_path=checkpoint_callback.best_model_path,
                 config=cfg,
-                output_path=None,  # Will use default location
-                curriculum_name=curriculum
+                output_path=None  # Will use default location
             )
             console.print(
                 f'\n[bold green]✓ Embeddings generated successfully![/bold green]\n'
@@ -697,21 +642,14 @@ def train(
 
 
 def train_sequential(
-    curricula: Annotated[
-        List[str],
+    num_stages: Annotated[
+        int,
         typer.Option(
-            '--curricula',
-            '-c',
-            help="List of curriculum stages to run sequentially (e.g., '01_text 02_text 03_text')",
+            '--num-stages',
+            '-n',
+            help='Number of training stages to run sequentially',
         ),
-    ] = None,
-    curriculum_type: Annotated[
-        str,
-        typer.Option(
-            '--curriculum-type',
-            help="Curriculum type: 'text' or 'graph' (default: 'text')",
-        ),
-    ] = 'text',
+    ] = 3,
     config_file: Annotated[
         str,
         typer.Option(
@@ -734,40 +672,30 @@ def train_sequential(
     ] = None,
 ):
     '''
-    Run sequential curriculum training with automatic checkpoint handoff.
-    
-    Trains through multiple curriculum stages, automatically loading the best checkpoint
+    Run sequential training with automatic checkpoint handoff.
+
+    Trains through multiple stages, automatically loading the best checkpoint
     from each stage as the initialization for the next stage.
+
+    Note: This function is deprecated. Use dynamic curriculum training instead.
     '''
-    
-    # Your full train_sequential implementation here
-    # (Lines 651-981 from your original cli.py)
-    
+
     configure_logging('train_sequential.log')
-    
-    console.rule('[bold cyan]Starting Sequential Curriculum Training[/bold cyan]')
-    
-    # Use default curricula if none provided
-    if curricula is None:
-        curricula = ['01_text', '02_text', '03_text']
-        console.print(f'[dim]Using default curricula: {curricula}[/dim]\n')
-    
-    console.print(f'[bold]Training sequence:[/bold] {" → ".join(curricula)}')
-    console.print(f'[bold]Total stages:[/bold] {len(curricula)}\n')
-    
+
+    console.rule('[bold cyan]Starting Sequential Training[/bold cyan]')
+    console.print('[yellow]Warning: Sequential training is deprecated. Consider using dynamic curriculum training instead.[/yellow]\n')
+
+    console.print(f'[bold]Total stages:[/bold] {num_stages}\n')
+
     last_checkpoint = None
-    
-    # Train each curriculum stage
-    for i, curriculum in enumerate(curricula, 1):
-        console.rule(f'[bold green]Stage {i}/{len(curricula)}: {curriculum}[/bold green]')
-        
+
+    # Train each stage
+    for i in range(1, num_stages + 1):
+        console.rule(f'[bold green]Stage {i}/{num_stages}[/bold green]')
+
         try:
             # Load config for this stage
-            cfg = Config.from_yaml(
-                config_file,
-                curriculum_name=curriculum,
-                curriculum_type=curriculum_type
-            )
+            cfg = Config.from_yaml(config_file)
             
             # Apply overrides
             if overrides:
@@ -868,27 +796,27 @@ def train_sequential(
                 logger.info(f'{label}: val/contrastive_loss = {best_loss:.6f}')
             
             # Brief pause between stages
-            if i < len(curricula):
+            if i < num_stages:
                 console.print('[dim]Preparing for next stage...[/dim]\n')
                 time.sleep(2)
-            
+
         except Exception as e:
-            logger.error(f'Stage {curriculum} failed: {e}', exc_info=True)
-            console.print(f'\n[bold red]✗ Stage {curriculum} failed:[/bold red] {e}\n')
-            
-            if i < len(curricula):
+            logger.error(f'Stage {i} failed: {e}', exc_info=True)
+            console.print(f'\n[bold red]✗ Stage {i} failed:[/bold red] {e}\n')
+
+            if i < num_stages:
                 response = typer.prompt(
-                    f'Continue with next stage ({curricula[i]})? [y/N]',
+                    f'Continue with next stage ({i+1})? [y/N]',
                     default='n'
                 )
                 if response.lower() != 'y':
                     raise typer.Exit(code=1)
             else:
                 raise typer.Exit(code=1)
-    
+
     console.rule('[bold green]Sequential Training Complete![/bold green]')
     console.print(f'\n[bold]Final checkpoint:[/bold] [cyan]{last_checkpoint}[/cyan]\n')
-    
+
     # Prompt to generate embeddings for HGCN training
     if last_checkpoint:
         console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
@@ -896,22 +824,16 @@ def train_sequential(
             f'Generate embeddings parquet file from final checkpoint ({Path(last_checkpoint).name})?',
             default=False
         )
-        
+
         if generate_embeddings:
             # Use the config from the last stage
-            final_curriculum = curricula[-1] if curricula else 'default'
-            final_cfg = Config.from_yaml(
-                config_file,
-                curriculum_name=final_curriculum,
-                curriculum_type=curriculum_type
-            )
-            
+            final_cfg = Config.from_yaml(config_file)
+
             logger.info('Generating embeddings from final checkpoint...')
             embeddings_path = generate_embeddings_from_checkpoint(
                 checkpoint_path=last_checkpoint,
                 config=final_cfg,
-                output_path=None,  # Will use default location
-                curriculum_name=final_curriculum
+                output_path=None  # Will use default location
             )
             console.print(
                 f'\n[bold green]✓ Embeddings generated successfully![/bold green]\n'

@@ -437,14 +437,9 @@ def main():
         print(f"Error: Log file not found: {args.log_file}")
         sys.exit(1)
     
-    # Load configs
+    # Note: Stage-specific configs are no longer used
+    # Dynamic curriculum is now used instead of static curriculum files
     configs = {}
-    for stage in args.stages:
-        config_file = project_root / 'conf' / 'text_curriculum' / f'{stage}.yaml'
-        if config_file.exists():
-            import yaml
-            with open(config_file, 'r') as f:
-                configs[stage] = yaml.safe_load(f)
     
     # Evaluate each stage
     all_results = []

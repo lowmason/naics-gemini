@@ -84,13 +84,6 @@ naics-embedder/
 │       └── utilities.py      # General utilities
 ├── conf/                     # Hydra configuration files
 │   ├── config.yaml           # Base configuration
-│   ├── text_curriculum/      # Text training curriculum stages (01-05)
-│   │   ├── 01_text.yaml
-│   │   ├── 02_text.yaml
-│   │   ├── ...
-│   │   ├── chain_text.yaml   # Sequential training chain
-│   │   └── default.yaml
-│   ├── graph_curriculum/     # Graph training curriculum stages (01-06)
 │   ├── data/                 # Data generation configs
 │   └── data_loader/          # Tokenization configs
 ├── docs/                     # MkDocs documentation
@@ -148,18 +141,19 @@ semantics.
 - **Implementation:** `text_model/moe.py`
 - **Purpose:** Learns adaptive fusion of the 4 channel embeddings
 
-### 4. Curriculum Learning
+### 4. Dynamic Structure-Aware Curriculum Learning
 
-Training proceeds through **sequential curriculum stages** with increasing difficulty:
+Training uses a **dynamic, structure-aware curriculum** that adapts based on the hierarchical
+structure of NAICS codes:
 
-- **Stage 01:** Basic contrastive learning (high LR, short training)
-- **Stage 02:** Intermediate training (medium LR)
-- **Stage 03-05:** Advanced training (low LR, longer training, harder negatives)
+- Dynamically adjusts training difficulty based on code relationships
+- Leverages tree distance and exclusion relationships
+- Adapts negative sampling strategy based on training progress
 
 **Key Files:**
 
-- `conf/text_curriculum/chain_text.yaml` - Sequential training chain configuration
-- `text_model/curriculum.py` - Curriculum scheduler implementation
+- `text_model/curriculum.py` - Dynamic curriculum scheduler implementation
+- `data_loader/streaming.py` - Structure-aware sampling configuration
 
 ### 5. False Negative Mitigation
 
@@ -223,17 +217,17 @@ uv run naics-embedder --help
 # Generate data
 uv run naics-embedder data all
 
-# Train single stage
-uv run naics-embedder train --curriculum 01_text
+# Train model
+uv run naics-embedder train
 
-# Train sequential curriculum
-uv run naics-embedder train-seq --curricula 01_text 02_text 03_text
+# Train with custom config
+uv run naics-embedder train --config conf/my_config.yaml
 
 # Show config
 uv run naics-embedder tools config
 
 # Visualize metrics
-uv run naics-embedder tools visualize --stage 02_text
+uv run naics-embedder tools visualize
 ```
 
 ## Code Style and Conventions
@@ -359,21 +353,23 @@ def exp_map_zero(x_tan: torch.Tensor, c: float = 1.0) -> torch.Tensor:
 
 ## Common Development Tasks
 
-### 1. Adding a New Curriculum Stage
+### 1. Adjusting Training Configuration
 
 ```bash
-# Create new config file
-cp conf/text_curriculum/05_text.yaml conf/text_curriculum/06_text.yaml
+# Edit the main configuration file
+# Adjust hyperparameters (learning_rate, max_epochs, batch_size, etc.)
+# in conf/config.yaml
 
-# Edit the new file to adjust hyperparameters
-# (learning_rate, max_epochs, etc.)
+# Run training with modified config
+uv run naics-embedder train
 
-# Update chain_text.yaml to include new stage
-# Add to stages list in conf/text_curriculum/chain_text.yaml
-
-# Run training
-uv run naics-embedder train --curriculum 06_text
+# Override specific parameters at runtime
+uv run naics-embedder train training.learning_rate=1e-4 data_loader.batch_size=16
 ```
+
+**Note:** The project now uses dynamic Structure-Aware Curriculum Learning instead of static
+curriculum stages. Training difficulty adapts automatically based on the NAICS hierarchical
+structure and training progress.
 
 ### 2. Modifying Loss Functions
 
@@ -428,7 +424,7 @@ uv run naics-embedder tools investigate
 **Visualize training metrics:**
 
 ```bash
-uv run naics-embedder tools visualize --stage 02_text
+uv run naics-embedder tools visualize
 ```
 
 ### 5. Working with Configuration
@@ -441,10 +437,10 @@ The project uses Hydra for hierarchical configuration management.
 
 ```bash
 # Override single value
-uv run naics-embedder train --curriculum 01_text training.learning_rate=2e-4
+uv run naics-embedder train training.learning_rate=2e-4
 
 # Override multiple values
-uv run naics-embedder train --curriculum 01_text \
+uv run naics-embedder train \
   training.learning_rate=2e-4 \
   data_loader.batch_size=16 \
   loss.hierarchy_weight=0.5
@@ -537,22 +533,20 @@ Tokenized inputs are **cached to disk** to avoid re-tokenization:
 
 ```bash
 checkpoints/
-├── 01_text/
-│   ├── last.ckpt          # Last checkpoint (for resuming)
-│   ├── epoch=X-step=Y.ckpt
-│   └── best_model.ckpt    # Best validation checkpoint
-├── 02_text/
-│   └── ...
+├── <experiment_name>/
+│   ├── last.ckpt                       # Last checkpoint (for resuming)
+│   ├── naics-epoch=X-val_loss=Y.ckpt  # Checkpoints by epoch/loss
+│   └── config.yaml                     # Config snapshot for this run
 ```
 
 **Resume training:**
 
 ```bash
 # Resume from last checkpoint
-uv run naics-embedder train --curriculum 02_text --ckpt-path last
+uv run naics-embedder train --ckpt-path last
 
 # Resume from specific checkpoint
-uv run naics-embedder train --curriculum 02_text --ckpt-path checkpoints/02_text/epoch=5-step=1000.ckpt
+uv run naics-embedder train --ckpt-path checkpoints/my_experiment/naics-epoch=5-val_loss=0.1234.ckpt
 ```
 
 ## Testing and Validation
@@ -563,11 +557,8 @@ uv run naics-embedder train --curriculum 02_text --ckpt-path checkpoints/02_text
 # Test data pipeline
 uv run naics-embedder data all
 
-# Test single stage training (quick)
-uv run naics-embedder train --curriculum 01_text training.trainer.max_epochs=2
-
-# Test sequential training
-uv run naics-embedder train-seq --curricula 01_text 02_text training.trainer.max_epochs=2
+# Test training (quick)
+uv run naics-embedder train training.trainer.max_epochs=2
 
 # Validate configuration
 uv run naics-embedder tools config
@@ -663,10 +654,10 @@ To add new module to docs:
 uv run naics-embedder tools investigate
 
 # Increase hierarchy loss weight
-uv run naics-embedder train --curriculum 02_text loss.hierarchy_weight=0.5
+uv run naics-embedder train loss.hierarchy_weight=0.5
 
 # Train longer
-uv run naics-embedder train --curriculum 02_text training.trainer.max_epochs=30
+uv run naics-embedder train training.trainer.max_epochs=30
 ```
 
 ### 3. OOM (Out of Memory) Errors
@@ -678,10 +669,10 @@ uv run naics-embedder train --curriculum 02_text training.trainer.max_epochs=30
 uv run naics-embedder tools gpu --auto --apply
 
 # Manual reduction
-uv run naics-embedder train --curriculum 01_text data_loader.batch_size=8
+uv run naics-embedder train data_loader.batch_size=8
 
 # Increase gradient accumulation
-uv run naics-embedder train --curriculum 01_text training.trainer.accumulate_grad_batches=4
+uv run naics-embedder train training.trainer.accumulate_grad_batches=4
 ```
 
 ### 4. Checkpoint Not Found
@@ -692,14 +683,13 @@ uv run naics-embedder train --curriculum 01_text training.trainer.accumulate_gra
 
 ```bash
 # Check checkpoint directory exists
-ls checkpoints/01_text/
+ls checkpoints/<experiment_name>/
 
 # Use correct checkpoint path
-uv run naics-embedder train --curriculum 02_text \
-  --ckpt-path checkpoints/01_text/last.ckpt
+uv run naics-embedder train --ckpt-path checkpoints/<experiment_name>/last.ckpt
 
 # Or use "last" to auto-detect
-uv run naics-embedder train --curriculum 02_text --ckpt-path last
+uv run naics-embedder train --ckpt-path last
 ```
 
 ## Git Workflow
@@ -758,7 +748,7 @@ git push -u origin claude/claude-md-midviflvdkx1kn66-01PeC3NREbC6j5KUwMieyXiy
 **Configuration:**
 
 - `conf/config.yaml` - Base training configuration
-- `conf/text_curriculum/*.yaml` - Curriculum stages
+- `conf/data_loader/*.yaml` - Data loading and tokenization configs
 
 **Model Architecture:**
 

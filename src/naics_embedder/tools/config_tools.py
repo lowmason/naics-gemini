@@ -63,58 +63,10 @@ def show_current_config(config_path: str = './conf/config.yaml'):
             expand=True
         )
     )
-    
-    # Check curriculum stages
-    conf_dir = config_path_obj.parent
-    curriculum_dir = conf_dir / 'text_curriculum'
-    
-    if not curriculum_dir.exists():
-        console.print('[yellow]No curriculum directory found[/yellow]')
-        return
-    
-    stage_panels = []
-    for stage_file in sorted(curriculum_dir.glob('*_text.yaml')):
-        stage_num = stage_file.stem.split('_')[0]
-        try:
-            curriculum = load_curriculum(stage_file)
-            
-            current_stage = []
-            for curr_key, curr_value in curriculum.items():
-                if curr_key != 'name' and curr_value is not None:
-                    current_stage.append(f'  • [bold]{curr_key}:[/bold] {curr_value}')
-            
-            stage_panels.append(
-                Panel(
-                    '\n'.join(current_stage) if current_stage else '[dim]No configuration[/dim]',
-                    title=f'[blue]Stage {stage_num} ({stage_file.name})[/blue]',
-                    border_style='blue',
-                    expand=True
-                )
-            )
-        except Exception as e:
-            console.print(f'[red]Error loading {stage_file.name}: {e}[/red]')
-    
-    if stage_panels:
-        console.print(
-            Panel(
-                Group(*stage_panels),
-                title='[yellow]Current Curriculum Stages[/yellow]',
-                border_style='yellow',
-                expand=True
-            )
-        )
-    else:
-        console.print('[yellow]No curriculum stages found[/yellow]')
 
 
 def load_config(config_path: str = './conf/config.yaml'):
     '''Load main configuration file.'''
     with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
-
-
-def load_curriculum(curriculum_path: str):
-    '''Load curriculum stage file.'''
-    with open(curriculum_path, 'r') as f:
         return yaml.safe_load(f)
 

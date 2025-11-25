@@ -850,155 +850,8 @@ class TrainingConfig(BaseModel):
 
 
 # -------------------------------------------------------------------------------------------------
-# Curriculum Configuration
+# Training Configuration
 # -------------------------------------------------------------------------------------------------
-
-class CurriculumConfig(BaseModel):
-
-    '''Curriculum learning configuration.'''
-    
-    name: str = Field(
-        default='default',
-        description='Curriculum name'
-    )
-    
-    # Anchor parameters
-    anchor_level: Optional[List[int]] = Field(
-        default=None,
-        description='Filter anchor codes by hierarchy level'
-    )
-    relation_margin: Optional[List[int]] = Field(
-        default=None,
-        description='Filter by relation margin'
-    )
-    distance_margin: Optional[List[float]] = Field(
-        default=None,
-        description='Filter by distance margin'
-    )
-    
-    # Margin parameters
-    positive_level: Optional[List[int]] = Field(
-        default=None,
-        description='Filter positive codes by hierarchy level'
-    )
-    positive_relation: Optional[List[int]] = Field(
-        default=None,
-        description='Filter positive pairs by relation'
-    )
-    positive_distance: Optional[List[float]] = Field(
-        default=None,
-        description='Filter positive pairs by distance'
-    )
-    n_positives: int = Field(
-        default=2125,
-        gt=0,
-        le=2125,
-        description='Maximum number of positives per anchor'
-    )
-    
-    # Margin parameters
-    negative_level: Optional[List[int]] = Field(
-        default=None,
-        description='Filter negative codes by hierarchy level'
-    )
-    negative_relation: Optional[List[int]] = Field(
-        default=None,
-        description='Filter negative pairs by relation'
-    )
-    negative_distance: Optional[List[int]] = Field(
-        default=None,
-        description='Filter negative pairs by distance'
-    )
-    n_negatives: int = Field(
-        default=2125,
-        gt=0,
-        le=2125,
-        description='Maximum number of negatives per positive'
-    )
-    
-
-    @field_validator('anchor_level', 'positive_level', 'negative_level')
-    @classmethod
-    def validate_levels(cls, v: Optional[List[int]]) -> Optional[List[int]]:
-    
-        '''Validate NAICS levels are in valid range.'''
-    
-        if v is not None and not all(2 <= level <= 6 for level in v):
-            raise ValueError('Levels must be between 2 and 6')
-        return v
-
-
-# -------------------------------------------------------------------------------------------------
-# Graph Curriculum Configuration
-# -------------------------------------------------------------------------------------------------
-
-class GraphCurriculumConfig(BaseModel):
-    '''Graph curriculum learning configuration (for HGCN training).'''
-    
-    name: str = Field(
-        default='default',
-        description='Curriculum name'
-    )
-    
-    # Anchor parameters
-    anchor_level: Optional[List[int]] = Field(
-        default=None,
-        description='Filter anchor codes by hierarchy level'
-    )
-    relation_margin: Optional[List[int]] = Field(
-        default=None,
-        description='Filter by relation margin'
-    )
-    distance_margin: Optional[List[float]] = Field(
-        default=None,
-        description='Filter by distance margin'
-    )
-    
-    # Positive filtering
-    positive_level: Optional[List[int]] = Field(
-        default=None,
-        description='Filter positive codes by hierarchy level'
-    )
-    positive_relation: Optional[List[int]] = Field(
-        default=None,
-        description='Filter positive pairs by relation'
-    )
-    positive_distance: Optional[List[float]] = Field(
-        default=None,
-        description='Filter positive pairs by distance'
-    )
-    n_positives: int = Field(
-        default=2048,
-        gt=0,
-        description='Maximum number of positives per anchor'
-    )
-    
-    # Negative sampling
-    negative_level: Optional[List[int]] = Field(
-        default=None,
-        description='Filter negative codes by hierarchy level'
-    )
-    negative_relation: Optional[List[int]] = Field(
-        default=None,
-        description='Filter negative pairs by relation'
-    )
-    negative_distance: Optional[List[int]] = Field(
-        default=None,
-        description='Filter negative pairs by distance'
-    )
-    n_negatives: int = Field(
-        default=32,
-        gt=0,
-        description='Maximum number of negatives per positive'
-    )
-    
-    @field_validator('anchor_level', 'positive_level', 'negative_level')
-    @classmethod
-    def validate_levels(cls, v: Optional[List[int]]) -> Optional[List[int]]:
-        '''Validate NAICS levels are in valid range.'''
-        if v is not None and not all(2 <= level <= 6 for level in v):
-            raise ValueError('Levels must be between 2 and 6')
-        return v
 
 
 class GraphConfig(BaseModel):
@@ -1198,126 +1051,24 @@ class GraphConfig(BaseModel):
         ge=0,
         description='Random seed'
     )
-    
-    # Curriculum configuration
-    curriculum: Optional[GraphCurriculumConfig] = Field(
-        default=None,
-        description='Graph curriculum learning configuration'
-    )
-    
+
     @classmethod
-    def from_yaml(
-        cls,
-        yaml_path: str,
-        curriculum_name: Optional[str] = None,
-        curriculum_type: str = 'graph'
-    ) -> 'GraphConfig':
+    def from_yaml(cls, yaml_path: str) -> 'GraphConfig':
         '''Load GraphConfig from YAML file.'''
-        
+
         yaml_file = Path(yaml_path)
         if not yaml_file.exists():
             raise FileNotFoundError(f'Config file not found: {yaml_path}')
-        
+
         with open(yaml_file, 'r') as f:
             data = yaml.safe_load(f)
-        
+
         if data is None:
             data = {}
-        
-        # Load curriculum if specified
-        if curriculum_name:
-            if curriculum_type == 'graph':
-                curriculum_path = Path('conf/graph_curriculum') / f'{curriculum_name}.yaml'
-            else:
-                curriculum_path = Path('conf/text_curriculum') / f'{curriculum_name}.yaml'
-            
-            if not curriculum_path.exists():
-                raise FileNotFoundError(
-                    f'Curriculum not found: {curriculum_path}\n'
-                    f'Available curricula: {list(curriculum_path.parent.glob("*.yaml"))}'
-                )
-            
-            with open(curriculum_path, 'r') as f:
-                curriculum_data = yaml.safe_load(f)
-            
-            if curriculum_data:
-                data['curriculum'] = curriculum_data
-        
+
+        logger.info(f'Loaded graph config from {yaml_path}')
+
         return cls(**data)
-
-
-# -------------------------------------------------------------------------------------------------
-# Chain Configuration (for sequential training with stage-specific overrides)
-# -------------------------------------------------------------------------------------------------
-
-class ChainStageConfig(BaseModel):
-    '''Configuration for a single stage in a training chain.'''
-    
-    name: str = Field(
-        description='Name of the curriculum stage (e.g., "01_text")'
-    )
-    max_epochs: Optional[int] = Field(
-        default=None,
-        gt=0,
-        description='Override max_epochs for this stage'
-    )
-    learning_rate: Optional[float] = Field(
-        default=None,
-        gt=0,
-        lt=1,
-        description='Override learning_rate for this stage'
-    )
-
-
-class ChainConfig(BaseModel):
-    '''Configuration for a training chain with multiple stages.'''
-    
-    chain_name: str = Field(
-        description='Name of the training chain'
-    )
-    stages: List[ChainStageConfig] = Field(
-        description='List of stages in the chain'
-    )
-    
-    @classmethod
-    def from_yaml(cls, yaml_path: str, curriculum_type: str = 'text') -> 'ChainConfig':
-        '''Load chain configuration from YAML file.'''
-        
-        # If yaml_path is just a name (e.g., "chain_text"), resolve to full path
-        chain_file = Path(yaml_path)
-        if not chain_file.is_absolute() and not chain_file.exists():
-            # Try to resolve relative to curriculum directory
-            if curriculum_type == 'graph':
-                chain_file = Path('conf/graph_curriculum') / f'{yaml_path}.yaml'
-            else:
-                chain_file = Path('conf/text_curriculum') / f'{yaml_path}.yaml'
-        
-        if not chain_file.exists():
-            raise FileNotFoundError(f'Chain config not found: {chain_file}')
-        
-        with open(chain_file, 'r') as f:
-            data = yaml.safe_load(f)
-        
-        if data is None:
-            raise ValueError(f'Chain config file is empty: {chain_file}')
-        
-        return cls(**data)
-    
-    def get_stage_names(self) -> List[str]:
-        '''Get list of curriculum stage names in order.'''
-        return [stage.name for stage in self.stages]
-    
-    def get_stage_overrides(self, stage_name: str) -> Dict[str, Any]:
-        '''Get training overrides for a specific stage.'''
-        for stage in self.stages:
-            if stage.name == stage_name:
-                overrides = {}
-                if stage.max_epochs is not None:
-                    overrides['training.trainer.max_epochs'] = stage.max_epochs
-                if stage.learning_rate is not None:
-                    overrides['training.learning_rate'] = stage.learning_rate
-                return overrides
-        return {}
 
 
 # -------------------------------------------------------------------------------------------------
@@ -1361,65 +1112,23 @@ class Config(BaseModel):
         default_factory=TrainingConfig,
         description='Training configuration'
     )
-    curriculum: CurriculumConfig = Field(
-        default_factory=CurriculumConfig,
-        description='Curriculum learning configuration'
-    )
-    
 
     @classmethod
-    def from_yaml(
-        cls,
-        yaml_path: str,
-        curriculum_name: Optional[str] = None,
-        curriculum_type: str = 'text'
-    ) -> 'Config':
-     
+    def from_yaml(cls, yaml_path: str) -> 'Config':
         '''Load configuration from YAML file.'''
-     
+
         yaml_file = Path(yaml_path)
         if not yaml_file.exists():
             raise FileNotFoundError(f'Config file not found: {yaml_path}')
-        
+
         with open(yaml_file, 'r') as f:
             data = yaml.safe_load(f)
-        
+
         if data is None:
             data = {}
-        
-        # Load curriculum if specified
-        if curriculum_name:
-            if curriculum_type == 'graph':
-                curriculum_path = Path('conf/graph_curriculum') / f'{curriculum_name}.yaml'
-            else:
-                curriculum_path = Path('conf/text_curriculum') / f'{curriculum_name}.yaml'
-            
-            if not curriculum_path.exists():
-                raise FileNotFoundError(
-                    f'Curriculum not found: {curriculum_path}\n'
-                    f'Available curricula: {list(curriculum_path.parent.glob("*.yaml"))}'
-                )
-            
-            with open(curriculum_path, 'r') as f:
-                curriculum_data = yaml.safe_load(f)
-            
-            if curriculum_data:
-                data['curriculum'] = curriculum_data
-        
-        # Set experiment name from curriculum if it contains a variable reference
-        if 'curriculum' in data:
-            curriculum_name_value = data['curriculum'].get('name', 'default')
-            if 'experiment_name' in data and '${curriculum.name}' in str(data['experiment_name']):
-                data['experiment_name'] = curriculum_name_value
-            elif 'experiment_name' not in data:
-                data['experiment_name'] = curriculum_name_value
-                
-        if curriculum_name:
-            logger.info(f'  • Loaded config from {yaml_path}')
-            logger.info(f'  • Using curriculum: {curriculum_name} (type: {curriculum_type})\n')
-        else:
-            logger.info(f'  • Loaded config from {yaml_path}\n')
-        
+
+        logger.info(f'  • Loaded config from {yaml_path}\n')
+
         return cls(**data)
     
 
@@ -1486,32 +1195,17 @@ def parse_override_value(value: str) -> Any:
     try:
         if value.lower() in ('true', 'false'):
             return value.lower() == 'true'
-        
+
         if '.' in value or 'e' in value.lower():
             return float(value)
-        
+
         try:
             return int(value)
         except ValueError:
             pass
-        
+
         import ast
         return ast.literal_eval(value)
-    
+
     except (ValueError, SyntaxError):
         return value
-
-
-def list_available_curricula() -> List[str]:
-
-    '''List all available curriculum configs.'''
-    
-    curriculum_dir = Path('conf/text_curriculum')
-    if not curriculum_dir.exists():
-        return []
-    
-    curricula = [
-        f.stem for f in curriculum_dir.glob('*.yaml')
-        if not f.name.startswith('_')
-    ]
-    return sorted(curricula)
