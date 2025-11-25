@@ -4,26 +4,25 @@ Metrics visualization and investigation tools.
 Provides functions to visualize training metrics and investigate hierarchy correlations.
 '''
 
-import sys
-from pathlib import Path
-from typing import List, Dict, Optional
+# -------------------------------------------------------------------------------------------------
+# Imports
+# -------------------------------------------------------------------------------------------------
 
-# Import matplotlib with non-interactive backend
+from pathlib import Path
+from typing import Dict, Optional
+
 try:
     import matplotlib
     matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
 
-# Import the functions from the original scripts
-# We'll import them directly since they're already in the package
 try:
     from naics_embedder.tools._visualize_metrics import (
-        parse_log_file,
         create_visualizations,
-        print_analysis
+        parse_log_file,
+        print_analysis,
     )
     HAS_VISUALIZE = True
 except ImportError:
@@ -31,14 +30,18 @@ except ImportError:
 
 try:
     from naics_embedder.tools._investigate_hierarchy import (
+        analyze_correlation_issues,
         analyze_ground_truth_distances,
         check_evaluation_sample_size,
-        analyze_correlation_issues
     )
     HAS_INVESTIGATE = True
 except ImportError:
     HAS_INVESTIGATE = False
 
+
+# -------------------------------------------------------------------------------------------------
+# Visualize metrics
+# -------------------------------------------------------------------------------------------------
 
 def visualize_metrics(
     stage: str = '02_text',
@@ -46,6 +49,7 @@ def visualize_metrics(
     output_dir: Optional[Path] = None,
     project_root: Optional[Path] = None
 ) -> Dict:
+    
     '''
     Visualize training metrics from log files.
     
@@ -58,6 +62,7 @@ def visualize_metrics(
     Returns:
         Dictionary with metrics and output file path
     '''
+
     if project_root is None:
         project_root = Path.cwd()
     
@@ -68,10 +73,10 @@ def visualize_metrics(
         output_dir = project_root / 'outputs' / 'visualizations'
     
     if not log_file.exists():
-        raise FileNotFoundError(f"Log file not found: {log_file}")
+        raise FileNotFoundError(f'Log file not found: {log_file}')
     
     if not HAS_VISUALIZE:
-        raise ImportError("Visualization tools not available. Missing dependencies.")
+        raise ImportError('Visualization tools not available. Missing dependencies.')
     
     # Parse metrics
     metrics = parse_log_file(log_file, stage=stage)
@@ -85,17 +90,20 @@ def visualize_metrics(
         output_file = output_dir / f'{stage}_metrics.png'
     else:
         output_file = None
-        print("⚠️  Matplotlib not available. Skipping visualization creation.")
+        print('⚠️  Matplotlib not available. Skipping visualization creation.')
     
     # Print analysis
     print_analysis(metrics, stage)
     
     # Print summary table
-    print("\n" + "=" * 90)
-    print("METRICS SUMMARY TABLE")
-    print("=" * 90)
-    print(f"{'Epoch':<8} {'Radius':<15} {'Cophenetic':<12} {'Spearman':<12} {'Dist CV':<10} {'Collapse':<10}")
-    print("-" * 90)
+    print('\n' + '=' * 90)
+    print('METRICS SUMMARY TABLE')
+    print('=' * 90)
+    print(
+        f"{'Epoch':<8} {'Radius':<15} {'Cophenetic':<12} "
+        f"{'Spearman':<12} {'Dist CV':<10} {'Collapse':<10}"
+    )
+    print('-' * 90)
     for m in metrics:
         epoch = m.get('epoch', 'N/A')
         radius = f"{m.get('radius_mean', 0):.2f}±{m.get('radius_std', 0):.2f}"
@@ -103,7 +111,10 @@ def visualize_metrics(
         spearman = f"{m.get('spearman', 0):.4f}" if 'spearman' in m else 'N/A'
         dist_cv = f"{m.get('dist_cv', 0):.4f}" if 'dist_cv' in m else 'N/A'
         collapse = 'Yes' if m.get('collapse', False) else 'No'
-        print(f"{epoch:<8} {radius:<15} {cophenetic:<12} {spearman:<12} {dist_cv:<10} {collapse:<10}")
+        print(
+            f'{epoch:<8} {radius:<15} {cophenetic:<12} '
+            f'{spearman:<12} {dist_cv:<10} {collapse:<10}'
+        )
     print()
     
     return {
@@ -114,11 +125,16 @@ def visualize_metrics(
     }
 
 
+# -------------------------------------------------------------------------------------------------
+# Investigate hierarchy preservation metrics
+# -------------------------------------------------------------------------------------------------
+
 def investigate_hierarchy(
     distance_matrix_path: Optional[Path] = None,
     config_path: Optional[Path] = None,
     project_root: Optional[Path] = None
 ) -> Dict:
+
     '''
     Investigate why hierarchy preservation correlations might be low.
     
@@ -130,6 +146,7 @@ def investigate_hierarchy(
     Returns:
         Dictionary with investigation results
     '''
+
     if project_root is None:
         project_root = Path.cwd()
     
@@ -140,7 +157,7 @@ def investigate_hierarchy(
         config_path = project_root / 'conf' / 'config.yaml'
     
     if not HAS_INVESTIGATE:
-        raise ImportError("Investigation tools not available. Missing dependencies.")
+        raise ImportError('Investigation tools not available. Missing dependencies.')
     
     results = {}
     

@@ -5,7 +5,7 @@ Visualize training metrics from log files.
 import re
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 # Define project root
 project_root = Path(__file__).parent.parent.parent.parent
@@ -130,7 +130,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     '''Create visualization plots for the metrics.'''
     
     if not metrics:
-        print("No metrics found to visualize!")
+        print('No metrics found to visualize!')
         return
     
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -222,7 +222,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     
     if metrics:
         latest = metrics[-1]
-        summary_text = f'''
+        summary_text = f"""
         LATEST METRICS (Epoch {latest.get('epoch', 'N/A')})
         
         Hyperbolic Radius:
@@ -242,11 +242,11 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
         
         Status:
           Collapse: {'Yes' if latest.get('collapse', False) else 'No'}
-        '''
+        """
         
         if len(metrics) > 1:
             first = metrics[0]
-            trends = f'''
+            trends = f"""
         TRENDS (Epoch {first.get('epoch', 'N/A')} → {latest.get('epoch', 'N/A')})
         
         Radius:      {first.get('radius_mean', 0):.4f} → {latest.get('radius_mean', 0):.4f}
@@ -254,7 +254,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
         Train Loss:  {first.get('train_loss', 'N/A')} → {latest.get('train_loss', 'N/A')}
         Val Loss:    {first.get('val_loss', 'N/A')} → {latest.get('val_loss', 'N/A')}
         Distance CV: {(f"{first.get('dist_cv', 0):.4f}" if 'dist_cv' in first and first.get('dist_cv') is not None else 'N/A')} → {(f"{latest.get('dist_cv', 0):.4f}" if 'dist_cv' in latest and latest.get('dist_cv') is not None else 'N/A')}
-        '''
+        """
             summary_text += trends
         
         ax6.text(0.1, 0.5, summary_text, fontsize=10, 
@@ -266,7 +266,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     
     output_file = output_dir / f'{stage}_metrics.png'
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"✓ Saved visualization to: {output_file}")
+    print(f'✓ Saved visualization to: {output_file}')
     
     plt.close()
 
@@ -275,100 +275,100 @@ def print_analysis(metrics: List[Dict], stage: str):
     '''Print detailed analysis of the metrics.'''
     
     if not metrics:
-        print("No metrics to analyze!")
+        print('No metrics to analyze!')
         return
     
-    print("\n" + "=" * 90)
-    print(f"ANALYSIS: {stage.upper()}")
-    print("=" * 90)
+    print('\n' + '=' * 90)
+    print(f'ANALYSIS: {stage.upper()}')
+    print('=' * 90)
     
     # Hyperbolic Radius Analysis
     radius_means = [m.get('radius_mean', 0) for m in metrics]
     if radius_means:
-        print(f"\n📊 HYPERBOLIC RADIUS:")
-        print(f"   Initial: {radius_means[0]:.4f}")
-        print(f"   Latest:  {radius_means[-1]:.4f}")
-        print(f"   Change:  {radius_means[-1] - radius_means[0]:+.4f} ({((radius_means[-1]/radius_means[0] - 1) * 100):+.1f}%)")
+        print('\n📊 HYPERBOLIC RADIUS:')
+        print(f'   Initial: {radius_means[0]:.4f}')
+        print(f'   Latest:  {radius_means[-1]:.4f}')
+        print(f'   Change:  {radius_means[-1] - radius_means[0]:+.4f} ({((radius_means[-1]/radius_means[0] - 1) * 100):+.1f}%)')
         
         if radius_means[-1] > 20:
-            print(f"   ⚠️  WARNING: Radius is getting large (>20). Monitor for stability.")
+            print('   ⚠️  WARNING: Radius is getting large (>20). Monitor for stability.')
         elif radius_means[-1] > 10:
-            print(f"   ℹ️  INFO: Radius is moderate (10-20). This is reasonable.")
+            print('   ℹ️  INFO: Radius is moderate (10-20). This is reasonable.')
         else:
-            print(f"   ✓ Radius is in normal range (<10).")
+            print('   ✓ Radius is in normal range (<10).')
     
     # Loss Analysis
     train_losses = [m.get('train_loss') for m in metrics if 'train_loss' in m and m.get('train_loss') is not None]
     val_losses = [m.get('val_loss') for m in metrics if 'val_loss' in m and m.get('val_loss') is not None]
     
     if train_losses:
-        print(f"\n📉 TRAINING LOSS:")
-        print(f"   Initial: {train_losses[0]:.6f}")
-        print(f"   Latest:  {train_losses[-1]:.6f}")
-        print(f"   Change:  {train_losses[-1] - train_losses[0]:+.6f} ({((train_losses[-1]/train_losses[0] - 1) * 100):+.1f}%)")
+        print('\n📉 TRAINING LOSS:')
+        print(f'   Initial: {train_losses[0]:.6f}')
+        print(f'   Latest:  {train_losses[-1]:.6f}')
+        print(f'   Change:  {train_losses[-1] - train_losses[0]:+.6f} ({((train_losses[-1]/train_losses[0] - 1) * 100):+.1f}%)')
     
     if val_losses:
-        print(f"\n📉 VALIDATION LOSS:")
-        print(f"   Initial: {val_losses[0]:.6f}")
-        print(f"   Latest:  {val_losses[-1]:.6f}")
-        print(f"   Change:  {val_losses[-1] - val_losses[0]:+.6f} ({((val_losses[-1]/val_losses[0] - 1) * 100):+.1f}%)")
+        print('\n📉 VALIDATION LOSS:')
+        print(f'   Initial: {val_losses[0]:.6f}')
+        print(f'   Latest:  {val_losses[-1]:.6f}')
+        print(f'   Change:  {val_losses[-1] - val_losses[0]:+.6f} ({((val_losses[-1]/val_losses[0] - 1) * 100):+.1f}%)')
         if val_losses[-1] < val_losses[0]:
-            print(f"   ✓ Validation loss is decreasing - model is learning!")
+            print('   ✓ Validation loss is decreasing - model is learning!')
         else:
-            print(f"   ⚠️  Validation loss is increasing - may be overfitting")
+            print('   ⚠️  Validation loss is increasing - may be overfitting')
     
     # Hierarchy Preservation Analysis
     cophenetic = [m.get('cophenetic', 0) for m in metrics if 'cophenetic' in m]
     
     if cophenetic:
-        print(f"\n📈 HIERARCHY PRESERVATION:")
-        print(f"   Cophenetic: {cophenetic[0]:.4f} → {cophenetic[-1]:.4f} ({cophenetic[-1] - cophenetic[0]:+.4f})")
+        print('\n📈 HIERARCHY PRESERVATION:')
+        print(f'   Cophenetic: {cophenetic[0]:.4f} → {cophenetic[-1]:.4f} ({cophenetic[-1] - cophenetic[0]:+.4f})')
         
         if cophenetic[-1] > 0.7:
-            print(f"   ✓ Excellent hierarchy preservation!")
+            print('   ✓ Excellent hierarchy preservation!')
         elif cophenetic[-1] > 0.5:
-            print(f"   ℹ️  Good hierarchy preservation, but could improve.")
+            print('   ℹ️  Good hierarchy preservation, but could improve.')
         elif cophenetic[-1] > 0.3:
-            print(f"   ⚠️  Moderate hierarchy preservation. Model may need more training.")
+            print('   ⚠️  Moderate hierarchy preservation. Model may need more training.')
         else:
-            print(f"   ⚠️  WARNING: Low hierarchy preservation. Consider:")
-            print(f"      - Checking if ground truth distances are correct")
-            print(f"      - Verifying training data quality")
-            print(f"      - Adjusting learning rate or loss function")
+            print('   ⚠️  WARNING: Low hierarchy preservation. Consider:')
+            print('      - Checking if ground truth distances are correct')
+            print('      - Verifying training data quality')
+            print('      - Adjusting learning rate or loss function')
     
     # Collapse Detection
     collapse_flags = [m.get('collapse', False) for m in metrics if 'collapse' in m]
     if collapse_flags:
         if any(collapse_flags):
-            print(f"\n⚠️  COLLAPSE DETECTED:")
+            print('\n⚠️  COLLAPSE DETECTED:')
             collapsed_epochs = [m['epoch'] for m in metrics if m.get('collapse', False)]
-            print(f"   Collapse occurred at epochs: {collapsed_epochs}")
+            print(f'   Collapse occurred at epochs: {collapsed_epochs}')
         else:
-            print(f"\n✓ NO COLLAPSE DETECTED")
-            print(f"   All embeddings show good diversity.")
+            print('\n✓ NO COLLAPSE DETECTED')
+            print('   All embeddings show good diversity.')
     
     # Recommendations
-    print(f"\n💡 RECOMMENDATIONS:")
+    print('\n💡 RECOMMENDATIONS:')
     
     if cophenetic and cophenetic[-1] < 0.5:
-        print(f"   1. Hierarchy correlations are low. This could be because:")
+        print('   1. Hierarchy correlations are low. This could be because:')
         print(f"      - Model is still learning (only {metrics[-1].get('epoch', 0)} epochs completed)")
-        print(f"      - Hyperbolic space may need more time to organize hierarchy")
-        print(f"      - Consider checking if evaluation sample size is sufficient")
+        print('      - Hyperbolic space may need more time to organize hierarchy')
+        print('      - Consider checking if evaluation sample size is sufficient')
     
     if radius_means and radius_means[-1] > 15:
-        print(f"   2. Hyperbolic radius is growing rapidly. Monitor for:")
-        print(f"      - Numerical stability issues")
-        print(f"      - Whether this growth correlates with better metrics")
+        print('   2. Hyperbolic radius is growing rapidly. Monitor for:')
+        print('      - Numerical stability issues')
+        print('      - Whether this growth correlates with better metrics')
     
     if cophenetic and len(cophenetic) > 3:
         recent_trend = cophenetic[-3:]
         if all(recent_trend[i] <= recent_trend[i+1] for i in range(len(recent_trend)-1)):
-            print(f"   3. Cophenetic correlation is improving! Continue training.")
+            print('   3. Cophenetic correlation is improving! Continue training.')
         elif all(recent_trend[i] >= recent_trend[i+1] for i in range(len(recent_trend)-1)):
-            print(f"   3. ⚠️  Cophenetic correlation is declining. Consider:")
-            print(f"      - Early stopping if this continues")
-            print(f"      - Learning rate reduction")
+            print('   3. ⚠️  Cophenetic correlation is declining. Consider:')
+            print('      - Early stopping if this continues')
+            print('      - Learning rate reduction')
     
     print()
 
@@ -390,17 +390,17 @@ def main():
     args = parser.parse_args()
     
     if not args.log_file.exists():
-        print(f"Error: Log file not found: {args.log_file}")
+        print(f'Error: Log file not found: {args.log_file}')
         sys.exit(1)
     
-    print(f"Parsing metrics from: {args.log_file}")
+    print(f'Parsing metrics from: {args.log_file}')
     metrics = parse_log_file(args.log_file, stage=args.stage)
     
     if not metrics:
         print(f"No metrics found for stage '{args.stage}' in log file!")
         sys.exit(1)
     
-    print(f"Found {len(metrics)} evaluation epochs")
+    print(f'Found {len(metrics)} evaluation epochs')
     
     # Create visualizations
     create_visualizations(metrics, args.output_dir, args.stage)
@@ -409,11 +409,11 @@ def main():
     print_analysis(metrics, args.stage)
     
     # Print summary table
-    print("\n" + "=" * 90)
-    print("METRICS SUMMARY TABLE")
-    print("=" * 90)
+    print('\n' + '=' * 90)
+    print('METRICS SUMMARY TABLE')
+    print('=' * 90)
     print(f"{'Epoch':<8} {'Radius':<15} {'Train Loss':<12} {'Val Loss':<12} {'Cophenetic':<12} {'Dist CV':<10} {'Collapse':<10}")
-    print("-" * 90)
+    print('-' * 90)
     for m in metrics:
         epoch = m.get('epoch', 'N/A')
         radius = f"{m.get('radius_mean', 0):.2f}±{m.get('radius_std', 0):.2f}"
@@ -422,7 +422,7 @@ def main():
         cophenetic = f"{m.get('cophenetic', 0):.4f}" if 'cophenetic' in m else 'N/A'
         dist_cv = f"{m.get('dist_cv', 0):.4f}" if 'dist_cv' in m else 'N/A'
         collapse = 'Yes' if m.get('collapse', False) else 'No'
-        print(f"{epoch:<8} {radius:<15} {train_loss:<12} {val_loss:<12} {cophenetic:<12} {dist_cv:<10} {collapse:<10}")
+        print(f'{epoch:<8} {radius:<15} {train_loss:<12} {val_loss:<12} {cophenetic:<12} {dist_cv:<10} {collapse:<10}')
     print()
 
 

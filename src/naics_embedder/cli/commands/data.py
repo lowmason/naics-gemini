@@ -19,6 +19,7 @@ app = typer.Typer(help='Manage and generate project datasets.')
 
 @app.command('preprocess')
 def preprocess():
+
     '''
     Download and preprocess all raw NAICS data files.
     
@@ -36,6 +37,7 @@ def preprocess():
 
 @app.command('relations')
 def relations():
+
     '''
     Compute pairwise graph relationships between all NAICS codes.
     
@@ -54,6 +56,7 @@ def relations():
 
 @app.command('distances')
 def distances():
+
     '''
     Compute pairwise graph distances between all NAICS codes.
     
@@ -72,6 +75,7 @@ def distances():
 
 @app.command('triplets')
 def triplets():
+
     '''
     Generate (anchor, positive, negative) training triplets.
     
@@ -90,6 +94,7 @@ def triplets():
 
 @app.command('all')
 def all_data():
+
     '''
     Run the full data generation pipeline: preprocess, distances, and triplets.
     '''

@@ -43,5 +43,3 @@ nav:
           - Console: api/console.md
           - Configuration: api/config.md
           - General Utilities: api/utilities.md
-  - Literature: literature.md
-  - Report: report.md
