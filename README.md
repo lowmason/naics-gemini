@@ -1,14 +1,3 @@
-# NAICS Hyperbolic Embedding System
-
-This project implements a unified hyperbolic representation learning framework for the
-**North American Industry Classification System (NAICS)**. The system combines multi-channel text
-encoding, Mixture-of-Experts fusion, hyperbolic contrastive learning, and a hyperbolic graph
-refinement stage to produce geometry-aware embeddings aligned with the hierarchical structure of
-the NAICS taxonomy.
-
-The final output is a set of **Lorentz-model hyperbolic embeddings** suitable for similarity
-search, hierarchical modeling, graph-based reasoning, and downstream machine learning applications.
-
 [![CI](https://github.com/lowmason/naics-embedder/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lowmason/naics-embedder/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/releases)
 [![License](https://img.shields.io/github/license/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/blob/main/LICENSE)
@@ -21,6 +10,17 @@ search, hierarchical modeling, graph-based reasoning, and downstream machine lea
 [![Repo size](https://img.shields.io/github/repo-size/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder)
 [![Top language](https://img.shields.io/github/languages/top/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder)
 ---
+
+# NAICS Hyperbolic Embedding System
+
+This project implements a unified hyperbolic representation learning framework for the
+**North American Industry Classification System (NAICS)**. The system combines multi-channel text
+encoding, Mixture-of-Experts fusion, hyperbolic contrastive learning, and a hyperbolic graph
+refinement stage to produce geometry-aware embeddings aligned with the hierarchical structure of
+the NAICS taxonomy.
+
+The final output is a set of **Lorentz-model hyperbolic embeddings** suitable for similarity
+search, hierarchical modeling, graph-based reasoning, and downstream machine learning applications.
 
 ## 1. System Architecture Overview
 
@@ -273,6 +273,7 @@ uv run naics-embedder train --config conf/config.yaml \
 ```
 
 Key flags managed by SADC during training:
+
 - Tree-distance weighting and sibling masking during structural initialization
 - Router-guided and hard-negative mining during geometric refinement
 - Clustering-driven false-negative elimination in the final phase

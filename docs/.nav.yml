@@ -45,6 +45,6 @@ nav:
           - Console: api/console.md
           - Configuration: api/config.md
           - General Utilities: api/utilities.md
-          - Training Utilities: api/training_utilities.md
+          - Training Utilities: api/training_utils.md
           - Validation: api/validation.md
           - Warnings: api/warnings.md

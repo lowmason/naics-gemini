@@ -4,9 +4,6 @@ Unit tests for configuration management.
 Tests Pydantic config models, YAML loading, and validation.
 '''
 
-
-from pathlib import Path
-
 import pytest
 import yaml
 from pydantic import ValidationError

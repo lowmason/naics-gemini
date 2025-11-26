@@ -8,8 +8,8 @@ and ranking-based losses used in training.
 import pytest
 import torch
 
-from naics_embedder.text_model.hyperbolic import LorentzOps
 from naics_embedder.text_model.hard_negative_mining import NormAdaptiveMargin
+from naics_embedder.text_model.hyperbolic import LorentzOps
 from naics_embedder.text_model.loss import (
     HierarchyPreservationLoss,
     HyperbolicInfoNCELoss,
