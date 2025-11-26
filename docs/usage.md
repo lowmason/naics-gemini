@@ -8,7 +8,7 @@ The NAICS Embedder CLI is organized into three main command groups:
 
 - **`data`** - Data generation and preprocessing commands
 - **`tools`** - Utility tools for configuration, GPU optimization, and metrics
-- **`train`** / **`train-seq`** - Model training commands
+- **`train`** - Model training with the dynamic SADC curriculum
 
 ## Installation
 
@@ -82,7 +82,7 @@ uv run naics-embedder data all
 
 ### `tools config`
 
-Display current training and curriculum configuration.
+Display current training configuration, including the Structure-Aware Dynamic Curriculum (SADC) schedule.
 
 ```bash
 uv run naics-embedder tools config
@@ -197,11 +197,8 @@ uv run naics-embedder train-seq --legacy --num-stages 3
 **Examples:**
 
 ```bash
-# Acknowledge legacy workflow and run three stages
+# Reproduce a historical 3-stage run
 uv run naics-embedder train-seq --legacy --num-stages 3
-
-# Resume a legacy chain from the last checkpoint
-uv run naics-embedder train-seq --legacy --resume
 ```
 
 ---
@@ -215,14 +212,14 @@ uv run naics-embedder train-seq --legacy --resume
 uv run naics-embedder data all
 ```
 
-### Single Stage Training
+### Standard Training
 
 ```bash
 # Train with the dynamic SADC scheduler
 uv run naics-embedder train
 ```
 
-### Sequential Multi-Stage Training
+### Dynamic SADC Training
 
 ```bash
 # Legacy sequential flow (deprecated)
@@ -263,12 +260,10 @@ uv run naics-embedder train --help
 
 ## Configuration Files
 
-The CLI uses configuration files located in the `conf/` directory:
+The CLI reads a single configuration in `conf/config.yaml`:
 
-- **Base Config:** `conf/config.yaml` - Main training configuration
-- **Text Curricula:** `conf/text_curriculum/*.yaml` - Text training curriculum stages
-- **Graph Curricula:** `conf/graph_curriculum/*.yaml` - Graph training curriculum stages
-- **Chain Configs:** `conf/text_curriculum/chain_text.yaml` - Sequential training chains
+- **Base Config:** Paths, model hyperparameters, and trainer settings
+- **Curriculum:** `curriculum.*` fields configure SADC phase boundaries and false-negative elimination cadence
 
 See the [Configuration Documentation](api/config.md) for details on configuration structure.
 

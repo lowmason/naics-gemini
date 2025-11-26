@@ -1,9 +1,6 @@
 # Training Guide
 
-This guide explains how to train the NAICS Hyperbolic Embedding System with the dynamic
-Structure-Aware Dynamic Curriculum (SADC) scheduler. Training now happens in a single run—the
-scheduler flips curriculum flags automatically, so you no longer need stage files or chain
-configs.
+This guide explains how to train the NAICS Hyperbolic Embedding System with the dynamic Structure-Aware Dynamic Curriculum (SADC) scheduler. The current workflow uses a single configuration file (`conf/config.yaml`) to control model, data, trainer, and curriculum settings.
 
 ## Table of Contents
 

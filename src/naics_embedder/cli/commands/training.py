@@ -5,13 +5,10 @@
 '''
 CLI commands for training NAICS embedding models.
 
-This module provides the ``train`` and ``train-seq`` commands that orchestrate
-the text encoder training workflow. Configuration is loaded from YAML files and
-can be overridden via command-line arguments.
-
-Commands:
-    train: Train a single stage with optional checkpoint resumption.
-    train-seq: Run sequential multi-stage training (deprecated, use --legacy).
+The ``train`` command is the supported entry point and runs the dynamic
+Structure-Aware Dynamic Curriculum (SADC) workflow. The legacy sequential
+command is retained only for backwards compatibility and is hidden from the
+public help output.
 '''
 
 import logging
@@ -474,7 +471,15 @@ def train(
                 distance_matrix_path=cfg.data_loader.streaming.distance_matrix_parquet,
                 eval_every_n_epochs=cfg.model.eval_every_n_epochs,
                 eval_sample_size=cfg.model.eval_sample_size,
-                base_margin=cfg.loss.base_margin
+                base_margin=cfg.loss.base_margin,
+                tree_distance_alpha=cfg.curriculum.tree_distance_alpha,
+                curriculum_phase1_end=cfg.curriculum.phase1_end,
+                curriculum_phase2_end=cfg.curriculum.phase2_end,
+                curriculum_phase3_end=cfg.curriculum.phase3_end,
+                sibling_distance_threshold=cfg.curriculum.sibling_distance_threshold,
+                fn_curriculum_start_epoch=cfg.curriculum.fn_curriculum_start_epoch,
+                fn_cluster_every_n_epochs=cfg.curriculum.fn_cluster_every_n_epochs,
+                fn_num_clusters=cfg.curriculum.fn_num_clusters
             )
         
         # Setup callbacks
@@ -684,17 +689,12 @@ def train_sequential(
     ] = None,
 ):
     '''
-    Run sequential multi-stage training with automatic checkpoint handoff.
-    
-    .. deprecated::
-        Sequential training is deprecated. Use the standard ``train`` command
-        with dynamic curriculum learning instead. Pass ``--legacy`` to
-        acknowledge and continue using this deprecated workflow.
-    
-    This routine iterates over curriculum stages, loading the best checkpoint
-    from each stage as initialization for the next. Each stage can have
-    different hyperparameters and training objectives.
-    
+    Deprecated legacy sequential training (unsupported).
+
+    The dynamic ``train`` command replaces manual curriculum stage lists. This
+    entry point remains for backwards compatibility only and requires
+    ``--legacy`` to acknowledge the unsupported workflow.
+
     Args:
         num_stages: Number of training stages to run in sequence.
         config_file: Path to the base configuration file used for all stages.
@@ -704,15 +704,14 @@ def train_sequential(
             workflow. Required to proceed with sequential training.
         overrides: Optional list of key-value override strings applied to every
             stage configuration.
-    
+
     Example:
         Run 3-stage sequential training (deprecated)::
-        
+
             $ uv run naics-embedder train-seq --legacy --num-stages 3
-    
+
     See Also:
-        Use ``train`` for the recommended single-stage training with dynamic
-        curriculum learning.
+        Use ``train`` for the recommended SADC-based training workflow.
     '''
 
     configure_logging('train_sequential.log')

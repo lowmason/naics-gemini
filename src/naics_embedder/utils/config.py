@@ -838,6 +838,63 @@ class TrainerConfig(BaseModel):
         return v
 
 
+class CurriculumConfig(BaseModel):
+
+    '''Structure-Aware Dynamic Curriculum (SADC) scheduler configuration.'''
+
+    phase1_end: float = Field(
+        default=0.3,
+        ge=0,
+        le=1,
+        description='End of Phase 1 (Structural Initialization) as fraction of max epochs'
+    )
+    phase2_end: float = Field(
+        default=0.7,
+        ge=0,
+        le=1,
+        description='End of Phase 2 (Geometric Refinement) as fraction of max epochs'
+    )
+    phase3_end: float = Field(
+        default=1.0,
+        ge=0,
+        le=1,
+        description='End of Phase 3 (False Negative Mitigation) as fraction of max epochs'
+    )
+    tree_distance_alpha: float = Field(
+        default=1.5,
+        gt=0,
+        description='Exponent for inverse tree-distance weighting of negatives'
+    )
+    sibling_distance_threshold: float = Field(
+        default=2.0,
+        ge=0,
+        description='Distance threshold for sibling masking in Phase 1'
+    )
+    fn_curriculum_start_epoch: int = Field(
+        default=10,
+        ge=0,
+        description='Epoch to begin clustering-based false-negative elimination'
+    )
+    fn_cluster_every_n_epochs: int = Field(
+        default=5,
+        gt=0,
+        description='Frequency (in epochs) for refreshing clustering in Phase 3'
+    )
+    fn_num_clusters: int = Field(
+        default=500,
+        gt=0,
+        description='Number of clusters used in false-negative elimination'
+    )
+
+    @model_validator(mode='after')
+    def validate_phase_boundaries(self) -> 'CurriculumConfig':
+        '''Ensure curriculum phases progress monotonically.''' 
+
+        if not (self.phase1_end <= self.phase2_end <= self.phase3_end):
+            raise ValueError('Curriculum phases must satisfy phase1_end <= phase2_end <= phase3_end')
+        return self
+
+
 class TrainingConfig(BaseModel):
     
     '''Optimizer and training configuration.'''
@@ -868,6 +925,8 @@ class TrainingConfig(BaseModel):
         default_factory=TrainerConfig,
         description='PyTorch Lightning Trainer config'
     )
+
+
 
 
 # -------------------------------------------------------------------------------------------------
@@ -1108,6 +1167,10 @@ class Config(BaseModel):
         default=42,
         ge=0,
         description='Random seed for reproducibility'
+    )
+    curriculum: CurriculumConfig = Field(
+        default_factory=CurriculumConfig,
+        description='Dynamic SADC curriculum scheduler configuration'
     )
     dirs: DirConfig = Field(
         default_factory=DirConfig,
