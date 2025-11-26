@@ -31,7 +31,7 @@ def test_excluded_negatives_get_high_weight():
         excluded_map=excluded_map,
         code_to_idx=code_to_idx,
         alpha=1.5,
-        exclusion_weight=100.0
+        exclusion_weight=100.0,
     )
 
     assert mask.tolist() == [False, True]
@@ -66,7 +66,7 @@ def test_sample_marks_explicit_exclusions(monkeypatch):
         code_to_idx=code_to_idx,
         alpha=1.5,
         exclusion_weight=100.0,
-        seed=0
+        seed=0,
     )
 
     assert len(sampled) == 2

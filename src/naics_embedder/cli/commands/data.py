@@ -38,8 +38,7 @@ from naics_embedder.utils.console import configure_logging
 console = Console()
 
 app = typer.Typer(
-    help='Data generation and preprocessing commands for NAICS taxonomy.',
-    no_args_is_help=True
+    help='Data generation and preprocessing commands for NAICS taxonomy.', no_args_is_help=True
 )
 
 
@@ -47,23 +46,24 @@ app = typer.Typer(
 # Download and preprocess data
 # -------------------------------------------------------------------------------------------------
 
+
 @app.command('preprocess')
 def preprocess():
     '''
     Download and preprocess all raw NAICS data files.
-    
+
     Downloads the official 2022 NAICS taxonomy files from the U.S. Census
     Bureau and processes them into a unified descriptions parquet file.
-    
+
     The output file contains columns for code, title, description, examples,
     and exclusions for each NAICS code at all hierarchy levels (2-6 digit).
-    
+
     Output:
         ``data/naics_descriptions.parquet`` - Unified NAICS taxonomy data.
-    
+
     Example:
         Download and preprocess NAICS data::
-        
+
             $ uv run naics-embedder data preprocess
     '''
 
@@ -80,25 +80,26 @@ def preprocess():
 # Compute pairwise graph relationships
 # -------------------------------------------------------------------------------------------------
 
+
 @app.command('relations')
 def relations():
     '''
     Compute pairwise graph relationships between all NAICS codes.
-    
+
     Analyzes the NAICS hierarchy to determine relationship types between
     every pair of codes (child, sibling, cousin, etc.). These relationships
     are used for curriculum-based sampling during training.
-    
+
     Requires:
         ``data/naics_descriptions.parquet`` - From the preprocess stage.
-    
+
     Output:
         ``data/naics_relations.parquet`` - Pairwise relationship annotations.
         ``data/naics_relation_matrix.parquet`` - Sparse matrix representation.
-    
+
     Example:
         Compute all pairwise relationships::
-        
+
             $ uv run naics-embedder data relations
     '''
 
@@ -115,25 +116,26 @@ def relations():
 # Compute pairwise graph distances
 # -------------------------------------------------------------------------------------------------
 
+
 @app.command('distances')
 def distances():
     '''
     Compute pairwise graph distances between all NAICS codes.
-    
+
     Calculates tree distances in the NAICS hierarchy for every pair of codes.
     Distance is computed as the sum of edges traversed to reach the lowest
     common ancestor. Used for hierarchy preservation loss and evaluation.
-    
+
     Requires:
         ``data/naics_descriptions.parquet`` - From the preprocess stage.
-    
+
     Output:
         ``data/naics_distances.parquet`` - Pairwise distance annotations.
         ``data/naics_distance_matrix.parquet`` - Sparse matrix representation.
-    
+
     Example:
         Compute all pairwise distances::
-        
+
             $ uv run naics-embedder data distances
     '''
 
@@ -150,29 +152,30 @@ def distances():
 # Generate training triplets
 # -------------------------------------------------------------------------------------------------
 
+
 @app.command('triplets')
 def triplets():
     '''
     Generate (anchor, positive, negative) training triplets.
-    
+
     Creates training triplets for contrastive learning by sampling anchors
     from the NAICS taxonomy and pairing them with positive samples (related
     codes) and negative samples (distant codes).
-    
+
     Triplet generation uses the distance and relation annotations to ensure
     meaningful contrastive pairs that respect the hierarchical structure.
-    
+
     Requires:
         ``data/naics_descriptions.parquet`` - From the preprocess stage.
         ``data/naics_distances.parquet`` - From the distances stage.
         ``data/naics_relations.parquet`` - From the relations stage.
-    
+
     Output:
         ``data/naics_training_pairs/`` - Directory of parquet files with triplets.
-    
+
     Example:
         Generate training triplets::
-        
+
             $ uv run naics-embedder data triplets
     '''
 
@@ -189,23 +192,24 @@ def triplets():
 # Run full data generation pipeline
 # -------------------------------------------------------------------------------------------------
 
+
 @app.command('all')
 def all_data():
     '''
     Run the complete data generation pipeline.
-    
+
     Executes all data preparation stages in order: preprocess, relations,
     distances, and triplets. This is the recommended way to prepare data
     for training from scratch.
-    
+
     Output:
         All data files required for training will be created in ``data/``.
-    
+
     Example:
         Run the full pipeline::
-        
+
             $ uv run naics-embedder data all
-    
+
     Note:
         This command may take 10-30 minutes depending on your system.
         Progress is logged to ``logs/data_all.log``.

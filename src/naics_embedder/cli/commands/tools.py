@@ -32,14 +32,14 @@ from naics_embedder.utils.console import configure_logging
 console = Console()
 
 app = typer.Typer(
-    help='Utility tools for configuration, metrics analysis, and debugging.',
-    no_args_is_help=True
+    help='Utility tools for configuration, metrics analysis, and debugging.', no_args_is_help=True
 )
 
 
 # -------------------------------------------------------------------------------------------------
 # View configuration
 # -------------------------------------------------------------------------------------------------
+
 
 @app.command('config')
 def config(
@@ -53,22 +53,22 @@ def config(
 ):
     '''
     Display the current training and curriculum configuration.
-    
+
     Loads the specified configuration file and displays a formatted summary
     of all settings including data paths, model architecture, training
     hyperparameters, and loss function weights.
-    
+
     Args:
         config_file: Path to the YAML configuration file to display.
             Defaults to ``conf/config.yaml``.
-    
+
     Example:
         Display default configuration::
-        
+
             $ uv run naics-embedder tools config
-        
+
         Display custom configuration::
-        
+
             $ uv run naics-embedder tools config --config conf/custom.yaml
     '''
 
@@ -76,9 +76,11 @@ def config(
 
     show_current_config(config_file)
 
+
 # -------------------------------------------------------------------------------------------------
 # Visualize metrics
 # -------------------------------------------------------------------------------------------------
+
 
 @app.command('visualize')
 def visualize(
@@ -107,14 +109,14 @@ def visualize(
 ):
     '''
     Visualize training metrics from log files.
-    
+
     Parses training log files and generates visualizations showing the
     progression of key metrics including contrastive loss, hierarchy
     correlation, embedding statistics, and learning rate schedules.
-    
+
     Output visualizations are saved as PNG files in the specified output
     directory.
-    
+
     Args:
         stage: Stage identifier used to filter metrics. Use this to focus
             on a specific training stage like ``02_text``.
@@ -122,14 +124,14 @@ def visualize(
             defaults to ``logs/train_sequential.log``.
         output_dir: Directory for saving visualization files. When omitted,
             defaults to ``outputs/visualizations/``.
-    
+
     Example:
         Visualize metrics from default log::
-        
+
             $ uv run naics-embedder tools visualize --stage 02_text
-        
+
         Visualize custom log file::
-        
+
             $ uv run naics-embedder tools visualize --log-file logs/train.log
     '''
 
@@ -139,11 +141,7 @@ def visualize(
         log_path = Path(log_file) if log_file else None
         output_path = Path(output_dir) if output_dir else None
 
-        result = visualize_metrics(
-            stage=stage,
-            log_file=log_path,
-            output_dir=output_path
-        )
+        result = visualize_metrics(stage=stage, log_file=log_path, output_dir=output_path)
 
         if result.get('output_file'):
             console.print(
@@ -159,6 +157,7 @@ def visualize(
 # -------------------------------------------------------------------------------------------------
 # Investigate hierarchy preservation metrics
 # -------------------------------------------------------------------------------------------------
+
 
 @app.command('investigate')
 def investigate(
@@ -210,10 +209,7 @@ def investigate(
         dist_path = Path(distance_matrix) if distance_matrix else None
         config_path = Path(config_file) if config_file else None
 
-        result = investigate_hierarchy(
-            distance_matrix_path=dist_path,
-            config_path=config_path
-        )
+        result = investigate_hierarchy(distance_matrix_path=dist_path, config_path=config_path)
         for key, value in result.items():
             console.print(f'[bold green]{key}:[/bold green] {value}')
 

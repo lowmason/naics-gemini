@@ -16,8 +16,8 @@ from rich.logging import RichHandler
 # Configure logging
 # -------------------------------------------------------------------------------------------------
 
+
 class ConsoleFormatter(logging.Formatter):
-    
     '''Formatter that prints time only if more than `time_interval` seconds have elapsed.'''
 
     def __init__(self, timefmt='[%H:%M:%S]', time_interval: float = 600.0):
@@ -44,12 +44,7 @@ class ConsoleFormatter(logging.Formatter):
             return message
 
 
-def configure_logging(
-    log_file: str,
-    log_dir: str = './logs',
-    level: str = 'INFO'
-):
-
+def configure_logging(log_file: str, log_dir: str = './logs', level: str = 'INFO'):
     # Create log directory if it doesn't exist
     if not Path(log_dir).exists():
         Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -59,33 +54,24 @@ def configure_logging(
     console_handler = RichHandler(
         console=console,
         rich_tracebacks=True,
-        tracebacks_suppress=[
-            'typer',
-            'click',
-            'hydra',
-            'pytorch_lightning',
-            'torch'
-        ],
+        tracebacks_suppress=['typer', 'click', 'hydra', 'pytorch_lightning', 'torch'],
         show_path=False,
         show_time=False,
         show_level=False,
-        markup=True
+        markup=True,
     )
     console_handler.setFormatter(ConsoleFormatter())
-    
+
     # Rich file handler
     file_handler = logging.FileHandler(f'{log_dir}/{log_file}', encoding='utf-8')
     file_formatter = logging.Formatter(
         fmt='%(asctime)s | %(levelname)s | %(name)s | %(filename)s:%(lineno)d] | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        datefmt='%Y-%m-%d %H:%M:%S',
     )
     file_handler.setFormatter(file_formatter)
 
     # BasicConfig with both handlers
-    logging.basicConfig(
-        level=level,
-        handlers=[console_handler, file_handler]
-    )
+    logging.basicConfig(level=level, handlers=[console_handler, file_handler])
 
     # Quiet down noisy libs
     for noisy in ['hydra', 'pytorch_lightning', 'transformers', 'httpx']:
@@ -99,16 +85,15 @@ def configure_logging(
 # Print styled table
 # -------------------------------------------------------------------------------------------------
 
+
 def log_table(
     df: pl.DataFrame,
     title: str,
     headers: Optional[List[str]] = None,
     logger: Optional[logging.Logger] = None,
-    output: Optional[str] = None
+    output: Optional[str] = None,
 ) -> None:
-    
     if headers:
-    
         cols, span_1, span_2 = [], [], []
         for h, c in zip(headers, df.columns):
             if ':' in h:
@@ -132,26 +117,19 @@ def log_table(
     else:
         cols_labels_dict, span_label, span_cols = {c: c for c in df.columns}, None, None
 
-    if (
-        span_label is not None and 
-        span_cols is not None
-    ):
+    if span_label is not None and span_cols is not None:
         table = (
-            df
-            .style
-            .tab_header(title=title)
-            .cols_label(cols_labels_dict) # type: ignore
+            df.style.tab_header(title=title)
+            .cols_label(cols_labels_dict)  # type: ignore
             .tab_spanner(span_label, cs.by_name(span_cols))
             .fmt_integer('cnt')
             .fmt_number('pct', decimals=4)
-        ) 
+        )
 
     else:
         table = (
-            df
-            .style
-            .tab_header(title=title)
-            .cols_label(cols_labels_dict) # type: ignore
+            df.style.tab_header(title=title)
+            .cols_label(cols_labels_dict)  # type: ignore
             .fmt_integer('cnt')
             .fmt_number('pct', decimals=4)
         )
@@ -163,6 +141,6 @@ def log_table(
 
         if logger:
             logger.info(f'\n{str(df)}')
-            
+
         if output:
             table.save(output)

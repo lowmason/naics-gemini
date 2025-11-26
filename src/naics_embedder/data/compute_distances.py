@@ -21,16 +21,11 @@ logger = logging.getLogger(__name__)
 # Distance utilities
 # -------------------------------------------------------------------------------------------------
 
-def _sectors(input_parquet: str) -> List[str]:
 
+def _sectors(input_parquet: str) -> List[str]:
     return (
-        pl
-        .read_parquet(
-            input_parquet
-        )
-        .filter(
-            pl.col('level').eq(2)
-        )
+        pl.read_parquet(input_parquet)
+        .filter(pl.col('level').eq(2))
         .select('code')
         .sort(pl.col('code').cast(pl.UInt32))
         .unique(maintain_order=True)
@@ -40,7 +35,6 @@ def _sectors(input_parquet: str) -> List[str]:
 
 
 def _sector_codes(sector: str, input_parquet: str) -> List[str]:
-
     if sector == '31':
         sector_list = ['31', '32', '33']
 
@@ -54,14 +48,8 @@ def _sector_codes(sector: str, input_parquet: str) -> List[str]:
         sector_list = [sector]
 
     return (
-        pl
-        .read_parquet(
-            input_parquet
-        )
-        .filter(
-            pl.col('level').eq(6), 
-            pl.col('code').str.slice(0, 2).is_in(sector_list)
-        )
+        pl.read_parquet(input_parquet)
+        .filter(pl.col('level').eq(6), pl.col('code').str.slice(0, 2).is_in(sector_list))
         .select('code')
         .sort(pl.col('code').cast(pl.UInt32))
         .unique(maintain_order=True)
@@ -71,22 +59,20 @@ def _sector_codes(sector: str, input_parquet: str) -> List[str]:
 
 
 def _join_sectors(code: str) -> str:
-
     if code in ['31', '32', '33']:
         return '31'
-    
+
     elif code in ['44', '45']:
         return '44'
-    
+
     elif code in ['48', '49']:
         return '48'
-    
+
     else:
         return code
 
 
 def _sector_tree(sector: str, input_parquet: str) -> nx.DiGraph:
-
     if sector == '31':
         sector_list = ['31', '32', '33']
 
@@ -106,23 +92,11 @@ def _sector_tree(sector: str, input_parquet: str) -> nx.DiGraph:
     code_2 = sorted(set(n[:2] for n in code_6))
 
     if not code_6:
-        sector_df = (
-            pl
-            .read_parquet(
-                input_parquet
-            )
-            .filter(
-                pl.col('code').str.slice(0, 2).is_in(sector_list)
-            )
+        sector_df = pl.read_parquet(input_parquet).filter(
+            pl.col('code').str.slice(0, 2).is_in(sector_list)
         )
 
-        codes = (
-            sector_df
-            .select('code')
-            .unique(maintain_order=True)
-            .get_column('code')
-            .to_list()
-        )
+        codes = sector_df.select('code').unique(maintain_order=True).get_column('code').to_list()
 
         graph = nx.DiGraph()
         graph.add_nodes_from(codes)
@@ -161,7 +135,6 @@ def _sector_tree(sector: str, input_parquet: str) -> nx.DiGraph:
 
 
 def _compute_tree_metadata(tree: nx.DiGraph, root: str) -> Tuple[Dict, Dict, Dict]:
-
     depths, ancestors, parents = {}, {}, {}
     queue = [(root, 0, [root])]
     while queue:
@@ -177,10 +150,8 @@ def _compute_tree_metadata(tree: nx.DiGraph, root: str) -> Tuple[Dict, Dict, Dic
 
 
 def _find_common_ancestor(i: str, j: str, ancestors: Dict[str, List[str]]) -> Optional[str]:
-
     ancestors_i, ancestors_j = set(ancestors[i]), ancestors[j]
     for ancestor in reversed(ancestors_j):
-        
         if ancestor in ancestors_i:
             return ancestor
 
@@ -192,13 +163,7 @@ def _find_common_ancestor(i: str, j: str, ancestors: Dict[str, List[str]]) -> Op
 # -------------------------------------------------------------------------------------------------
 
 
-def _get_distance(
-    i: str, 
-    j: str, 
-    depths: Dict[str, int], 
-    ancestors: Dict[str, List[str]]
-) -> float:
-
+def _get_distance(i: str, j: str, depths: Dict[str, int], ancestors: Dict[str, List[str]]) -> float:
     if i == j:
         return 0.0
 
@@ -209,10 +174,7 @@ def _get_distance(
 
     depth_ancestor = depths[common_ancestor]
 
-    distance = (
-        (depth_i - depth_ancestor) +
-        (depth_j - depth_ancestor)
-    )
+    distance = (depth_i - depth_ancestor) + (depth_j - depth_ancestor)
 
     is_lineal = (i in ancestors[j]) or (j in ancestors[i])
     if is_lineal:
@@ -220,13 +182,13 @@ def _get_distance(
 
     return float(max(distance, 0.0))
 
-    
+
 # -------------------------------------------------------------------------------------------------
 # Exclusions
 # -------------------------------------------------------------------------------------------------
 
-def _get_exclusions(distances_df: pl.DataFrame) -> pl.DataFrame:
 
+def _get_exclusions(distances_df: pl.DataFrame) -> pl.DataFrame:
     descriptions_df = pl.read_parquet('./data/naics_descriptions.parquet')
 
     codes = set(descriptions_df.get_column('code').unique().sort().to_list())
@@ -266,11 +228,11 @@ def _get_exclusions(distances_df: pl.DataFrame) -> pl.DataFrame:
 # -------------------------------------------------------------------------------------------------
 # Distance matrix
 # -------------------------------------------------------------------------------------------------
-    
-def _get_distance_matrix(df: pl.DataFrame) -> pl.DataFrame:
 
+
+def _get_distance_matrix(df: pl.DataFrame) -> pl.DataFrame:
     '''Create distance matrix from distances DataFrame.'''
-    
+
     codes = sorted(set(df['code_i'].to_list() + df['code_j'].to_list()))
     n_codes = len(codes)
 
@@ -287,33 +249,20 @@ def _get_distance_matrix(df: pl.DataFrame) -> pl.DataFrame:
     dist_matric_schema = []
     for code, idx in code_to_idx.items():
         dist_matric_schema.append((f'idx_{idx}-code_{code}', pl.Float64))
-    
-    return (
-        pl
-        .from_numpy(
-            data=dist_matrix,
-            schema=dist_matric_schema
-        )
-    )
-            
-            
+
+    return pl.from_numpy(data=dist_matrix, schema=dist_matric_schema)
+
+
 # -------------------------------------------------------------------------------------------------
 # Distance stats
 # -------------------------------------------------------------------------------------------------
 
-def _distance_stats(distances_df: pl.DataFrame):       
-    
+
+def _distance_stats(distances_df: pl.DataFrame):
     stats_df = (
-        distances_df
-        .group_by('distance')
-        .agg(
-            cnt=pl.len()
-        )
-        .with_columns(
-            pct=pl.col('cnt')
-                  .truediv(pl.col('cnt').sum())
-                  .mul(100)
-        )
+        distances_df.group_by('distance')
+        .agg(cnt=pl.len())
+        .with_columns(pct=pl.col('cnt').truediv(pl.col('cnt').sum()).mul(100))
         .sort('distance')
     )
 
@@ -322,7 +271,7 @@ def _distance_stats(distances_df: pl.DataFrame):
         title='Distance Statistics',
         headers=['Distance', 'Frequency', 'Percent'],
         logger=logger,
-        output='./outputs/distance_stats.pdf'
+        output='./outputs/distance_stats.pdf',
     )
 
 
@@ -330,8 +279,8 @@ def _distance_stats(distances_df: pl.DataFrame):
 # Main Entry Point
 # -------------------------------------------------------------------------------------------------
 
+
 def calculate_pairwise_distances() -> pl.DataFrame:
-    
     # Load configuration from YAML
     cfg = load_config(DistancesConfig, './data/distances.yaml')
 
@@ -341,7 +290,6 @@ def calculate_pairwise_distances() -> pl.DataFrame:
 
     df_list = []
     for sector in _sectors(cfg.input_parquet):
-
         G = _sector_tree(sector, cfg.input_parquet)
 
         pairs = [(i, j) if int(i) < int(j) else (j, i) for i, j in combinations(G.nodes, 2)]
@@ -362,43 +310,22 @@ def calculate_pairwise_distances() -> pl.DataFrame:
 
         df_list.append(df)
 
-    pair_relations = (
-        pl
-        .concat(
-            df_list
-        )
-        .select(
-            pl.col('code_i'),
-            pl.col('code_j'),
-            distance=pl.col('distance')
-    ))
-
-    naics_i = (
-        pl.scan_parquet(cfg.input_parquet)
-        .select(
-            idx_i=pl.col('index'), 
-            lvl_i=pl.col('level'), 
-            code_i=pl.col('code')
-        )
+    pair_relations = pl.concat(df_list).select(
+        pl.col('code_i'), pl.col('code_j'), distance=pl.col('distance')
     )
 
-    naics_j = (
-        pl.scan_parquet(cfg.input_parquet)
-        .select(
-            idx_j=pl.col('index'), 
-            lvl_j=pl.col('level'), 
-            code_j=pl.col('code')
-        )
+    naics_i = pl.scan_parquet(cfg.input_parquet).select(
+        idx_i=pl.col('index'), lvl_i=pl.col('level'), code_i=pl.col('code')
+    )
+
+    naics_j = pl.scan_parquet(cfg.input_parquet).select(
+        idx_j=pl.col('index'), lvl_j=pl.col('level'), code_j=pl.col('code')
     )
 
     distances_df = (
-        naics_i.join(
-            naics_j, 
-            how='cross'
-        )
+        naics_i.join(naics_j, how='cross')
         .with_columns(
-            sector_i=pl.col('code_i').str.slice(0, 2), 
-            sector_j=pl.col('code_j').str.slice(0, 2)
+            sector_i=pl.col('code_i').str.slice(0, 2), sector_j=pl.col('code_j').str.slice(0, 2)
         )
         .with_columns(
             keep=(
@@ -406,27 +333,17 @@ def calculate_pairwise_distances() -> pl.DataFrame:
                 & (pl.col('sector_i') == pl.col('sector_j'))
                 & (pl.col('code_i').cast(pl.UInt32) < pl.col('code_j').cast(pl.UInt32))
             )
-            | (
-                (pl.col('lvl_i') <= pl.col('lvl_j'))
-                & (pl.col('sector_i') != pl.col('sector_j'))
-            )
+            | ((pl.col('lvl_i') <= pl.col('lvl_j')) & (pl.col('sector_i') != pl.col('sector_j')))
         )
-        .filter(
-            pl.col('keep')
-        )
+        .filter(pl.col('keep'))
         .collect()
-        .join(
-            pair_relations, 
-            how='left', 
-            on=['code_i', 'code_j']
-        )
+        .join(pair_relations, how='left', on=['code_i', 'code_j'])
         .select(
             pl.col('idx_i'),
             pl.col('idx_j'),
             pl.col('code_i'),
             pl.col('code_j'),
-            distance=pl.col('distance')
-                       .fill_null(99.0)
+            distance=pl.col('distance').fill_null(99.0),
         )
         .sort('idx_i', 'idx_j')
     )
@@ -434,54 +351,38 @@ def calculate_pairwise_distances() -> pl.DataFrame:
     exclusions = _get_exclusions(distances_df)
 
     distances_df = (
-        distances_df
-        .join(
-            exclusions,
-            on=['code_i', 'code_j'],
-            how='left'
-        ) 
-        .with_columns(
-            excluded=pl.col('excluded')
-                       .fill_null(False)
-        )
+        distances_df.join(exclusions, on=['code_i', 'code_j'], how='left')
+        .with_columns(excluded=pl.col('excluded').fill_null(False))
         .select(
             pl.col('idx_i'),
             pl.col('idx_j'),
             pl.col('code_i'),
             pl.col('code_j'),
-            distance=pl.when(pl.col('excluded'))
-                       .then(pl.lit(0))
-                       .otherwise(pl.col('distance'))
+            distance=pl.when(pl.col('excluded')).then(pl.lit(0)).otherwise(pl.col('distance')),
         )
         .sort('idx_i', 'idx_j')
     )
 
-    (
-        distances_df
-        .write_parquet(cfg.distances_parquet)
-    )
+    (distances_df.write_parquet(cfg.distances_parquet))
 
-    _distance_stats(distances_df)   
+    _distance_stats(distances_df)
 
     _parquet_stats(
         parquet_df=distances_df,
         message='NAICS pairwise distances written to',
         output_parquet=cfg.distances_parquet,
-        logger=logger
+        logger=logger,
     )
-    
+
     dist_matrix = _get_distance_matrix(distances_df)
 
-    (
-        dist_matrix
-        .write_parquet(cfg.distance_matrix_parquet)
-    )  
+    (dist_matrix.write_parquet(cfg.distance_matrix_parquet))
 
     _parquet_stats(
         parquet_df=dist_matrix,
         message='NAICS distance matrix written to',
         output_parquet=cfg.distance_matrix_parquet,
-        logger=logger
+        logger=logger,
     )
 
     return distances_df
@@ -493,5 +394,4 @@ def calculate_pairwise_distances() -> pl.DataFrame:
 
 
 if __name__ == '__main__':
-    
     calculate_pairwise_distances()

@@ -21,16 +21,11 @@ logger = logging.getLogger(__name__)
 # Relations utilities
 # -------------------------------------------------------------------------------------------------
 
-def _sectors(input_parquet: str) -> List[str]:
 
+def _sectors(input_parquet: str) -> List[str]:
     return (
-        pl
-        .read_parquet(
-            input_parquet
-        )
-        .filter(
-            pl.col('level').eq(2)
-        )
+        pl.read_parquet(input_parquet)
+        .filter(pl.col('level').eq(2))
         .select('code')
         .sort(pl.col('code').cast(pl.UInt32))
         .unique(maintain_order=True)
@@ -40,7 +35,6 @@ def _sectors(input_parquet: str) -> List[str]:
 
 
 def _sector_codes(sector: str, input_parquet: str) -> List[str]:
-
     if sector == '31':
         sector_list = ['31', '32', '33']
 
@@ -54,14 +48,8 @@ def _sector_codes(sector: str, input_parquet: str) -> List[str]:
         sector_list = [sector]
 
     return (
-        pl
-        .read_parquet(
-            input_parquet
-        )
-        .filter(
-            pl.col('level').eq(6), 
-            pl.col('code').str.slice(0, 2).is_in(sector_list)
-        )
+        pl.read_parquet(input_parquet)
+        .filter(pl.col('level').eq(6), pl.col('code').str.slice(0, 2).is_in(sector_list))
         .select('code')
         .sort(pl.col('code').cast(pl.UInt32))
         .unique(maintain_order=True)
@@ -71,22 +59,20 @@ def _sector_codes(sector: str, input_parquet: str) -> List[str]:
 
 
 def _join_sectors(code: str) -> str:
-
     if code in ['31', '32', '33']:
         return '31'
-    
+
     elif code in ['44', '45']:
         return '44'
-    
+
     elif code in ['48', '49']:
         return '48'
-    
+
     else:
         return code
 
 
 def _sector_tree(sector: str, input_parquet: str) -> nx.DiGraph:
-
     code_6 = _sector_codes(sector, input_parquet)
     code_5 = sorted(set(n[:5] for n in code_6))
     code_4 = sorted(set(n[:4] for n in code_6))
@@ -110,7 +96,6 @@ def _sector_tree(sector: str, input_parquet: str) -> nx.DiGraph:
 
 
 def _compute_tree_metadata(tree: nx.DiGraph, root: str) -> Tuple[Dict, Dict, Dict]:
-
     depths, ancestors, parents = {}, {}, {}
     queue = [(root, 0, [root])]
     while queue:
@@ -126,10 +111,8 @@ def _compute_tree_metadata(tree: nx.DiGraph, root: str) -> Tuple[Dict, Dict, Dic
 
 
 def _find_common_ancestor(i: str, j: str, ancestors: Dict[str, List[str]]) -> Optional[str]:
-
     ancestors_i, ancestors_j = set(ancestors[i]), ancestors[j]
     for ancestor in reversed(ancestors_j):
-        
         if ancestor in ancestors_i:
             return ancestor
 
@@ -140,13 +123,8 @@ def _find_common_ancestor(i: str, j: str, ancestors: Dict[str, List[str]]) -> Op
 # 2. Compute relationships
 # -------------------------------------------------------------------------------------------------
 
-def _get_relations(
-    i: str, 
-    j: str, 
-    depths: Dict[str, int], 
-    ancestors: Dict[str, List[str]]
-) -> str:
 
+def _get_relations(i: str, j: str, depths: Dict[str, int], ancestors: Dict[str, List[str]]) -> str:
     depth_i, depth_j = depths[i], depths[j]
     ancestors_j = ancestors[j]
 
@@ -167,8 +145,8 @@ def _get_relations(
 
     common_ancestor = _find_common_ancestor(i, j, ancestors)
 
-    distance_i = depth_i - depths[common_ancestor] #type: ignore
-    distance_j = depth_j - depths[common_ancestor] #type: ignore
+    distance_i = depth_i - depths[common_ancestor]  # type: ignore
+    distance_j = depth_j - depths[common_ancestor]  # type: ignore
 
     if distance_i == 1 and distance_j == 1:
         return 'sibling'
@@ -199,13 +177,13 @@ def _get_relations(
         else:
             return f'{degree_name}_cousin_{removed}_times_removed'
 
-    
+
 # -------------------------------------------------------------------------------------------------
 # Exclusions
 # -------------------------------------------------------------------------------------------------
 
-def _get_exclusions(relations_df: pl.DataFrame) -> pl.DataFrame:
 
+def _get_exclusions(relations_df: pl.DataFrame) -> pl.DataFrame:
     descriptions_df = pl.read_parquet('./data/naics_descriptions.parquet')
 
     codes = set(descriptions_df.get_column('code').unique().sort().to_list())
@@ -245,11 +223,11 @@ def _get_exclusions(relations_df: pl.DataFrame) -> pl.DataFrame:
 # -------------------------------------------------------------------------------------------------
 # Relation matrix
 # -------------------------------------------------------------------------------------------------
-    
-def _get_relation_matrix(df: pl.DataFrame) -> pl.DataFrame:
 
+
+def _get_relation_matrix(df: pl.DataFrame) -> pl.DataFrame:
     '''Create relation matrix from relations_df DataFrame.'''
-    
+
     codes = sorted(set(df['code_i'].to_list() + df['code_j'].to_list()))
     n_codes = len(codes)
 
@@ -266,33 +244,20 @@ def _get_relation_matrix(df: pl.DataFrame) -> pl.DataFrame:
     rel_matrix_schema = []
     for code, idx in code_to_idx.items():
         rel_matrix_schema.append((f'idx_{idx}-code_{code}', pl.Float64))
-    
-    return (
-        pl
-        .from_numpy(
-            data=rel_matrix,
-            schema=rel_matrix_schema
-        )
-    )
+
+    return pl.from_numpy(data=rel_matrix, schema=rel_matrix_schema)
 
 
 # -------------------------------------------------------------------------------------------------
 # Distance stats
 # -------------------------------------------------------------------------------------------------
 
-def _relation_stats(relations_df: pl.DataFrame):       
-    
+
+def _relation_stats(relations_df: pl.DataFrame):
     stats_df = (
-        relations_df
-        .group_by('relation_id', 'relation')
-        .agg(
-            cnt=pl.len()
-        )
-        .with_columns(
-            pct=pl.col('cnt')
-                  .truediv(pl.col('cnt').sum())
-                  .mul(100)
-        )
+        relations_df.group_by('relation_id', 'relation')
+        .agg(cnt=pl.len())
+        .with_columns(pct=pl.col('cnt').truediv(pl.col('cnt').sum()).mul(100))
         .sort('relation_id')
     )
 
@@ -301,7 +266,7 @@ def _relation_stats(relations_df: pl.DataFrame):
         title='Relation Statistics',
         headers=['Relation ID:relation_id', 'Relation:relation', 'cnt', 'pct'],
         logger=logger,
-        output='./outputs/relation_stats.pdf'
+        output='./outputs/relation_stats.pdf',
     )
 
 
@@ -309,8 +274,8 @@ def _relation_stats(relations_df: pl.DataFrame):
 # Main Entry Point
 # -------------------------------------------------------------------------------------------------
 
+
 def calculate_pairwise_relations() -> pl.DataFrame:
-    
     # Load configuration from YAML
     cfg = load_config(RelationsConfig, './data/relations.yaml')
 
@@ -320,7 +285,6 @@ def calculate_pairwise_relations() -> pl.DataFrame:
 
     df_list = []
     for sector in _sectors(cfg.input_parquet):
-
         G = _sector_tree(sector, cfg.input_parquet)
 
         pairs = [(i, j) if int(i) < int(j) else (j, i) for i, j in combinations(G.nodes, 2)]
@@ -332,128 +296,80 @@ def calculate_pairwise_relations() -> pl.DataFrame:
             relationship = _get_relations(i, j, depths, ancestors)
             relationships.append({'code_i': i, 'code_j': j, 'relationship': relationship})
 
-        df = (
-            pl
-            .DataFrame(
-                data=relationships,
-                schema={'code_i': pl.Utf8, 'code_j': pl.Utf8, 'relationship': pl.Utf8},
-            )
+        df = pl.DataFrame(
+            data=relationships,
+            schema={'code_i': pl.Utf8, 'code_j': pl.Utf8, 'relationship': pl.Utf8},
         )
 
         logger.info(f'Sector {sector}: [{len(depths): ,} nodes, {df.height: ,} pairs]')
 
         df_list.append(df)
 
-    pair_relations = (
-        pl
-        .concat(
-            df_list
-        )
-        .select(
-            pl.col('code_i'),
-            pl.col('code_j'),
-            relation_id=pl.col('relationship')
-                          .replace_strict(cfg.relation_id, default=None)
-                          .cast(pl.Int8),
-            relation=pl.col('relationship'),
-        )
+    pair_relations = pl.concat(df_list).select(
+        pl.col('code_i'),
+        pl.col('code_j'),
+        relation_id=pl.col('relationship')
+        .replace_strict(cfg.relation_id, default=None)
+        .cast(pl.Int8),
+        relation=pl.col('relationship'),
     )
 
-    naics_i = (
-        pl.scan_parquet(cfg.input_parquet)
-        .select(
-            idx_i=pl.col('index'), 
-            lvl_i=pl.col('level'), 
-            code_i=pl.col('code')
-        )
+    naics_i = pl.scan_parquet(cfg.input_parquet).select(
+        idx_i=pl.col('index'), lvl_i=pl.col('level'), code_i=pl.col('code')
     )
 
-    naics_j = (
-        pl.scan_parquet(cfg.input_parquet)
-        .select(
-            idx_j=pl.col('index'), 
-            lvl_j=pl.col('level'), 
-            code_j=pl.col('code')
-        )
+    naics_j = pl.scan_parquet(cfg.input_parquet).select(
+        idx_j=pl.col('index'), lvl_j=pl.col('level'), code_j=pl.col('code')
     )
 
     relations_df = (
-        naics_i
-        .join(
-            naics_j, 
-            how='cross'
-        )
+        naics_i.join(naics_j, how='cross')
         .with_columns(
-            sector_i=pl.col('code_i').str.slice(0, 2), 
-            sector_j=pl.col('code_j').str.slice(0, 2)
+            sector_i=pl.col('code_i').str.slice(0, 2), sector_j=pl.col('code_j').str.slice(0, 2)
         )
         .with_columns(
             keep=(
-                (pl.col('lvl_i') <= pl.col('lvl_j')) &
-                (pl.col('sector_i') == pl.col('sector_j')) &
-                (pl.col('code_i').cast(pl.UInt32) < pl.col('code_j').cast(pl.UInt32))
-            ) | 
-            (
-                (pl.col('lvl_i') <= pl.col('lvl_j')) &
-                (pl.col('sector_i') != pl.col('sector_j'))
+                (pl.col('lvl_i') <= pl.col('lvl_j'))
+                & (pl.col('sector_i') == pl.col('sector_j'))
+                & (pl.col('code_i').cast(pl.UInt32) < pl.col('code_j').cast(pl.UInt32))
             )
+            | ((pl.col('lvl_i') <= pl.col('lvl_j')) & (pl.col('sector_i') != pl.col('sector_j')))
         )
-        .filter(
-            pl.col('keep')
-        )
+        .filter(pl.col('keep'))
         .collect()
-        .join(
-            pair_relations, 
-            how='left', 
-            on=['code_i', 'code_j']
-        )
+        .join(pair_relations, how='left', on=['code_i', 'code_j'])
         .select(
             idx_i=pl.col('idx_i'),
             idx_j=pl.col('idx_j'),
             code_i=pl.col('code_i'),
             code_j=pl.col('code_j'),
-            relation_id=pl.col('relation_id')
-                          .fill_null(99),
-            relation=pl.col('relation')
-                       .fill_null('unrelated')
+            relation_id=pl.col('relation_id').fill_null(99),
+            relation=pl.col('relation').fill_null('unrelated'),
         )
         .sort('idx_i', 'idx_j')
-    ) 
+    )
 
     exclusions = _get_exclusions(relations_df)
 
     relations_df = (
-        relations_df
-        .join(
-            exclusions,
-            on=['code_i', 'code_j'],
-            how='left'
-        ) 
-        .with_columns(
-            excluded=pl.col('excluded')
-                       .fill_null(False)
-        )
+        relations_df.join(exclusions, on=['code_i', 'code_j'], how='left')
+        .with_columns(excluded=pl.col('excluded').fill_null(False))
         .select(
             pl.col('idx_i'),
             pl.col('idx_j'),
             pl.col('code_i'),
             pl.col('code_j'),
             relation_id=pl.when(pl.col('excluded'))
-                          .then(pl.lit(0))
-                          .otherwise(pl.col('relation_id')),
+            .then(pl.lit(0))
+            .otherwise(pl.col('relation_id')),
             relation=pl.when(pl.col('excluded'))
-                       .then(pl.lit('excluded'))
-                       .otherwise(pl.col('relation'))
+            .then(pl.lit('excluded'))
+            .otherwise(pl.col('relation')),
         )
         .sort('idx_i', 'idx_j')
     )
 
-    (
-        relations_df
-        .write_parquet(
-            cfg.output_parquet
-        )
-    )
+    (relations_df.write_parquet(cfg.output_parquet))
 
     _relation_stats(relations_df)
 
@@ -461,21 +377,18 @@ def calculate_pairwise_relations() -> pl.DataFrame:
         parquet_df=relations_df,
         message='NAICS pairwise relations written to',
         output_parquet=cfg.output_parquet,
-        logger=logger
+        logger=logger,
     )
-    
+
     relations_matrix = _get_relation_matrix(relations_df)
 
-    (
-        relations_matrix
-        .write_parquet(cfg.relation_matrix_parquet)
-    )  
+    (relations_matrix.write_parquet(cfg.relation_matrix_parquet))
 
     _parquet_stats(
         parquet_df=relations_matrix,
         message='NAICS relations matrix written to',
         output_parquet=cfg.relation_matrix_parquet,
-        logger=logger
+        logger=logger,
     )
 
     return relations_df
@@ -486,5 +399,4 @@ def calculate_pairwise_relations() -> pl.DataFrame:
 # -------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
-
     calculate_pairwise_relations()

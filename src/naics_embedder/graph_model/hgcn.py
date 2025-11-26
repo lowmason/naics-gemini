@@ -36,8 +36,8 @@ Config = GraphConfig
 # PyTorch Geometric hyperbolic graph convolution (hgcn)
 # -------------------------------------------------------------------------------------------------
 
-class HyperbolicConvolution(MessagePassing):
 
+class HyperbolicConvolution(MessagePassing):
     '''
     Hyperbolic graph convolution in Lorentz model using PyG's MessagePassing.
     Tangent-space linear -> aggregate -> residual -> layernorm -> exp map.
@@ -85,6 +85,7 @@ class HyperbolicConvolution(MessagePassing):
 # HGCN model (stack of HyperbolicConvolution)
 # -------------------------------------------------------------------------------------------------
 
+
 class HGCN(nn.Module):
     def __init__(
         self,
@@ -117,7 +118,6 @@ class HGCN(nn.Module):
         return x_hyp
 
     def get_loss_weights(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-
         '''
         Returns adaptive weights based on learned uncertainties.
         '''
@@ -145,7 +145,6 @@ def triplet_loss_hyp(
     temperature: float = 1.0,
     c: float = 1.0,
 ) -> torch.Tensor:
-    
     '''
     Triplet loss with temperature scaling for curriculum learning.
 
@@ -187,17 +186,12 @@ def level_radius_loss(emb: torch.Tensor, idx: torch.Tensor, levels: torch.Tensor
 
 
 class WarmupCosineScheduler:
-
     '''
     Learning rate scheduler with linear warmup followed by cosine annealing.
     '''
 
     def __init__(
-        self, 
-        optimizer: optim.Optimizer, 
-        warmup_epochs: int, 
-        total_epochs: int, 
-        min_lr: float = 0.0
+        self, optimizer: optim.Optimizer, warmup_epochs: int, total_epochs: int, min_lr: float = 0.0
     ):
         self.optimizer = optimizer
         self.warmup_epochs = warmup_epochs
@@ -233,61 +227,31 @@ class WarmupCosineScheduler:
 
 
 def load_embeddings(
-    parquet_path: str, 
-    device: torch.device
+    parquet_path: str, device: torch.device
 ) -> Tuple[torch.Tensor, torch.Tensor, pl.DataFrame]:
     '''
     Load hyperbolic embeddings from parquet file.
-    
+
     Expects columns prefixed with 'hyp_e' (e.g., hyp_e0, hyp_e1, ...) for embeddings.
     '''
-    df = (
-        pl
-        .read_parquet(
-            parquet_path
-        )
-    )
+    df = pl.read_parquet(parquet_path)
 
     # Find embedding columns (hyp_e* pattern)
     embedding_cols = [col for col in df.columns if col.startswith('hyp_e')]
     if not embedding_cols:
         raise ValueError(f'No embedding columns found (expected hyp_e* pattern) in {parquet_path}')
-    
-    emb = (
-        df
-        .select(embedding_cols)
-        .to_torch(dtype=pl.Float32)
-        .to(device)
-    )
 
-    levels = (
-        df
-        .get_column('level')
-        .to_torch()
-        .long()
-        .to(device)
-    )
+    emb = df.select(embedding_cols).to_torch(dtype=pl.Float32).to(device)
+
+    levels = df.get_column('level').to_torch().long().to(device)
 
     return emb, levels, df
 
 
 def load_edge_index(relations_path: str, device: torch.device) -> torch.Tensor:
+    df_rel = pl.read_parquet(relations_path)
 
-    df_rel = (
-        pl
-        .read_parquet(
-            relations_path
-        )
-    )
-
-    edges = (
-        df_rel
-        .filter(
-            pl.col('relationship').eq('child')
-        )
-        .select('idx_i', 'idx_j')
-        .to_numpy()
-    )
+    edges = df_rel.filter(pl.col('relationship').eq('child')).select('idx_i', 'idx_j').to_numpy()
 
     edge_index = (
         torch.from_numpy(
@@ -307,13 +271,13 @@ def load_edge_index(relations_path: str, device: torch.device) -> torch.Tensor:
 def create_contrastive_dataloader(cfg: Config) -> torch.utils.data.DataLoader:
     '''
     Create contrastive dataloader from GraphConfig.
-    
+
     Uses curriculum configuration if available, otherwise uses base config values.
     '''
     # Get curriculum config if available
     curriculum_dict = {}
     # Note: GraphConfig doesn't have curriculum attribute, using base config values
-    
+
     # Create loader config, merging base config with curriculum overrides
     # Derive descriptions_parquet path from encodings_parquet path
     descriptions_path = str(
@@ -322,7 +286,7 @@ def create_contrastive_dataloader(cfg: Config) -> torch.utils.data.DataLoader:
     if not Path(descriptions_path).exists():
         # Fallback to default
         descriptions_path = './data/naics_descriptions.parquet'
-    
+
     loader_cfg = LoaderCfg(
         training_pairs_path=cfg.training_pairs_path,
         descriptions_parquet=descriptions_path,
@@ -341,7 +305,7 @@ def create_contrastive_dataloader(cfg: Config) -> torch.utils.data.DataLoader:
         negative_level=curriculum_dict.get('negative_level'),
         negative_relation=curriculum_dict.get('negative_relation'),
         negative_distance=curriculum_dict.get('negative_distance'),
-        seed=cfg.seed
+        seed=cfg.seed,
     )
 
     return create_dataloader(loader_cfg)
@@ -361,7 +325,6 @@ def train_stage(
     loader: torch.utils.data.DataLoader,
     cfg: Config,
 ) -> Tuple[torch.Tensor, List[Dict[str, Any]]]:
-    
     '''
     Train the model for one curriculum stage.
     '''
@@ -548,10 +511,9 @@ def train_curriculum(
     device: torch.device,
     config_file: str = 'conf/config.yaml',
 ) -> Tuple[torch.Tensor, List[Dict[str, Any]]]:
-    
     '''
     Train through all curriculum stages sequentially.
-    
+
     Args:
         curriculum_stages: List of curriculum stage names (e.g., ['01_graph', '02_graph', ...])
         model: HGCN model
@@ -566,10 +528,10 @@ def train_curriculum(
     # Issue #9: Decouple config loading from training loop - load all configs upfront
     # For now, use base config for all stages (curriculum configs not yet implemented)
     stage_configs = [base_cfg] * len(curriculum_stages)
-    
+
     all_logs = []
     current_embeddings = embeddings
-    
+
     for stage_idx, stage_name in enumerate(curriculum_stages, 1):
         # Use pre-loaded config
         stage_cfg = stage_configs[stage_idx - 1]
@@ -632,37 +594,17 @@ def save_outputs(
     model: nn.Module,
     log: List[Dict[str, Any]],
 ) -> pl.DataFrame:
-    
     emb_np = final_emb.detach().cpu().numpy()
 
-    base = (
-        orig_df
-        .select('index', 'level', 'code')
-    )
+    base = orig_df.select('index', 'level', 'code')
 
     emb_schema = {f'hgcn_e{i}': pl.Float64 for i in range(emb_np.shape[1])}
-    emb_df = (
-        pl
-        .DataFrame(
-            emb_np, 
-            schema=emb_schema
-        )
-    )
+    emb_df = pl.DataFrame(emb_np, schema=emb_schema)
 
-    result_df = (
-        base
-        .hstack(
-            emb_df
-        )
-    )
-    
-    (
-        result_df
-        .write_parquet(
-            cfg.output_parquet
-        )
-    )
-    
+    result_df = base.hstack(emb_df)
+
+    (result_df.write_parquet(cfg.output_parquet))
+
     # Save final model state
     save_dict = {
         'state_dict': model.state_dict(),
@@ -716,7 +658,7 @@ def main(
 ):
     '''
     Main entry point for curriculum-based HGCN training.
-    
+
     Args:
         config_file: Path to base config YAML file
         chain_file: Path to chain config file (e.g., 'chain_graph') - overrides curriculum_stages
@@ -749,11 +691,11 @@ def main(
         print('HGCN CURRICULUM TRAINING')
         print('=' * 80)
         print(f'Using default curriculum stages: {len(curriculum_stages)}')
-    
+
     # Ensure curriculum_stages is a list for type safety
     if curriculum_stages is None:
         curriculum_stages = ['01_graph', '02_graph', '03_graph', '04_graph', '05_graph', '06_graph']
-    
+
     print(f'Stages: {", ".join(curriculum_stages)}')
     print(f'Output directory: {outdir}')
     print()

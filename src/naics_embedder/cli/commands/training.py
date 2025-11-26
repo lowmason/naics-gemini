@@ -58,13 +58,10 @@ logger = logging.getLogger(__name__)
 # Embedding Generation
 # -------------------------------------------------------------------------------------------------
 
-def generate_embeddings_from_checkpoint(
-    checkpoint_path: str,
-    config: Config,
-    output_path: Optional[str] = None,
-    batch_size: int = 32
-) -> str:
 
+def generate_embeddings_from_checkpoint(
+    checkpoint_path: str, config: Config, output_path: Optional[str] = None, batch_size: int = 32
+) -> str:
     '''Generate hyperbolic embeddings parquet file from a trained checkpoint.
 
     Loads a trained model checkpoint, runs inference on all NAICS codes, and
@@ -84,7 +81,7 @@ def generate_embeddings_from_checkpoint(
     Returns:
         str: Filesystem path to the generated embeddings parquet file.
     '''
-    
+
     logger.info('=' * 80)
     logger.info('GENERATING EMBEDDINGS FROM CHECKPOINT')
     logger.info('=' * 80)
@@ -99,83 +96,80 @@ def generate_embeddings_from_checkpoint(
 
     output_path_obj = Path(output_path)
     output_path_obj.parent.mkdir(parents=True, exist_ok=True)
-    
+
     logger.info(f'Output: {output_path}')
-    
+
     # Load device
     device = pick_device('auto')  # Auto-detect device
     logger.info(f'Device: {device}')
-    
+
     # Load model from checkpoint
     logger.info('Loading model from checkpoint...')
-    model = NAICSContrastiveModel.load_from_checkpoint(
-        checkpoint_path,
-        map_location=device
-    )
+    model = NAICSContrastiveModel.load_from_checkpoint(checkpoint_path, map_location=device)
     model.eval()
     model.to(device)
     logger.info('Model loaded successfully')
-    
+
     # Load descriptions parquet
     descriptions_path = config.data_loader.streaming.descriptions_parquet
     logger.info(f'Loading NAICS descriptions from: {descriptions_path}')
-    
+
     df = pl.read_parquet(descriptions_path).sort('index')
     logger.info(f'Loaded {df.height:,} NAICS codes')
-    
+
     # Load tokenization cache
     tokenization_cfg = TokenizationConfig(
         descriptions_parquet=descriptions_path,
         tokenizer_name=config.data_loader.tokenization.tokenizer_name,
-        max_length=config.data_loader.tokenization.max_length
+        max_length=config.data_loader.tokenization.max_length,
     )
-    
+
     logger.info('Loading tokenization cache...')
     token_cache = tokenization_cache(tokenization_cfg, use_locking=False)
     logger.info('Tokenization cache loaded')
-    
+
     # Generate embeddings in batches
     logger.info(f'Generating embeddings (batch_size={batch_size})...')
     all_embeddings = []
     all_indices = []
     all_levels = []
     all_codes = []
-    
+
     num_batches = (df.height + batch_size - 1) // batch_size
-    
+
     with torch.no_grad():
         for batch_idx in range(num_batches):
             start_idx = batch_idx * batch_size
             end_idx = min(start_idx + batch_size, df.height)
             batch_df = df.slice(start_idx, end_idx - start_idx)
-            
+
             # Prepare batch inputs
             channel_inputs = {
                 'title': {'input_ids': [], 'attention_mask': []},
                 'description': {'input_ids': [], 'attention_mask': []},
                 'excluded': {'input_ids': [], 'attention_mask': []},
-                'examples': {'input_ids': [], 'attention_mask': []}
+                'examples': {'input_ids': [], 'attention_mask': []},
             }
-            
+
             batch_indices = []
             batch_levels = []
             batch_codes = []
-            
+
             for row in batch_df.iter_rows(named=True):
                 idx = row['index']
                 batch_indices.append(idx)
                 batch_levels.append(row['level'])
                 batch_codes.append(row['code'])
-                
+
                 # Get tokenized inputs from cache
                 tokens = token_cache[idx]
-                
+
                 for channel in ['title', 'description', 'excluded', 'examples']:
                     channel_inputs[channel]['input_ids'].append(tokens[channel]['input_ids'])  # pyright: ignore[reportArgumentType]
                     channel_inputs[channel]['attention_mask'].append(
                         tokens[channel]['attention_mask']  # pyright: ignore[reportArgumentType]
                     )
-            
+
             # Stack tensors
             for channel in channel_inputs:
                 channel_inputs[channel]['input_ids'] = torch.stack(  # pyright: ignore[reportArgumentType]
@@ -184,57 +178,53 @@ def generate_embeddings_from_checkpoint(
                 channel_inputs[channel]['attention_mask'] = torch.stack(  # pyright: ignore[reportArgumentType]
                     channel_inputs[channel]['attention_mask']
                 ).to(device)
-            
+
             # Run inference
             output = model(channel_inputs)
             embeddings = output['embedding']  # Hyperbolic embeddings (batch_size, embedding_dim+1)
-            
+
             # Store embeddings
             all_embeddings.append(embeddings.cpu())
             all_indices.extend(batch_indices)
             all_levels.extend(batch_levels)
             all_codes.extend(batch_codes)
-            
+
             if (batch_idx + 1) % 10 == 0 or batch_idx == num_batches - 1:
                 logger.info(
                     f'  Processed {end_idx:,} / {df.height:,} '
-                    f'codes ({(end_idx/df.height)*100:.1f}%)'
+                    f'codes ({(end_idx / df.height) * 100:.1f}%)'
                 )
-    
+
     # Concatenate all embeddings
     logger.info('Concatenating embeddings...')
     all_embeddings_tensor = torch.cat(all_embeddings, dim=0)  # (N, embedding_dim+1)
     embedding_dim = all_embeddings_tensor.shape[1]
-    
+
     logger.info(f'Generated embeddings: shape={all_embeddings_tensor.shape}')
-    
+
     # Convert to numpy
     embeddings_np = all_embeddings_tensor.numpy()
-    
+
     # Create DataFrame with hyp_e* columns
     emb_schema = {f'hyp_e{i}': pl.Float64 for i in range(embedding_dim)}
     emb_df = pl.DataFrame(embeddings_np, schema=emb_schema)
-    
+
     # Combine with metadata
-    base_df = pl.DataFrame({
-        'index': all_indices,
-        'level': all_levels,
-        'code': all_codes
-    })
-    
+    base_df = pl.DataFrame({'index': all_indices, 'level': all_levels, 'code': all_codes})
+
     result_df = base_df.hstack(emb_df)
-    
+
     # Save to parquet
     logger.info(f'Saving embeddings to: {output_path}')
     result_df.write_parquet(output_path)
-    
+
     logger.info('=' * 80)
     logger.info('EMBEDDING GENERATION COMPLETE')
     logger.info('=' * 80)
     logger.info(f'Embeddings saved: {output_path}')
     logger.info(f'Total codes: {df.height:,}')
     logger.info(f'Embedding dimension: {embedding_dim}')
-    
+
     return output_path
 
 
@@ -267,15 +257,14 @@ def train(
         ),
     ] = None,
 ):
-
     '''
     Train the NAICS text encoder with contrastive learning.
-    
+
     Orchestrates the complete training workflow including configuration loading,
     hardware detection, checkpoint management, and training execution with
     PyTorch Lightning. Supports resumption from checkpoints and runtime
     configuration overrides.
-    
+
     Args:
         config_file: Path to the base YAML configuration file that describes
             data, model, and training settings. Defaults to ``conf/config.yaml``.
@@ -286,27 +275,26 @@ def train(
             tokenization cache. Useful when you know files are valid.
         overrides: Optional list of key-value override strings. Use dot notation
             to specify nested config values like ``training.learning_rate=1e-4``.
-    
+
     Example:
         Train with default configuration::
-        
+
             $ uv run naics-embedder train
-        
+
         Resume from last checkpoint with custom learning rate::
-        
+
             $ uv run naics-embedder train --ckpt-path last training.learning_rate=1e-5
     '''
 
     configure_logging('train.log')
 
     console.rule('[bold green]Training NAICS Embedder[/bold green]')
-    
-    try:
 
+    try:
         # Detect hardware using centralized utility
         logger.info('Determining infrastructure...')
         hardware = detect_hardware(log_info=True)
-        
+
         # Log GPU memory if available
         if hardware.gpu_memory:
             logger.info(
@@ -319,19 +307,19 @@ def train(
         # Load configuration
         logger.info('Loading configuration...')
         cfg = Config.from_yaml(config_file)
-        
+
         # Apply command-line overrides using centralized parsing
         if overrides:
             logger.info('Applying command-line overrides:')
             override_dict, invalid_overrides = parse_config_overrides(overrides)
-            
+
             for invalid in invalid_overrides:
                 console.print(f'[yellow]Warning:[/yellow] Skipping invalid override: {invalid}')
-            
+
             if override_dict:
                 logger.info('')
                 cfg = cfg.override(override_dict)
-        
+
         # Run pre-flight validation
         if not skip_validation:
             validation_result = validate_training_config(cfg)
@@ -341,10 +329,10 @@ def train(
                     console.print(f'  [red]✗[/red] {error}')
                 console.print('\n[dim]Use --skip-validation to bypass these checks[/dim]')
                 raise typer.Exit(code=1)
-            
+
             for warning in validation_result.warnings:
                 console.print(f'[yellow]⚠[/yellow] {warning}')
-        
+
         # Display configuration summary
         summary_list_1 = [
             f'[bold]Experiment:[/bold] {cfg.experiment_name}',
@@ -364,9 +352,9 @@ def train(
             f'  • Learning rate: {cfg.training.learning_rate}',
             f'  • Max epochs: {cfg.training.trainer.max_epochs}',
             f'  • Accelerator: {hardware.accelerator}',
-            f'  • Precision: {hardware.precision}'
+            f'  • Precision: {hardware.precision}',
         ]
-        
+
         # Add GPU memory info and batch size suggestions
         summary_list_4 = []
         if hardware.gpu_memory:
@@ -377,19 +365,15 @@ def train(
                 f'({hardware.gpu_memory["utilization_pct"]:.1f}% utilization)'
             )
             summary_list_4.append(f'  • Free: {hardware.gpu_memory["free_gb"]:.1f} GB')
-            
+
             # Conservative batch size suggestion
             current_batch_size = cfg.data_loader.batch_size
             if hardware.gpu_memory['free_gb'] > 8.0 and current_batch_size < 12:
                 # Suggest 2x-3x current batch size conservatively
                 suggested_batch = min(12, current_batch_size * 2)
                 if suggested_batch > current_batch_size:
-                    summary_list_4.append(
-                        '\n[yellow]Batch Size Suggestion:[/yellow]'
-                    )
-                    summary_list_4.append(
-                        f'  • Current: {current_batch_size}'
-                    )
+                    summary_list_4.append('\n[yellow]Batch Size Suggestion:[/yellow]')
+                    summary_list_4.append(f'  • Current: {current_batch_size}')
                     summary_list_4.append(
                         f'  • Suggested: {suggested_batch} (conservative estimate)'
                     )
@@ -408,7 +392,7 @@ def train(
                 summary,
                 title='[yellow]Configuration Summary[/yellow]',
                 border_style='yellow',
-                expand=False
+                expand=False,
             )
         )
         console.print('')
@@ -416,7 +400,7 @@ def train(
         # Seed for reproducibility
         logger.info(f'Setting random seed: {cfg.seed}\n')
         pyl.seed_everything(cfg.seed, verbose=False)
-        
+
         # Initialize DataModule
         logger.info('Initializing DataModule...')
 
@@ -428,27 +412,24 @@ def train(
             batch_size=cfg.data_loader.batch_size,
             num_workers=cfg.data_loader.num_workers,
             val_split=cfg.data_loader.val_split,
-            seed=cfg.seed
+            seed=cfg.seed,
         )
-        
+
         # Handle checkpoint resumption using centralized utility
         checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
         checkpoint_info = resolve_checkpoint(
-            ckpt_path, 
-            Path(cfg.dirs.checkpoint_dir), 
-            cfg.experiment_name
+            ckpt_path, Path(cfg.dirs.checkpoint_dir), cfg.experiment_name
         )
         checkpoint_path = checkpoint_info.path
-        
+
         if checkpoint_info.exists:
             console.print(
-                '[green]✓[/green] Resuming from checkpoint: '
-                f'[cyan]{checkpoint_path}[/cyan]\n'
+                f'[green]✓[/green] Resuming from checkpoint: [cyan]{checkpoint_path}[/cyan]\n'
             )
         elif ckpt_path:
             console.print(f'[yellow]Warning:[/yellow] Checkpoint not found at {ckpt_path}')
             console.print('Starting training from scratch.\n')
-        
+
         # Initialize Model
         logger.info('Initializing Model with evaluation metrics...\n')
 
@@ -491,13 +472,13 @@ def train(
                 sibling_distance_threshold=cfg.curriculum.sibling_distance_threshold,
                 fn_curriculum_start_epoch=cfg.curriculum.fn_curriculum_start_epoch,
                 fn_cluster_every_n_epochs=cfg.curriculum.fn_cluster_every_n_epochs,
-                fn_num_clusters=cfg.curriculum.fn_num_clusters
+                fn_num_clusters=cfg.curriculum.fn_num_clusters,
             )
-        
+
         # Setup callbacks
         logger.info('Setting up callbacks and checkpointing...\n')
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Check if checkpoint is from the same stage (for resuming)
         # Check if different stage (for loading weights)
         resuming_same_stage = checkpoint_info.is_same_stage
@@ -517,67 +498,63 @@ def train(
                     '[cyan]Loading weights from previous stage checkpoint, '
                     'starting fresh training[/cyan]\n'
                 )
-        
+
         checkpoint_callback = ModelCheckpoint(
             dirpath=checkpoint_dir,
             filename='naics-{epoch:02d}-{val/contrastive_loss:.4f}',
             monitor='val/contrastive_loss',
             mode='min',
             save_top_k=3,
-            save_last=True
+            save_last=True,
         )
-        
+
         early_stopping = EarlyStopping(
             monitor='val/contrastive_loss',
             patience=3,  # Reduced from 5 to prevent training beyond optimal point
             mode='min',
             min_delta=0.0001,  # Minimum improvement required
-            verbose=True
+            verbose=True,
         )
-        
+
         # TensorBoard logger - ensure directory exists first
         tb_log_dir = Path(cfg.dirs.output_dir) / cfg.experiment_name
         tb_log_dir.mkdir(parents=True, exist_ok=True)
-        
-        tb_logger = TensorBoardLogger(
-            save_dir=cfg.dirs.output_dir,
-            name=cfg.experiment_name
-        )
-        
+
+        tb_logger = TensorBoardLogger(save_dir=cfg.dirs.output_dir, name=cfg.experiment_name)
+
         # Don't add epoch progress callback - PyTorch Lightning's progress bar
         # already shows epoch info
-        
+
         # Initialize Trainer
         logger.info('Initializing PyTorch Lightning Trainer...\n')
-        
+
         # Use only 1 device as specified in config, even if multiple GPUs are available
         devices_to_use = (
-            cfg.training.trainer.devices
-            if hasattr(cfg.training.trainer, 'devices')
-            else 1
+            cfg.training.trainer.devices if hasattr(cfg.training.trainer, 'devices') else 1
         )
-        
+
         # If using multiple devices, need to handle unused parameters in DDP
         strategy = 'auto'
         if devices_to_use > 1 and hardware.accelerator in ['cuda', 'gpu']:
             from pytorch_lightning.strategies import DDPStrategy
+
             strategy = DDPStrategy(find_unused_parameters=True)
-        
+
         trainer = pyl.Trainer(
             max_epochs=cfg.training.trainer.max_epochs,
             accelerator=hardware.accelerator,
             devices=devices_to_use,
             strategy=strategy,
-            precision=hardware.precision, # type: ignore
+            precision=hardware.precision,  # type: ignore
             gradient_clip_val=cfg.training.trainer.gradient_clip_val,
             accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
             log_every_n_steps=cfg.training.trainer.log_every_n_steps,
             val_check_interval=cfg.training.trainer.val_check_interval,
             callbacks=[checkpoint_callback, early_stopping],
             logger=tb_logger,
-            default_root_dir=cfg.dirs.output_dir
+            default_root_dir=cfg.dirs.output_dir,
         )
-        
+
         # Start training
         logger.info('Starting model training with evaluation metrics...\n')
         console.print('[bold cyan]Evaluation metrics enabled:[/bold cyan]')
@@ -586,54 +563,52 @@ def train(
         console.print('  • Embedding statistics (norms, distances)')
         console.print('  • Collapse detection (variance, norm, distance)')
         console.print('  • Distortion metrics (mean, std)\n')
-        
+
         console.print(
-            f'[bold yellow]Training for {cfg.training.trainer.max_epochs} epochs...'
-            f'[/bold yellow]\n'
+            f'[bold yellow]Training for {cfg.training.trainer.max_epochs} epochs...[/bold yellow]\n'
         )
-        
+
         # Only pass checkpoint path to trainer.fit() if resuming the same stage
         # If loading from a different stage, we've already loaded the weights above,
         # so we don't pass ckpt_path to start training fresh
         trainer_ckpt_path = checkpoint_path if resuming_same_stage else None
         trainer.fit(model, datamodule, ckpt_path=trainer_ckpt_path)
-        
+
         # Training complete
         logger.info('Training complete!')
         logger.info(f'Best model checkpoint: {checkpoint_callback.best_model_path}')
-        
+
         # Check if early stopping was triggered and get the best loss
         early_stop_triggered = early_stopping.stopped_epoch > 0
         best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
-        
+
         if early_stop_triggered and best_loss is not None:
             logger.info(
                 f'Early stopping triggered at epoch {early_stopping.stopped_epoch} '
                 f'with best loss: {best_loss:.6f}'
             )
-        
+
         console.print(
             f'\n[bold green]✓ Training completed successfully![/bold green]\n'
             f'Best checkpoint: [cyan]{checkpoint_callback.best_model_path}[/cyan]\n'
         )
-        
+
         # Print the loss that decided early stopping as the final metric
         if best_loss is not None:
             if early_stop_triggered:
-               label = 'Final evaluation metric (early stopping)' 
+                label = 'Final evaluation metric (early stopping)'
             else:
                 label = 'Final evaluation metric'
             console.print(
-                f'[bold]{label}:[/bold] '
-                f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
+                f'[bold]{label}:[/bold] [cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
             )
             logger.info(f'{label}: val/contrastive_loss = {best_loss:.6f}')
-        
+
         # Save final config
         config_output_path = checkpoint_dir / 'config.yaml'
         cfg.to_yaml(str(config_output_path))
         console.print(f'Config saved: [cyan]{config_output_path}[/cyan]\n')
-        
+
         # Save training summary artifacts for downstream evaluation and documentation
         training_result = TrainingResult(
             best_checkpoint_path=checkpoint_callback.best_model_path,
@@ -642,40 +617,36 @@ def train(
             best_loss=float(best_loss) if best_loss is not None else None,
             stopped_epoch=early_stopping.stopped_epoch if early_stop_triggered else -1,
             early_stopped=early_stop_triggered,
-            metrics={'best_val_loss': float(best_loss) if best_loss is not None else None}
+            metrics={'best_val_loss': float(best_loss) if best_loss is not None else None},
         )
-        
+
         summary_paths = save_training_summary(
-            result=training_result,
-            config=cfg,
-            hardware=hardware,
-            output_dir=checkpoint_dir
+            result=training_result, config=cfg, hardware=hardware, output_dir=checkpoint_dir
         )
         console.print(
             'Training summary saved: [cyan]'
             f'f{summary_paths.get("yaml", summary_paths.get("json"))}[/cyan]\n'
         )
-        
+
         # Prompt to generate embeddings for HGCN training
         console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
         generate_embeddings = typer.confirm(
-            'Generate embeddings parquet file from this checkpoint?',
-            default=False
+            'Generate embeddings parquet file from this checkpoint?', default=False
         )
-        
+
         if generate_embeddings:
             logger.info('Generating embeddings from checkpoint...')
             embeddings_path = generate_embeddings_from_checkpoint(
                 checkpoint_path=checkpoint_callback.best_model_path,
                 config=cfg,
-                output_path=None  # Will use default location
+                output_path=None,  # Will use default location
             )
             console.print(
                 f'\n[bold green]✓ Embeddings generated successfully![/bold green]\n'
                 f'Embeddings saved to: [cyan]{embeddings_path}[/cyan]\n'
                 f'This file can be used for HGCN training.\n'
             )
-        
+
     except Exception as e:
         logger.error(f'Training failed: {e}', exc_info=True)
         console.print(f'\n[bold red]✗ Training failed:[/bold red] {e}\n')
@@ -714,12 +685,9 @@ def train_sequential(
     ] = False,
     overrides: Annotated[
         Optional[List[str]],
-        typer.Argument(
-            help="Config overrides (e.g., 'training.learning_rate=1e-4')"
-        ),
+        typer.Argument(help="Config overrides (e.g., 'training.learning_rate=1e-4')"),
     ] = None,
 ):
-
     '''
     Deprecated legacy sequential training (unsupported).
 
@@ -774,14 +742,14 @@ def train_sequential(
     # Train each stage
     for i in range(1, num_stages + 1):
         console.rule(f'[bold green]Stage {i}/{num_stages}[/bold green]')
-        
+
         # Generate curriculum identifier for this stage (e.g., "01_text", "02_text")
         curriculum = f'{i:02d}_text'
 
         try:
             # Load config for this stage
             cfg = Config.from_yaml(config_file)
-            
+
             # Apply overrides
             if overrides:
                 override_dict = {}
@@ -795,25 +763,23 @@ def train_sequential(
                     value = parse_override_value(value_str)
                     override_dict[key] = value
                 cfg = cfg.override(override_dict)
-            
+
             # Create directories
             Path(cfg.dirs.output_dir).mkdir(parents=True, exist_ok=True)
             Path(cfg.dirs.checkpoint_dir).mkdir(parents=True, exist_ok=True)
-            
+
             # Initialize data module
             datamodule = NAICSDataModule(cfg)  # pyright: ignore[reportArgumentType]
-            
+
             # Initialize model (load from checkpoint if available)
             if last_checkpoint:
                 console.print(f'[cyan]Loading from previous stage: {last_checkpoint}[/cyan]')
                 model = NAICSContrastiveModel.load_from_checkpoint(
-                    last_checkpoint,
-                    cfg=cfg,
-                    strict=False
+                    last_checkpoint, cfg=cfg, strict=False
                 )
             else:
-                model = NAICSContrastiveModel(cfg) # pyright: ignore[reportArgumentType]
-            
+                model = NAICSContrastiveModel(cfg)  # pyright: ignore[reportArgumentType]
+
             # Setup callbacks
             checkpoint_callback = ModelCheckpoint(
                 dirpath=cfg.dirs.checkpoint_dir,
@@ -821,22 +787,20 @@ def train_sequential(
                 monitor='val_loss',
                 mode='min',
                 save_top_k=3,
-                save_last=True
+                save_last=True,
             )
-            
+
             early_stopping = EarlyStopping(
                 monitor='val_loss',
                 patience=cfg.training.trainer.early_stopping_patience,  # pyright: ignore[reportAttributeAccessIssue]
                 mode='min',
-                verbose=True
+                verbose=True,
             )
-            
+
             tb_logger = TensorBoardLogger(
-                save_dir=cfg.dirs.output_dir,
-                name='tensorboard',
-                version=curriculum
+                save_dir=cfg.dirs.output_dir, name='tensorboard', version=curriculum
             )
-            
+
             # Initialize trainer
             trainer = pyl.Trainer(
                 max_epochs=cfg.training.trainer.max_epochs,
@@ -849,31 +813,31 @@ def train_sequential(
                 val_check_interval=cfg.training.trainer.val_check_interval,
                 callbacks=[checkpoint_callback, early_stopping],
                 logger=tb_logger,
-                default_root_dir=cfg.dirs.output_dir
+                default_root_dir=cfg.dirs.output_dir,
             )
-            
+
             # Train this stage
             console.print(f'\n[cyan]Training stage {curriculum}...[/cyan]\n')
             trainer.fit(model, datamodule)
-            
+
             # Store checkpoint for next stage
             last_checkpoint = checkpoint_callback.best_model_path
-            
+
             # Check if early stopping was triggered and get the best loss
             early_stop_triggered = early_stopping.stopped_epoch > 0
             best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
-            
+
             if early_stop_triggered and best_loss is not None:
                 logger.info(
                     f'Early stopping triggered at epoch {early_stopping.stopped_epoch} '
                     f'with best loss: {best_loss:.6f}'
                 )
-            
+
             console.print(
                 f'\n[green]✓[/green] Stage {i} complete. '
                 f'Best checkpoint: [cyan]{last_checkpoint}[/cyan]\n'
             )
-            
+
             # Print the loss that decided early stopping as the final metric
             if best_loss is not None:
                 if early_stop_triggered:
@@ -881,11 +845,10 @@ def train_sequential(
                 else:
                     label = 'Final evaluation metric'
                 console.print(
-                    f'[bold]{label}:[/bold] '
-                    f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
+                    f'[bold]{label}:[/bold] [cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
                 )
                 logger.info(f'{label}: val/contrastive_loss = {best_loss:.6f}')
-            
+
             # Brief pause between stages
             if i < num_stages:
                 console.print('[dim]Preparing for next stage...[/dim]\n')
@@ -896,10 +859,7 @@ def train_sequential(
             console.print(f'\n[bold red]✗ Stage {i} failed:[/bold red] {e}\n')
 
             if i < num_stages:
-                response = typer.prompt(
-                    f'Continue with next stage ({i+1})? [y/N]',
-                    default='n'
-                )
+                response = typer.prompt(f'Continue with next stage ({i + 1})? [y/N]', default='n')
                 if response.lower() != 'y':
                     raise typer.Exit(code=1)
             else:
@@ -914,7 +874,7 @@ def train_sequential(
         generate_embeddings = typer.confirm(
             'Generate embeddings parquet file from final checkpoint '
             f'({Path(last_checkpoint).name})?',
-            default=False
+            default=False,
         )
 
         if generate_embeddings:
@@ -925,7 +885,7 @@ def train_sequential(
             embeddings_path = generate_embeddings_from_checkpoint(
                 checkpoint_path=last_checkpoint,
                 config=final_cfg,
-                output_path=None  # Will use default location
+                output_path=None,  # Will use default location
             )
             console.print(
                 f'\n[bold green]✓ Embeddings generated successfully![/bold green]\n'

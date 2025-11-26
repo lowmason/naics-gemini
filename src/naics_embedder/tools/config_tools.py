@@ -16,16 +16,16 @@ console = Console()
 def show_current_config(config_path: str = './conf/config.yaml'):
     '''
     Display current training and curriculum configuration.
-    
+
     Args:
         config_path: Path to main configuration file
     '''
-    
+
     config_path_obj = Path(config_path)
     if not config_path_obj.exists():
         console.print(f'[bold red]Error:[/bold red] Config file not found: {config_path}')
         return
-    
+
     # Load configurations
     config = load_config(config_path)
 
@@ -55,26 +55,23 @@ def show_current_config(config_path: str = './conf/config.yaml'):
         '[cyan]Structure-Aware Dynamic Curriculum:[/cyan]',
         f'  • [bold]phase1_end:[/bold] {curriculum.get("phase1_end", "-")} (Structural)',
         f'  • [bold]phase2_end:[/bold] {curriculum.get("phase2_end", "-")} (Geometric)',
-        f'  • [bold]phase3_end:[/bold] {curriculum.get("phase3_end", "-")} '
-        f'(False Negatives)',
-        f'  • [bold]tree_distance_alpha:[/bold] '
-        f'{curriculum.get("tree_distance_alpha", "-")}',
+        f'  • [bold]phase3_end:[/bold] {curriculum.get("phase3_end", "-")} (False Negatives)',
+        f'  • [bold]tree_distance_alpha:[/bold] {curriculum.get("tree_distance_alpha", "-")}',
         f'  • [bold]sibling_distance_threshold:[/bold] '
         f'{curriculum.get("sibling_distance_threshold", "-")}',
         f'  • [bold]fn_curriculum_start_epoch:[/bold] '
         f'{curriculum.get("fn_curriculum_start_epoch", "-")}',
         f'  • [bold]fn_cluster_every_n_epochs:[/bold] '
         f'{curriculum.get("fn_cluster_every_n_epochs", "-")}',
-        f'  • [bold]fn_num_clusters:[/bold] '
-        f'{curriculum.get("fn_num_clusters", "-")}\n',
+        f'  • [bold]fn_num_clusters:[/bold] {curriculum.get("fn_num_clusters", "-")}\n',
     ]
-    
+
     console.print(
         Panel(
             '\n'.join(current_config),
             title='[yellow]Current Training Configuration[/yellow]',
             border_style='yellow',
-            expand=True
+            expand=True,
         )
     )
 
@@ -83,4 +80,3 @@ def load_config(config_path: str = './conf/config.yaml'):
     '''Load main configuration file.'''
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
-

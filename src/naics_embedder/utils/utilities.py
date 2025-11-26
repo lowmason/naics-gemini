@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 # Make directories
 # -------------------------------------------------------------------------------------------------
 
-def make_directories(dir_config: DirConfig = DirConfig()) -> None:
 
+def make_directories(dir_config: DirConfig = DirConfig()) -> None:
     logging.info('Directory setup:')
     for dir, dir_path in dir_config.model_dump().items():
         path = Path(dir_path)
@@ -36,7 +36,7 @@ def make_directories(dir_config: DirConfig = DirConfig()) -> None:
         else:
             path.mkdir(parents=True, exist_ok=True)
             logging.info(f'  • Created {dir} directory: {dir_path}')
-    
+
     logging.info('\n')
 
 
@@ -44,10 +44,8 @@ def make_directories(dir_config: DirConfig = DirConfig()) -> None:
 # Get relationship mapping
 # -------------------------------------------------------------------------------------------------
 
-def map_relationships(
-    key: Union[str, int]
-) -> Union[Dict[str, int], Dict[int, str]]:
 
+def map_relationships(key: Union[str, int]) -> Union[Dict[str, int], Dict[int, str]]:
     relation_map = [
         ('child', 1),
         ('sibling', 2),
@@ -63,7 +61,7 @@ def map_relationships(
         ('cousin_2_times_removed', 12),
         ('second_cousin_1_times_removed', 13),
         ('third_cousin', 14),
-        ('unrelated', 15)
+        ('unrelated', 15),
     ]
 
     if isinstance(key, str):
@@ -72,14 +70,14 @@ def map_relationships(
         return {rel_id: rel for rel, rel_id in relation_map}
     else:
         raise ValueError('Key must be either str or int.')
-    
+
 
 # -------------------------------------------------------------------------------------------------
 # Get relationship
 # -------------------------------------------------------------------------------------------------
 
-def get_relationship(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> str:
 
+def get_relationship(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> str:
     filter_list = []
     if isinstance(idx_code_i, str):
         filter_list.append(pl.col('code_i').eq(idx_code_i))
@@ -94,21 +92,20 @@ def get_relationship(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -
     filters = reduce(operator.and_, filter_list)
 
     return (
-        pl.read_parquet(
-            './data/naics_relations.parquet'
-        )
+        pl.read_parquet('./data/naics_relations.parquet')
         .filter(filters)
         .select('relation')
         .get_column('relation')
         .item()
     )
 
+
 # -------------------------------------------------------------------------------------------------
 # Get distance
 # -------------------------------------------------------------------------------------------------
 
-def get_distance(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> float:
 
+def get_distance(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> float:
     filter_list = []
     if isinstance(idx_code_i, str):
         filter_list.append(pl.col('code_i').eq(idx_code_i))
@@ -123,9 +120,7 @@ def get_distance(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> fl
     filters = reduce(operator.and_, filter_list)
 
     return (
-        pl.read_parquet(
-            './data/naics_distances.parquet'
-        )
+        pl.read_parquet('./data/naics_distances.parquet')
         .filter(filters)
         .select('distance')
         .get_column('distance')
@@ -137,16 +132,16 @@ def get_distance(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> fl
 # Indices, codes, and mappings
 # -------------------------------------------------------------------------------------------------
 
-def get_indices_codes(
-    return_type: Literal['codes', 'indices', 'code_to_idx', 'idx_to_code']
-) -> Union[List[str], List[int], Dict[str, int], Dict[int, str]]:
 
+def get_indices_codes(
+    return_type: Literal['codes', 'indices', 'code_to_idx', 'idx_to_code'],
+) -> Union[List[str], List[int], Dict[str, int], Dict[int, str]]:
     '''
     Extract indices and NAICS codes from a parquet file.
-    
+
     Args:
         return_type: One of 'codes', 'indices', 'code_to_idx', 'idx_to_code'.
-        
+
     Returns:
         One of the following based on return_type:
             codes (List[str]): List of unique NAICS codes.
@@ -156,10 +151,7 @@ def get_indices_codes(
     '''
 
     idx_code_iter = (
-        pl
-        .read_parquet(
-            './data/naics_descriptions.parquet'
-        )
+        pl.read_parquet('./data/naics_descriptions.parquet')
         .select('index', 'code')
         .iter_rows(named=True)
     )
@@ -167,7 +159,7 @@ def get_indices_codes(
     indices, codes, code_to_idx, idx_to_code = [], [], {}, {}
     for row in idx_code_iter:
         idx, code = row['index'], row['code']
-        
+
         codes.append(code)
         indices.append(idx)
         code_to_idx[code] = idx
@@ -193,54 +185,49 @@ def get_indices_codes(
 # Download with exponential backoff retry
 # -------------------------------------------------------------------------------------------------
 
+
 def download_with_retry(
     url: str,
     max_retries: int = 3,
     initial_delay: float = 1.0,
     backoff_factor: float = 2.0,
-    timeout: float = 30.0
+    timeout: float = 30.0,
 ) -> Optional[bytes]:
-    
     '''
     Download content from URL with exponential backoff retry logic.
-    
+
     Returns:
         bytes: The downloaded content
-        
+
     Raises:
         httpx.HTTPError, httpx.TimeoutException, ValueError: If all retries fail
     '''
 
     last_exception = None
-    
-    for attempt in range(max_retries + 1):
 
+    for attempt in range(max_retries + 1):
         try:
-            
             resp = httpx.get(url, timeout=timeout)
             resp.raise_for_status()
             data = resp.content
-            
+
             if not data:
                 raise ValueError(f'Empty response received from {url}')
-            
+
             return data
-            
+
         except (httpx.HTTPError, httpx.TimeoutException, ValueError) as e:
-
             last_exception = e
-            
-            if attempt < max_retries:
 
-                delay = initial_delay * (backoff_factor ** attempt)
+            if attempt < max_retries:
+                delay = initial_delay * (backoff_factor**attempt)
 
                 print(f'Attempt {attempt + 1}/{max_retries + 1} failed for {url}: {str(e)}')
                 print(f'Retrying in {delay:.1f} seconds...')
-                
+
                 time.sleep(delay)
 
             else:
-
                 print(f'All {max_retries + 1} attempts failed for {url}')
 
                 raise last_exception
@@ -250,19 +237,13 @@ def download_with_retry(
 # Parquet stats
 # -------------------------------------------------------------------------------------------------
 
-def parquet_stats(
-    parquet_df: pl.DataFrame,
-    message: str,
-    output_parquet: str,
-    logger: logging.Logger
-) -> None:
 
+def parquet_stats(
+    parquet_df: pl.DataFrame, message: str, output_parquet: str, logger: logging.Logger
+) -> None:
     logger.info(f'\nParquet observations: {parquet_df.height: ,}\n')
 
-    schema = (
-        parquet_df
-        .schema
-    )
+    schema = parquet_df.schema
 
     rows = [(n, d) for n, d in zip(schema.names(), schema.dtypes())]
 
@@ -279,18 +260,19 @@ def parquet_stats(
 # Device and directory utilities
 # -------------------------------------------------------------------------------------------------
 
+
 def pick_device(device_str: str = 'auto') -> 'torch.device':
     '''
     Pick device for PyTorch operations.
-    
+
     Args:
         device_str: Device string ('auto', 'cuda', 'cpu', 'mps')
-    
+
     Returns:
         torch.device object
     '''
     import torch
-    
+
     if device_str == 'auto':
         if torch.cuda.is_available():
             return torch.device('cuda')
@@ -305,10 +287,10 @@ def pick_device(device_str: str = 'auto') -> 'torch.device':
 def setup_directory(dir_path: str) -> Path:
     '''
     Setup directory, creating it if it doesn't exist.
-    
+
     Args:
         dir_path: Path to directory
-    
+
     Returns:
         Path object to the directory
     '''

@@ -14,4 +14,3 @@ This package contains command modules organized by domain:
 from . import data, tools, training
 
 __all__ = ['data', 'tools', 'training']
-
