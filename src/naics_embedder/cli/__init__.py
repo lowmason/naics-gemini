@@ -30,6 +30,5 @@ app.add_typer(tools.app, name='tools')
 
 # Register training commands directly on main app
 app.command('train')(training.train)
-app.command('train-curriculum', hidden=True)(training.train_sequential)
 
 __all__ = ['app', 'data', 'tools', 'training']

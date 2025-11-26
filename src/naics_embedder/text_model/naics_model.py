@@ -5,7 +5,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import polars as pl
@@ -160,7 +160,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
         sibling_distance_threshold: float = 2.0,
         curriculum_phase_mode: str = 'three_phase',
         curriculum_anneal: Optional[Dict[str, float]] = None,
-        false_negative_config: Optional[Dict[str, float]] = None,
+        false_negative_config: Optional[Union[FalseNegativeConfig, Dict[str, Any]]] = None,
     ):
         super().__init__()
 
