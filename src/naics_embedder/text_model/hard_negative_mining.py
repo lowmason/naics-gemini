@@ -429,24 +429,25 @@ class NormAdaptiveMargin(nn.Module):
     
     def compute_lorentz_norm(self, x: torch.Tensor) -> torch.Tensor:
         '''
-        Compute Lorentz norm (hyperbolic radius) for embeddings.
+        Compute Lorentz norm (hyperbolic distance from origin) for embeddings.
+        
+        The hyperbolic distance from the origin to a point x on the hyperboloid is:
+        d = arccosh(sqrt(c) * x₀)
         
         Args:
             x: Hyperbolic embeddings (batch_size, embedding_dim+1)
         
         Returns:
-            Lorentz norms (batch_size,)
+            Hyperbolic distances from origin (batch_size,)
         '''
         time_coord = x[:, 0]  # x₀
-        spatial_coords = x[:, 1:]  # x₁...xₙ
+        sqrt_c = torch.sqrt(torch.tensor(self.curvature, device=x.device, dtype=x.dtype))
         
-        spatial_norm_sq = torch.sum(spatial_coords ** 2, dim=1)
-        time_norm_sq = time_coord ** 2
-        
-        # Hyperbolic radius: r = sqrt(x0^2 - ||x_spatial||^2)
-        # For valid hyperboloid: x0^2 - ||x_spatial||^2 = 1/c
-        lorentz_norm_sq = time_norm_sq - spatial_norm_sq
-        lorentz_norm = torch.sqrt(torch.clamp(lorentz_norm_sq, min=1e-8))
+        # Hyperbolic distance from origin: d = arccosh(sqrt(c) * x₀)
+        # Clamp to avoid numerical issues (arccosh requires argument >= 1)
+        arg = sqrt_c * time_coord
+        arg_clamped = torch.clamp(arg, min=1.0 + 1e-6)
+        lorentz_norm = torch.arccosh(arg_clamped)
         
         return lorentz_norm
     

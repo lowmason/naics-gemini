@@ -1,4 +1,4 @@
-# CLI Quickstart Guide
+# Quickstart Guide
 
 This guide provides a quick introduction to the NAICS Embedder command-line interface.
 For complete command reference, see the [CLI Usage Guide](usage.md).
@@ -176,4 +176,3 @@ After training, find outputs in:
 - [CLI Usage Guide](usage.md) - Complete command reference
 - [Text Training Guide](text_training.md) - Detailed training documentation
 - [Configuration Reference](api/config.md) - All configuration options
-

@@ -6,7 +6,9 @@ nav:
       - Text Training: text_training.md
       - HGCN Training: hgcn_training.md
       - Report: report.md
-  - Usage: usage.md
+  - Usage: 
+      - Quickstart: quickstart.md
+      - Usage: usage.md
   - API Reference:
       - CLI: api/cli.md
       - Data Preparation:
@@ -38,9 +40,11 @@ nav:
       - Tools:
           - Current Training Configuration: api/config_tools.md
           - Training Metrics: api/metrics_tools.md
-          - Training Evaluation: api/evaluate_training.md
       - Utilities:
           - Backend: api/backend.md
           - Console: api/console.md
           - Configuration: api/config.md
           - General Utilities: api/utilities.md
+          - Training Utilities: api/training_utilities.md
+          - Validation: api/validation.md
+          - Warnings: api/warnings.md
