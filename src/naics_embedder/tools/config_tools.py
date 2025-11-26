@@ -4,13 +4,11 @@ Configuration display tools.
 Display current training and curriculum configuration.
 '''
 
-import yaml
 from pathlib import Path
-from typing import Optional
 
-from rich.console import Console, Group
+import yaml
+from rich.console import Console
 from rich.panel import Panel
-
 
 console = Console()
 
@@ -57,12 +55,18 @@ def show_current_config(config_path: str = './conf/config.yaml'):
         '[cyan]Structure-Aware Dynamic Curriculum:[/cyan]',
         f'  • [bold]phase1_end:[/bold] {curriculum.get("phase1_end", "-")} (Structural)',
         f'  • [bold]phase2_end:[/bold] {curriculum.get("phase2_end", "-")} (Geometric)',
-        f'  • [bold]phase3_end:[/bold] {curriculum.get("phase3_end", "-")} (False Negatives)',
-        f'  • [bold]tree_distance_alpha:[/bold] {curriculum.get("tree_distance_alpha", "-")}',
-        f'  • [bold]sibling_distance_threshold:[/bold] {curriculum.get("sibling_distance_threshold", "-")}',
-        f'  • [bold]fn_curriculum_start_epoch:[/bold] {curriculum.get("fn_curriculum_start_epoch", "-")}',
-        f'  • [bold]fn_cluster_every_n_epochs:[/bold] {curriculum.get("fn_cluster_every_n_epochs", "-")}',
-        f'  • [bold]fn_num_clusters:[/bold] {curriculum.get("fn_num_clusters", "-")}\n',
+        f'  • [bold]phase3_end:[/bold] {curriculum.get("phase3_end", "-")} '
+        f'(False Negatives)',
+        f'  • [bold]tree_distance_alpha:[/bold] '
+        f'{curriculum.get("tree_distance_alpha", "-")}',
+        f'  • [bold]sibling_distance_threshold:[/bold] '
+        f'{curriculum.get("sibling_distance_threshold", "-")}',
+        f'  • [bold]fn_curriculum_start_epoch:[/bold] '
+        f'{curriculum.get("fn_curriculum_start_epoch", "-")}',
+        f'  • [bold]fn_cluster_every_n_epochs:[/bold] '
+        f'{curriculum.get("fn_cluster_every_n_epochs", "-")}',
+        f'  • [bold]fn_num_clusters:[/bold] '
+        f'{curriculum.get("fn_num_clusters", "-")}\n',
     ]
     
     console.print(

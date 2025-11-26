@@ -2,6 +2,10 @@
 Visualize training metrics from log files.
 '''
 
+# -------------------------------------------------------------------------------------------------
+# Imports
+# -------------------------------------------------------------------------------------------------
+
 import re
 import sys
 from pathlib import Path
@@ -19,6 +23,10 @@ except ImportError:
     HAS_MATPLOTLIB = False
     plt = None
 
+
+# -------------------------------------------------------------------------------------------------
+# Parse log file
+# -------------------------------------------------------------------------------------------------
 
 def parse_log_file(log_file: Path, stage: Optional[str] = None) -> List[Dict]:
     '''Parse training log file and extract evaluation metrics.'''
@@ -126,8 +134,19 @@ def parse_log_file(log_file: Path, stage: Optional[str] = None) -> List[Dict]:
     return metrics
 
 
+# -------------------------------------------------------------------------------------------------
+# Create visualizations
+# -------------------------------------------------------------------------------------------------
+
 def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
+    
     '''Create visualization plots for the metrics.'''
+    
+    if not HAS_MATPLOTLIB:
+        print('Matplotlib is not available. Cannot create visualizations.')
+        return
+    
+    assert plt is not None  # Type guard: plt is guaranteed to be available here
     
     if not metrics:
         print('No metrics found to visualize!')
@@ -138,7 +157,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     epochs = [m['epoch'] for m in metrics]
     
     # Create figure with subplots
-    fig = plt.figure(figsize=(16, 12))
+    _ = plt.figure(figsize=(16, 12))
     
     # 1. Hyperbolic Radius
     ax1 = plt.subplot(3, 2, 1)
@@ -162,13 +181,20 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     epochs_loss = [m['epoch'] for m in metrics if 'train_loss' in m or 'val_loss' in m]
     
     if epochs_loss:
-        if any(l is not None for l in train_loss):
-            train_loss_clean = [l for l in train_loss if l is not None]
-            epochs_train = [e for e, l in zip(epochs_loss, train_loss) if l is not None]
-            ax2.plot(epochs_train, train_loss_clean, 'b-o', label='Train Loss', linewidth=2, markersize=6)
-        if any(l is not None for l in val_loss):
-            val_loss_clean = [l for l in val_loss if l is not None]
-            epochs_val = [e for e, l in zip(epochs_loss, val_loss) if l is not None]
+        if any(loss is not None for loss in train_loss):
+            train_loss_clean = [loss for loss in train_loss if loss is not None]
+            epochs_train = [
+                e for e, loss in zip(epochs_loss, train_loss) if loss is not None
+            ]
+            ax2.plot(
+                epochs_train, train_loss_clean, 'b-o',
+                label='Train Loss', linewidth=2, markersize=6
+            )
+        if any(loss is not None for loss in val_loss):
+            val_loss_clean = [loss for loss in val_loss if loss is not None]
+            epochs_val = [
+                e for e, loss in zip(epochs_loss, val_loss) if loss is not None
+            ]
             ax2.plot(epochs_val, val_loss_clean, 'r-s', label='Val Loss', linewidth=2, markersize=6)
         ax2.set_xlabel('Epoch', fontsize=12)
         ax2.set_ylabel('Loss', fontsize=12)
@@ -206,7 +232,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
         ax4.set_title('Hierarchy Preservation', fontsize=14, fontweight='bold')
         ax4.grid(True, alpha=0.3)
         ax4.legend()
-        ax4.set_ylim([-0.5, 1.0])
+        ax4.set_ylim((-0.5, 1.0))
     
     # 5. Radius Standard Deviation
     ax5 = plt.subplot(3, 2, 5)
@@ -234,11 +260,23 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
           Val:   {latest.get('val_loss', 'N/A')}
         
         Hierarchy Preservation:
-          Cophenetic: {f"{latest.get('cophenetic', 0):.4f}" if 'cophenetic' in latest and latest.get('cophenetic') is not None else 'N/A'}
+          Cophenetic: {(
+              f"{latest.get('cophenetic', 0):.4f}"
+              if 'cophenetic' in latest and latest.get('cophenetic') is not None
+              else 'N/A'
+          )}
         
         Diversity:
-          Norm CV:     {f"{latest.get('norm_cv', 0):.4f}" if 'norm_cv' in latest and latest.get('norm_cv') is not None else 'N/A'}
-          Distance CV: {f"{latest.get('dist_cv', 0):.4f}" if 'dist_cv' in latest and latest.get('dist_cv') is not None else 'N/A'}
+          Norm CV:     {(
+              f"{latest.get('norm_cv', 0):.4f}"
+              if 'norm_cv' in latest and latest.get('norm_cv') is not None
+              else 'N/A'
+          )}
+          Distance CV: {(
+              f"{latest.get('dist_cv', 0):.4f}"
+              if 'dist_cv' in latest and latest.get('dist_cv') is not None
+              else 'N/A'
+          )}
         
         Status:
           Collapse: {'Yes' if latest.get('collapse', False) else 'No'}
@@ -250,10 +288,26 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
         TRENDS (Epoch {first.get('epoch', 'N/A')} → {latest.get('epoch', 'N/A')})
         
         Radius:      {first.get('radius_mean', 0):.4f} → {latest.get('radius_mean', 0):.4f}
-        Cophenetic:  {(f"{first.get('cophenetic', 0):.4f}" if 'cophenetic' in first and first.get('cophenetic') is not None else 'N/A')} → {(f"{latest.get('cophenetic', 0):.4f}" if 'cophenetic' in latest and latest.get('cophenetic') is not None else 'N/A')}
+        Cophenetic:  {(
+            f"{first.get('cophenetic', 0):.4f}"
+            if 'cophenetic' in first and first.get('cophenetic') is not None
+            else 'N/A'
+        )} → {(
+            f"{latest.get('cophenetic', 0):.4f}"
+            if 'cophenetic' in latest and latest.get('cophenetic') is not None
+            else 'N/A'
+        )}
         Train Loss:  {first.get('train_loss', 'N/A')} → {latest.get('train_loss', 'N/A')}
         Val Loss:    {first.get('val_loss', 'N/A')} → {latest.get('val_loss', 'N/A')}
-        Distance CV: {(f"{first.get('dist_cv', 0):.4f}" if 'dist_cv' in first and first.get('dist_cv') is not None else 'N/A')} → {(f"{latest.get('dist_cv', 0):.4f}" if 'dist_cv' in latest and latest.get('dist_cv') is not None else 'N/A')}
+        Distance CV: {(
+            f"{first.get('dist_cv', 0):.4f}"
+            if 'dist_cv' in first and first.get('dist_cv') is not None
+            else 'N/A'
+        )} → {(
+            f"{latest.get('dist_cv', 0):.4f}"
+            if 'dist_cv' in latest and latest.get('dist_cv') is not None
+            else 'N/A'
+        )}
         """
             summary_text += trends
         
@@ -262,7 +316,7 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
     
     plt.suptitle(f'{stage.upper()} Training Metrics', fontsize=16, fontweight='bold', y=0.995)
-    plt.tight_layout(rect=[0, 0, 1, 0.99])
+    plt.tight_layout(rect=(0, 0, 1, 0.99))  
     
     output_file = output_dir / f'{stage}_metrics.png'
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
@@ -271,7 +325,12 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     plt.close()
 
 
+# -------------------------------------------------------------------------------------------------
+# Print analysis
+# -------------------------------------------------------------------------------------------------
+
 def print_analysis(metrics: List[Dict], stage: str):
+    
     '''Print detailed analysis of the metrics.'''
     
     if not metrics:
@@ -288,7 +347,8 @@ def print_analysis(metrics: List[Dict], stage: str):
         print('\n📊 HYPERBOLIC RADIUS:')
         print(f'   Initial: {radius_means[0]:.4f}')
         print(f'   Latest:  {radius_means[-1]:.4f}')
-        print(f'   Change:  {radius_means[-1] - radius_means[0]:+.4f} ({((radius_means[-1]/radius_means[0] - 1) * 100):+.1f}%)')
+        change_pct = ((radius_means[-1]/radius_means[0] - 1) * 100)
+        print(f'   Change:  {radius_means[-1] - radius_means[0]:+.4f} ({change_pct:+.1f}%)')
         
         if radius_means[-1] > 20:
             print('   ⚠️  WARNING: Radius is getting large (>20). Monitor for stability.')
@@ -298,21 +358,37 @@ def print_analysis(metrics: List[Dict], stage: str):
             print('   ✓ Radius is in normal range (<10).')
     
     # Loss Analysis
-    train_losses = [m.get('train_loss') for m in metrics if 'train_loss' in m and m.get('train_loss') is not None]
-    val_losses = [m.get('val_loss') for m in metrics if 'val_loss' in m and m.get('val_loss') is not None]
+    train_losses = [
+        m.get('train_loss')
+        for m in metrics
+        if 'train_loss' in m and m.get('train_loss') is not None
+    ]
+    val_losses = [
+        m.get('val_loss')
+        for m in metrics
+        if 'val_loss' in m and m.get('val_loss') is not None
+    ]
     
     if train_losses:
         print('\n📉 TRAINING LOSS:')
-        print(f'   Initial: {train_losses[0]:.6f}')
-        print(f'   Latest:  {train_losses[-1]:.6f}')
-        print(f'   Change:  {train_losses[-1] - train_losses[0]:+.6f} ({((train_losses[-1]/train_losses[0] - 1) * 100):+.1f}%)')
+        initial_loss = train_losses[0]
+        latest_loss = train_losses[-1]
+        assert initial_loss is not None and latest_loss is not None
+        print(f'   Initial: {initial_loss:.6f}')
+        print(f'   Latest:  {latest_loss:.6f}')
+        change_pct = ((latest_loss / initial_loss - 1) * 100)
+        print(f'   Change:  {latest_loss - initial_loss:+.6f} ({change_pct:+.1f}%)')
     
     if val_losses:
         print('\n📉 VALIDATION LOSS:')
-        print(f'   Initial: {val_losses[0]:.6f}')
-        print(f'   Latest:  {val_losses[-1]:.6f}')
-        print(f'   Change:  {val_losses[-1] - val_losses[0]:+.6f} ({((val_losses[-1]/val_losses[0] - 1) * 100):+.1f}%)')
-        if val_losses[-1] < val_losses[0]:
+        initial_loss = val_losses[0]
+        latest_loss = val_losses[-1]
+        assert initial_loss is not None and latest_loss is not None
+        print(f'   Initial: {initial_loss:.6f}')
+        print(f'   Latest:  {latest_loss:.6f}')
+        change_pct = ((latest_loss / initial_loss - 1) * 100)
+        print(f'   Change:  {latest_loss - initial_loss:+.6f} ({change_pct:+.1f}%)')
+        if latest_loss < initial_loss:
             print('   ✓ Validation loss is decreasing - model is learning!')
         else:
             print('   ⚠️  Validation loss is increasing - may be overfitting')
@@ -322,7 +398,11 @@ def print_analysis(metrics: List[Dict], stage: str):
     
     if cophenetic:
         print('\n📈 HIERARCHY PRESERVATION:')
-        print(f'   Cophenetic: {cophenetic[0]:.4f} → {cophenetic[-1]:.4f} ({cophenetic[-1] - cophenetic[0]:+.4f})')
+        cophenetic_change = cophenetic[-1] - cophenetic[0]
+        print(
+            f'   Cophenetic: {cophenetic[0]:.4f} → {cophenetic[-1]:.4f} '
+            f'({cophenetic_change:+.4f})'
+        )
         
         if cophenetic[-1] > 0.7:
             print('   ✓ Excellent hierarchy preservation!')
@@ -352,7 +432,8 @@ def print_analysis(metrics: List[Dict], stage: str):
     
     if cophenetic and cophenetic[-1] < 0.5:
         print('   1. Hierarchy correlations are low. This could be because:')
-        print(f"      - Model is still learning (only {metrics[-1].get('epoch', 0)} epochs completed)")
+        epoch_count = metrics[-1].get('epoch', 0)
+        print(f'      - Model is still learning (only {epoch_count} epochs completed)')
         print('      - Hyperbolic space may need more time to organize hierarchy')
         print('      - Consider checking if evaluation sample size is sufficient')
     
@@ -373,8 +454,14 @@ def print_analysis(metrics: List[Dict], stage: str):
     print()
 
 
+# -------------------------------------------------------------------------------------------------
+# Main entry point
+# -------------------------------------------------------------------------------------------------
+
 def main():
+
     '''Main entry point.'''
+    
     import argparse
     
     parser = argparse.ArgumentParser(description='Visualize training metrics')
@@ -412,17 +499,32 @@ def main():
     print('\n' + '=' * 90)
     print('METRICS SUMMARY TABLE')
     print('=' * 90)
-    print(f"{'Epoch':<8} {'Radius':<15} {'Train Loss':<12} {'Val Loss':<12} {'Cophenetic':<12} {'Dist CV':<10} {'Collapse':<10}")
+    header = (
+        f"{'Epoch':<8} {'Radius':<15} {'Train Loss':<12} "
+        f"{'Val Loss':<12} {'Cophenetic':<12} {'Dist CV':<10} {'Collapse':<10}"
+    )
+    print(header)
     print('-' * 90)
     for m in metrics:
         epoch = m.get('epoch', 'N/A')
         radius = f"{m.get('radius_mean', 0):.2f}±{m.get('radius_std', 0):.2f}"
-        train_loss = f"{m.get('train_loss', 0):.6f}" if 'train_loss' in m and m.get('train_loss') is not None else 'N/A'
-        val_loss = f"{m.get('val_loss', 0):.6f}" if 'val_loss' in m and m.get('val_loss') is not None else 'N/A'
+        train_loss = (
+            f"{m.get('train_loss', 0):.6f}"
+            if 'train_loss' in m and m.get('train_loss') is not None
+            else 'N/A'
+        )
+        val_loss = (
+            f"{m.get('val_loss', 0):.6f}"
+            if 'val_loss' in m and m.get('val_loss') is not None
+            else 'N/A'
+        )
         cophenetic = f"{m.get('cophenetic', 0):.4f}" if 'cophenetic' in m else 'N/A'
         dist_cv = f"{m.get('dist_cv', 0):.4f}" if 'dist_cv' in m else 'N/A'
         collapse = 'Yes' if m.get('collapse', False) else 'No'
-        print(f'{epoch:<8} {radius:<15} {train_loss:<12} {val_loss:<12} {cophenetic:<12} {dist_cv:<10} {collapse:<10}')
+        print(
+            f'{epoch:<8} {radius:<15} {train_loss:<12} {val_loss:<12} '
+            f'{cophenetic:<12} {dist_cv:<10} {collapse:<10}'
+        )
     print()
 
 

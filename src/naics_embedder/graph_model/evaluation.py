@@ -57,10 +57,11 @@ def compute_validation_metrics(
     # Compute negative distances
     # Reshape negatives for batched computation
     negative_emb = emb[negatives.view(-1)]  # (batch_size * k_negatives, embedding_dim+1)
-    negative_emb = negative_emb.view(batch_size, k_negatives, -1)  # (batch_size, k_negatives, embedding_dim+1)
+    # (batch_size, k_negatives, embedding_dim+1)
+    negative_emb = negative_emb.view(batch_size, k_negatives, -1)
     
     # Expand anchor for broadcasting
-    anchor_emb_expanded = anchor_emb.unsqueeze(1)  # (batch_size, 1, embedding_dim+1)
+    anchor_emb.unsqueeze(1)  # (batch_size, 1, embedding_dim+1)
     
     # Compute distances using batched operations
     # Use LorentzOps for consistency
@@ -85,7 +86,8 @@ def compute_validation_metrics(
     positive_vs_negatives = positive_dist.unsqueeze(1) < negative_dist  # (batch_size, k_negatives)
     relation_accuracy = positive_vs_negatives.all(dim=1).float().mean().item()
     
-    # Mean positive rank: rank of positive distance among all distances (anchor-positive + anchor-negatives)
+    # Mean positive rank: rank of positive distance among all distances
+    # (anchor-positive + anchor-negatives)
     # Lower rank is better (rank 0 = closest)
     all_dists_per_anchor = torch.cat([
         positive_dist.unsqueeze(1),
@@ -94,7 +96,8 @@ def compute_validation_metrics(
     
     # Get ranks (0 = smallest distance, higher = larger distance)
     _, ranks = torch.sort(all_dists_per_anchor, dim=1)
-    positive_ranks = ranks[:, 0].float().mean().item()  # Position of positive (should be 0 if closest)
+    # Position of positive (should be 0 if closest)
+    positive_ranks = ranks[:, 0].float().mean().item()
     
     return {
         'avg_positive_dist': avg_positive_dist,

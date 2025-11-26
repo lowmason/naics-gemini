@@ -573,7 +573,10 @@ class StreamingConfig(BaseModel):
     # Phase 1 sampling parameters
     use_phase1_sampling: bool = Field(
         default=False,
-        description='Use Phase 1 tree-distance based sampling (inverse weighting, sibling masking, exclusion mining)'
+        description=(
+            'Use Phase 1 tree-distance based sampling '
+            '(inverse weighting, sibling masking, exclusion mining)'
+        )
     )
     phase1_alpha: float = Field(
         default=1.5,
@@ -755,13 +758,19 @@ class LossConfig(BaseModel):
         default=0.15,
         ge=0,
         le=1.0,
-        description='Weight for rank order preservation loss (Spearman correlation optimization, 0.0 to disable)'
+        description=(
+            'Weight for rank order preservation loss '
+            '(Spearman correlation optimization, 0.0 to disable)'
+        )
     )
     radius_reg_weight: float = Field(
         default=0.01,
         ge=0,
         le=1.0,
-        description='Weight for radius regularization to prevent hyperbolic radius instability (0.0 to disable)'
+        description=(
+            'Weight for radius regularization to prevent hyperbolic radius '
+            'instability (0.0 to disable)'
+        )
     )
 
 
@@ -891,7 +900,10 @@ class CurriculumConfig(BaseModel):
         '''Ensure curriculum phases progress monotonically.''' 
 
         if not (self.phase1_end <= self.phase2_end <= self.phase3_end):
-            raise ValueError('Curriculum phases must satisfy phase1_end <= phase2_end <= phase3_end')
+            raise ValueError(
+                'Curriculum phases must satisfy '
+                'phase1_end <= phase2_end <= phase3_end'
+            )
         return self
 
 

@@ -21,7 +21,7 @@ Functions:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import List, Optional, Set
 
 import polars as pl
 

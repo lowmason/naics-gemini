@@ -12,7 +12,11 @@ import torch
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, IterableDataset
 
-from naics_embedder.text_model.dataloader.streaming_dataset import create_streaming_dataset, _get_final_cache_path, create_streaming_generator
+from naics_embedder.text_model.dataloader.streaming_dataset import (
+    _get_final_cache_path,
+    create_streaming_dataset,
+    create_streaming_generator,
+)
 from naics_embedder.utils.config import StreamingConfig, TokenizationConfig
 
 logger = logging.getLogger(__name__)
@@ -34,19 +38,23 @@ def collate_fn(batch: List[Dict]) -> Dict:
     # Find maximum number of negatives in batch and pad shorter lists
     max_negatives = max(len(item['negatives']) for item in batch) if batch else 0
     if max_negatives == 0:
-        raise ValueError("Batch contains items with no negatives - cannot create training batch")
+        raise ValueError('Batch contains items with no negatives - cannot create training batch')
     
     for item in batch:
         if len(item['negatives']) < max_negatives:
             # Pad by repeating the last negative
             last_negative = item['negatives'][-1] if item['negatives'] else None
             if last_negative is None:
-                raise ValueError(f"Item has no negatives to pad from: {item.get('anchor_code', 'unknown')}")
+                anchor_code = item.get('anchor_code', 'unknown')
+                raise ValueError(f'Item has no negatives to pad from: {anchor_code}')
             padding_needed = max_negatives - len(item['negatives'])
             item['negatives'].extend([last_negative] * padding_needed)
     
     # Check if we have multi-level supervision (positives is a list)
-    has_multiple_positives = batch and 'positives' in batch[0] and isinstance(batch[0]['positives'], list)
+    has_multiple_positives = (
+        batch and 'positives' in batch[0] 
+        and isinstance(batch[0]['positives'], list)
+    )
     
     if has_multiple_positives:
         # Multi-level supervision: expand batch to include all positives
@@ -158,13 +166,16 @@ class GeneratorDataset(IterableDataset):
     def _get_token_cache(self):
         '''Lazily load token cache once per worker process.'''
         if self._token_cache is None:
-            import time
             import random
+            import time
             
             # Set tokenizer parallelism to false in each worker
             os.environ['TOKENIZERS_PARALLELISM'] = 'false'
             
-            from naics_embedder.text_model.dataloader.tokenization_cache import _load_tokenization_cache, tokenization_cache
+            from naics_embedder.text_model.dataloader.tokenization_cache import (
+                _load_tokenization_cache,
+                tokenization_cache,
+            )
             
             # Fast path: load cache directly (should already exist from prepare_data)
             cache_path = Path(self.tokenization_cfg.output_path)
@@ -183,10 +194,18 @@ class GeneratorDataset(IterableDataset):
                     if self._token_cache is not None:
                         return self._token_cache
                 except Exception as e:
-                    logger.warning(f'Worker {os.getpid()} failed to load cache: {e}, will try with locking')
+                    worker_pid = os.getpid()
+                    logger.warning(
+                        f'Worker {worker_pid} failed to load cache: {e}, '
+                        f'will try with locking'
+                    )
             
             # Fallback: use full tokenization_cache() with locking
-            logger.warning(f'Worker {os.getpid()} cache not found, loading with locking (this should be rare)')
+            worker_pid = os.getpid()
+            logger.warning(
+                f'Worker {worker_pid} cache not found, loading with locking '
+                f'(this should be rare)'
+            )
             self._token_cache = tokenization_cache(self.tokenization_cfg, use_locking=True)
             logger.debug(f'Worker {os.getpid()} loaded tokenization cache')
         
@@ -325,13 +344,13 @@ class NAICSDataModule(LightningDataModule):
             if cache_path.exists():
                 logger.info(f'{name.capitalize()} streaming query cache built successfully')
             else:
-                logger.warning(f'Cache build completed but file not found - this should not happen')
+                logger.warning('Cache build completed but file not found - this should not happen')
         except StopIteration:
             # Generator was empty, but cache should still be saved
             if cache_path.exists():
                 logger.info(f'{name.capitalize()} streaming query cache built successfully')
             else:
-                logger.warning(f'Cache file not found after build attempt')
+                logger.warning('Cache file not found after build attempt')
     
     def train_dataloader(self) -> DataLoader:
         '''Create training dataloader.'''

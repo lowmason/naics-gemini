@@ -6,6 +6,7 @@ This script helps diagnose why hierarchy correlations might be low.
 
 from pathlib import Path
 from typing import Optional
+
 import torch
 
 try:
@@ -24,25 +25,25 @@ except ImportError:
 def analyze_ground_truth_distances(distance_matrix_path: Path):
     '''Analyze the ground truth distance matrix.'''
     
-    print("=" * 80)
-    print("GROUND TRUTH DISTANCE MATRIX ANALYSIS")
-    print("=" * 80)
+    print('=' * 80)
+    print('GROUND TRUTH DISTANCE MATRIX ANALYSIS')
+    print('=' * 80)
     
     if not distance_matrix_path.exists():
-        print(f"❌ Distance matrix not found: {distance_matrix_path}")
+        print(f'❌ Distance matrix not found: {distance_matrix_path}')
         return None
     
     if not HAS_POLARS:
-        print(f"\n⚠️  Cannot analyze distance matrix without polars.")
-        print(f"   File exists: {distance_matrix_path}")
-        print(f"   Size: {distance_matrix_path.stat().st_size / 1024 / 1024:.2f} MB")
+        print('\n⚠️  Cannot analyze distance matrix without polars.')
+        print(f'   File exists: {distance_matrix_path}')
+        print(f'   Size: {distance_matrix_path.stat().st_size / 1024 / 1024:.2f} MB')
         return None
     
-    print(f"\n📁 Loading: {distance_matrix_path}")
+    print(f'\n📁 Loading: {distance_matrix_path}')
     df = pl.read_parquet(distance_matrix_path)
     
-    print(f"   Shape: {df.shape}")
-    print(f"   Columns: {len(df.columns)}")
+    print(f'   Shape: {df.shape}')
+    print(f'   Columns: {len(df.columns)}')
     
     # Convert to torch tensor
     distances = df.to_torch()
@@ -52,26 +53,26 @@ def analyze_ground_truth_distances(distance_matrix_path: Path):
     triu_indices = torch.triu_indices(n, n, offset=1)
     upper_tri_values = distances[triu_indices[0], triu_indices[1]]
     
-    print(f"\n📊 Distance Statistics:")
-    print(f"   Mean:   {upper_tri_values.mean().item():.4f}")
-    print(f"   Std:    {upper_tri_values.std().item():.4f}")
-    print(f"   Min:    {upper_tri_values.min().item():.4f}")
-    print(f"   Max:    {upper_tri_values.max().item():.4f}")
-    print(f"   Median: {upper_tri_values.median().item():.4f}")
+    print('\n📊 Distance Statistics:')
+    print(f'   Mean:   {upper_tri_values.mean().item():.4f}')
+    print(f'   Std:    {upper_tri_values.std().item():.4f}')
+    print(f'   Min:    {upper_tri_values.min().item():.4f}')
+    print(f'   Max:    {upper_tri_values.max().item():.4f}')
+    print(f'   Median: {upper_tri_values.median().item():.4f}')
     
     # Check for zeros (self-distances should be 0, but pairs shouldn't)
     zero_pairs = (upper_tri_values == 0).sum().item()
     if zero_pairs > 0:
-        print(f"\n⚠️  WARNING: Found {zero_pairs} zero-distance pairs (excluding diagonal)")
+        print(f'\n⚠️  WARNING: Found {zero_pairs} zero-distance pairs (excluding diagonal)')
     else:
-        print(f"\n✓ No zero-distance pairs found (good)")
+        print('\n✓ No zero-distance pairs found (good)')
     
     # Check distance distribution
-    print(f"\n📈 Distance Distribution:")
+    print('\n📈 Distance Distribution:')
     percentiles = [10, 25, 50, 75, 90, 95, 99]
     for p in percentiles:
         val = torch.quantile(upper_tri_values, p/100).item()
-        print(f"   {p:2d}th percentile: {val:.4f}")
+        print(f'   {p:2d}th percentile: {val:.4f}')
     
     return distances
 
@@ -79,26 +80,26 @@ def analyze_ground_truth_distances(distance_matrix_path: Path):
 def check_evaluation_sample_size(config_path: Path):
     '''Check evaluation sample size configuration.'''
     
-    print("\n" + "=" * 80)
-    print("EVALUATION CONFIGURATION")
-    print("=" * 80)
+    print('\n' + '=' * 80)
+    print('EVALUATION CONFIGURATION')
+    print('=' * 80)
     
     if not HAS_YAML:
-        print("⚠️  YAML not available. Cannot check config.")
+        print('⚠️  YAML not available. Cannot check config.')
         return None
     
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     
     eval_sample_size = config.get('model', {}).get('eval_sample_size', 500)
-    print(f"\n📊 Evaluation Sample Size: {eval_sample_size}")
+    print(f'\n📊 Evaluation Sample Size: {eval_sample_size}')
     
     if eval_sample_size < 100:
-        print(f"   ⚠️  WARNING: Sample size is small. This may affect correlation accuracy.")
+        print('   ⚠️  WARNING: Sample size is small. This may affect correlation accuracy.')
     elif eval_sample_size < 500:
-        print(f"   ℹ️  INFO: Sample size is moderate. Consider increasing for more stable metrics.")
+        print('   ℹ️  INFO: Sample size is moderate. Consider increasing for more stable metrics.')
     else:
-        print(f"   ✓ Sample size is reasonable.")
+        print('   ✓ Sample size is reasonable.')
     
     return eval_sample_size
 
@@ -106,11 +107,11 @@ def check_evaluation_sample_size(config_path: Path):
 def analyze_correlation_issues():
     '''Provide analysis of potential correlation issues.'''
     
-    print("\n" + "=" * 80)
-    print("POTENTIAL ISSUES WITH LOW HIERARCHY CORRELATIONS")
-    print("=" * 80)
+    print('\n' + '=' * 80)
+    print('POTENTIAL ISSUES WITH LOW HIERARCHY CORRELATIONS')
+    print('=' * 80)
     
-    print('''
+    print("""
     Based on your metrics (Cophenetic ~0.22, Spearman ~0.00), here are potential causes:
     
     1. EARLY TRAINING STAGE
@@ -141,7 +142,7 @@ def analyze_correlation_issues():
        - Verify that ground truth distances are computed correctly
        - Check if distance matrix has proper structure
        - Ensure evaluation codes match ground truth codes
-    ''')
+    """)
 
 
 def main(project_root: Optional[Path] = None):
@@ -151,24 +152,23 @@ def main(project_root: Optional[Path] = None):
     
     # Check ground truth distances
     distance_matrix_path = project_root / 'data' / 'naics_distance_matrix.parquet'
-    distances = analyze_ground_truth_distances(distance_matrix_path)
+    analyze_ground_truth_distances(distance_matrix_path)
     
     # Check evaluation config
     config_path = project_root / 'conf' / 'config.yaml'
     if config_path.exists():
-        eval_sample_size = check_evaluation_sample_size(config_path)
+        check_evaluation_sample_size(config_path)
     else:
-        print(f"\n⚠️  Config file not found: {config_path}")
-        eval_sample_size = None
+        print(f'\n⚠️  Config file not found: {config_path}')
     
     # Provide analysis
     analyze_correlation_issues()
     
     # Recommendations
-    print("\n" + "=" * 80)
-    print("RECOMMENDATIONS")
-    print("=" * 80)
-    print('''
+    print('\n' + '=' * 80)
+    print('RECOMMENDATIONS')
+    print('=' * 80)
+    print("""
     1. CONTINUE TRAINING
        - You're only 25% through stage 02 (5/20 epochs)
        - Correlations often improve in later epochs
@@ -193,7 +193,7 @@ def main(project_root: Optional[Path] = None):
        - Check if stage 01 had better correlations
        - Stage 02 may be more difficult (more specific filtering)
        - This is expected in curriculum learning
-    ''')
+    """)
 
 
 if __name__ == '__main__':

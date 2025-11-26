@@ -3,7 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn.functional as F
@@ -89,7 +89,7 @@ class EmbeddingEvaluator:
         Returns:
             Distance matrix of shape (N, N)
         '''
-        N = embeddings.shape[0]
+        embeddings.shape[0]
         embeddings = embeddings.to(self.device)
         
         # Vectorized Lorentz dot product computation
@@ -359,7 +359,7 @@ class HierarchyMetrics:
         embedding_distances: torch.Tensor,
         tree_distances: torch.Tensor,
         min_distance: float = 0.1
-    ) -> Dict[str, torch.Tensor]:
+    ) -> Dict[str, Union[torch.Tensor, int]]:
         
         '''
         Compute cophenetic correlation coefficient with better handling.
@@ -447,7 +447,7 @@ class HierarchyMetrics:
         embedding_distances: torch.Tensor,
         tree_distances: torch.Tensor,
         min_distance: float = 0.1
-    ) -> Dict[str, torch.Tensor]:
+    ) -> Dict[str, Union[torch.Tensor, int]]:
         
         '''
         Compute Spearman rank correlation coefficient with filtering.
@@ -534,7 +534,8 @@ class HierarchyMetrics:
             anchor_tree_dists = tree_distances[anchor_idx]  # (N,)
             
             # Filter out self and very small tree distances
-            valid_mask = (anchor_tree_dists >= min_distance) & (torch.arange(N, device=self.device) != anchor_idx)
+            not_self = torch.arange(N, device=self.device) != anchor_idx
+            valid_mask = (anchor_tree_dists >= min_distance) & not_self
             
             if valid_mask.sum() < max(k_values):
                 continue

@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, TextIO, Tuple, Union
 
 import polars as pl
 import torch
@@ -141,7 +141,7 @@ def _load_tokenization_cache(
             logger.info(f'Loading tokenization cache from: {cache_file.resolve()}')
         else:
             # Still log for workers but at debug level
-            logger.debug(f'Loading tokenization cache (worker process)')
+            logger.debug('Loading tokenization cache (worker process)')
         try:
             import time
             start_time = time.time()
@@ -164,7 +164,7 @@ def _load_tokenization_cache(
 # File locking utilities for multi-worker safety
 # -------------------------------------------------------------------------------------------------
 
-def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[object]:
+def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[TextIO]:
     '''
     Acquire an exclusive lock on a lock file.
     
@@ -198,7 +198,7 @@ def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[object]:
         return None
 
 
-def _release_lock(lock_file: Optional[object]) -> None:
+def _release_lock(lock_file: Optional[TextIO]) -> None:
     '''Release the lock and close the file.'''
     if lock_file is None:
         return

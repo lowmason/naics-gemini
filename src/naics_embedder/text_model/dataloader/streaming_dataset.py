@@ -433,7 +433,8 @@ def _compute_phase1_weights(
     Args:
         anchor_code: Anchor code
         anchor_idx: Anchor index
-        candidate_negatives: List of candidate negative dictionaries with 'negative_code' and 'negative_idx'
+        candidate_negatives: List of candidate negative dictionaries with
+            'negative_code' and 'negative_idx'
         distance_lookup: Dictionary mapping (anchor_idx, negative_idx) -> tree_distance
         excluded_map: Dictionary mapping code -> set of excluded codes
         code_to_idx: Mapping from code to index
@@ -448,7 +449,7 @@ def _compute_phase1_weights(
     
     for i, neg in enumerate(candidate_negatives):
         negative_code = neg['negative_code']
-        negative_idx = neg['negative_idx']
+        neg['negative_idx']
         
         # Check if anchor excludes this negative
         if anchor_code in excluded_map and negative_code in excluded_map[anchor_code]:
@@ -607,7 +608,7 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
     try:
         import torch
         worker_info = torch.utils.data.get_worker_info()
-    except:
+    except Exception:
         pass
     
     worker_id = f'Worker {worker_info.id}' if worker_info else 'Main'
@@ -627,7 +628,10 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
     excluded_map: Optional[Dict[str, Set[str]]] = None
     
     if cfg.use_phase1_sampling:
-        logger.info(f'{worker_id} Phase 1 sampling enabled - loading distance matrix and excluded codes...')
+        logger.info(
+            f'{worker_id} Phase 1 sampling enabled - loading distance matrix '
+            f'and excluded codes...'
+        )
         distance_lookup = _load_distance_matrix(
             cfg.distance_matrix_parquet,
             code_to_idx,
@@ -855,8 +859,14 @@ def create_streaming_dataset(
                             # Use the first matching triplet's positive
                             triplet = matching_triplets[0]
                             # Ensure ancestor_idx is an int for token_cache access
-                            ancestor_idx_int = int(ancestor_idx) if not isinstance(ancestor_idx, int) else ancestor_idx
-                            positive_embedding = {k: v for k, v in token_cache[ancestor_idx_int].items() if k != 'code'}
+                            if not isinstance(ancestor_idx, int):
+                                ancestor_idx_int = int(ancestor_idx)
+                            else:
+                                ancestor_idx_int = ancestor_idx
+                            positive_embedding = {
+                                k: v for k, v in token_cache[ancestor_idx_int].items()
+                                if k != 'code'
+                            }
                             positives_list.append({
                                 'positive_idx': ancestor_idx,
                                 'positive_code': ancestor_code,
@@ -872,8 +882,14 @@ def create_streaming_dataset(
                 positive_idx = triplet['positive_idx']
                 positive_code = triplet['positive_code']
                 # Ensure positive_idx is an int for token_cache access
-                positive_idx_int = int(positive_idx) if not isinstance(positive_idx, int) else positive_idx
-                positive_embedding = {k: v for k, v in token_cache[positive_idx_int].items() if k != 'code'}
+                if not isinstance(positive_idx, int):
+                    positive_idx_int = int(positive_idx)
+                else:
+                    positive_idx_int = positive_idx
+                positive_embedding = {
+                    k: v for k, v in token_cache[positive_idx_int].items()
+                    if k != 'code'
+                }
                 positives_list.append({
                     'positive_idx': positive_idx,
                     'positive_code': positive_code,
@@ -888,7 +904,10 @@ def create_streaming_dataset(
             for negative in positives_list[0]['negatives']:
                 negative_idx = negative['negative_idx']
                 negative_code = negative['negative_code']
-                negative_embedding = {k: v for k, v in token_cache[negative_idx].items() if k != 'code'}
+                negative_embedding = {
+                    k: v for k, v in token_cache[negative_idx].items()
+                    if k != 'code'
+                }
                 
                 negatives.append({
                     'negative_idx': negative_idx,

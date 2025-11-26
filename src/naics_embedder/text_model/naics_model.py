@@ -5,7 +5,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import polars as pl
@@ -14,7 +14,6 @@ import torch
 import torch.distributed as dist
 
 from naics_embedder.text_model.curriculum import CurriculumScheduler
-from naics_embedder.text_model.hyperbolic_clustering import HyperbolicKMeans
 from naics_embedder.text_model.encoder import MultiChannelEncoder
 from naics_embedder.text_model.evaluation import (
     EmbeddingEvaluator,
@@ -30,6 +29,7 @@ from naics_embedder.text_model.hyperbolic import (
     check_lorentz_manifold_validity,
     log_hyperbolic_diagnostics,
 )
+from naics_embedder.text_model.hyperbolic_clustering import HyperbolicKMeans
 from naics_embedder.text_model.loss import HyperbolicInfoNCELoss
 
 logger = logging.getLogger(__name__)
@@ -212,7 +212,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
         # Add hierarchy preservation loss if ground truth available
         self.hierarchy_loss_fn = None
         hierarchy_weight = getattr(self.hparams, 'hierarchy_weight', 0.1)
-        if self.ground_truth_distances is not None and self.code_to_idx is not None and hierarchy_weight > 0:
+        if (
+            self.ground_truth_distances is not None and
+            self.code_to_idx is not None and
+            hierarchy_weight > 0
+        ):
             from naics_embedder.text_model.loss import HierarchyPreservationLoss
             self.hierarchy_loss_fn = HierarchyPreservationLoss(
                 tree_distances=self.ground_truth_distances,
@@ -223,7 +227,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
         # Add LambdaRank loss for global ranking optimization (replaces pairwise ranking)
         self.lambdarank_loss_fn = None
         rank_order_weight = getattr(self.hparams, 'rank_order_weight', 0.15)
-        if self.ground_truth_distances is not None and self.code_to_idx is not None and rank_order_weight > 0:
+        if (
+            self.ground_truth_distances is not None and
+            self.code_to_idx is not None and
+            rank_order_weight > 0
+        ):
             from naics_embedder.text_model.loss import LambdaRankLoss
             self.lambdarank_loss_fn = LambdaRankLoss(
                 tree_distances=self.ground_truth_distances,
@@ -318,7 +326,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
         batch_idx: int,
         anchor_gate_probs: Optional[torch.Tensor] = None,
         negative_gate_probs: Optional[torch.Tensor] = None,
-        false_negative_mask: Optional[torch.Tensor] = None
+        false_negative_mask: Optional[torch.Tensor] = None,
+        adaptive_margins: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         '''
         Compute contrastive loss with curriculum features (hard negative mining, etc.).
@@ -366,13 +375,16 @@ class NAICSContrastiveModel(pyl.LightningModule):
                         batch_size, k_negatives, -1
                     )
 
-                    router_hard_negatives, router_confusion_scores = self.router_guided_miner.mine_router_hard_negatives(
-                        anchor_gate_probs=anchor_gate_probs,
-                        negative_gate_probs=negative_gate_probs_reshaped,
-                        candidate_negatives=candidate_negatives,
-                        k=k_negatives,
-                        return_scores=True
+                    router_result = (
+                        self.router_guided_miner.mine_router_hard_negatives(
+                            anchor_gate_probs=anchor_gate_probs,
+                            negative_gate_probs=negative_gate_probs_reshaped,
+                            candidate_negatives=candidate_negatives,
+                            k=k_negatives,
+                            return_scores=True
+                        )
                     )
+                    router_hard_negatives, router_confusion_scores = router_result
 
                     router_mix_ratio = 0.5
                     if enable_hard_negative_mining:
@@ -450,7 +462,9 @@ class NAICSContrastiveModel(pyl.LightningModule):
         
         # Update curriculum flags based on current epoch
         if self.curriculum_scheduler is not None:
-            self.current_curriculum_flags = self.curriculum_scheduler.get_curriculum_flags(self.current_epoch)
+            self.current_curriculum_flags = (
+                self.curriculum_scheduler.get_curriculum_flags(self.current_epoch)
+            )
             
             # Log phase transitions
             self.curriculum_scheduler.log_phase_transition(
@@ -545,7 +559,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
             self._log_negative_tree_distance_distribution(batch)
         
         # Phase 2: Hard Negative Mining (HNM) - Embedding-based and Router-guided
-        # When enabled, select top-k hardest negatives based on Lorentzian distance and/or router confusion
+        # When enabled, select top-k hardest negatives based on Lorentzian distance
+        # and/or router confusion
         enable_hard_negative_mining = self.current_curriculum_flags.get(
             'enable_hard_negative_mining', False
         )
@@ -580,7 +595,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
             
             # Extract global negatives for all anchors (we'll use all of them for mining)
             # But we only need to compute distances for local anchors
-            candidate_negatives_global = global_negative_emb_reshaped  # (global_batch_size, global_k_negatives, embedding_dim+1)
+            # Shape: (global_batch_size, global_k_negatives, embedding_dim+1)
+            candidate_negatives_global = global_negative_emb_reshaped
             
             # Memory Management (Issue #19):
             # The global batch creates a similarity matrix of size:
@@ -647,11 +663,9 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 # We need to compute distances from each local anchor to all global negatives
                 # This creates a (batch_size, global_k_negatives) distance matrix
                 
-                # Expand local anchors for broadcasting: (batch_size, 1, embedding_dim+1)
-                anchor_emb_expanded = anchor_emb.unsqueeze(1)  # (batch_size, 1, embedding_dim+1)
-                
                 # Compute distances from each local anchor to all global negatives
-                # Reshape global negatives to (global_batch_size * global_k_negatives, embedding_dim+1)
+                # Reshape global negatives to
+                # (global_batch_size * global_k_negatives, embedding_dim+1)
                 global_negatives_flat = candidate_negatives_global.view(-1, anchor_emb.shape[-1])
                 
                 # Compute distances using batched forward
@@ -662,10 +676,18 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 # Gradient Flow: The gathered global_negatives_flat has gradients from all GPUs.
                 # When we compute distances and select hard negatives, gradients will flow back
                 # through the all_gather operation to update embeddings on all GPUs.
-                global_distances_flat = self.hard_negative_miner.lorentz_distance.batched_forward(
-                    anchor_emb,  # (batch_size, embedding_dim+1)
-                    global_negatives_flat.unsqueeze(0).expand(batch_size, -1, -1)  # (batch_size, global_total, embedding_dim+1)
-                )  # (batch_size, global_total) where global_total = global_batch_size * global_k_negatives
+                # Shape: (batch_size, global_total, embedding_dim+1)
+                global_negatives_expanded = (
+                    global_negatives_flat.unsqueeze(0).expand(batch_size, -1, -1)
+                )
+                # Result: (batch_size, global_total)
+                # where global_total = global_batch_size * global_k_negatives
+                global_distances_flat = (
+                    self.hard_negative_miner.lorentz_distance.batched_forward(
+                        anchor_emb,  # (batch_size, embedding_dim+1)
+                        global_negatives_expanded
+                    )
+                )
                 
                 # Select top-k hardest (smallest distances)
                 _, topk_indices = torch.topk(
@@ -676,14 +698,9 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 )
                 
                 # Gather selected negatives
-                # topk_indices: (batch_size, k_negatives) indexing into flattened global negatives
-                batch_indices = torch.arange(
-                    batch_size,
-                    device=anchor_emb.device
-                ).unsqueeze(1).expand(-1, k_negatives)
-                
                 # Get selected negatives from flattened global pool
-                selected_negatives = global_negatives_flat[topk_indices]  # (batch_size, k_negatives, embedding_dim+1)
+                # Shape: (batch_size, k_negatives, embedding_dim+1)
+                selected_negatives = global_negatives_flat[topk_indices]
                 
                 # Use selected negatives as hard negatives
                 hard_negatives = selected_negatives
@@ -730,11 +747,13 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 # Embedding-based hard negative mining (Issue #15)
                 if enable_hard_negative_mining:
                     # Mine top-k hardest negatives for each anchor based on Lorentzian distance
-                    hard_negatives, hard_neg_distances = self.hard_negative_miner.mine_hard_negatives(
-                        anchor_emb=anchor_emb,
-                        candidate_negatives=candidate_negatives,
-                        k=k_negatives,
-                        return_distances=True
+                    hard_negatives, hard_neg_distances = (
+                        self.hard_negative_miner.mine_hard_negatives(
+                            anchor_emb=anchor_emb,
+                            candidate_negatives=candidate_negatives,
+                            k=k_negatives,
+                            return_distances=True
+                        )
                     )
                 
             # Router-guided negative mining (Issue #16)
@@ -781,16 +800,22 @@ class NAICSContrastiveModel(pyl.LightningModule):
                         )
                     else:
                         # Local router-guided sampling (original behavior)
-                        # Reshape negative gate probs: (batch_size * k_negatives, num_experts) -> (batch_size, k_negatives, num_experts)
-                        negative_gate_probs_reshaped = negative_gate_probs.view(batch_size, k_negatives, -1)
+                        # Reshape negative gate probs:
+                        # (batch_size * k_negatives, num_experts) ->
+                        # (batch_size, k_negatives, num_experts)
+                        negative_gate_probs_reshaped = (
+                            negative_gate_probs.view(batch_size, k_negatives, -1)
+                        )
                         
                         # Mine router-hard negatives (negatives that confuse the gating network)
-                        router_hard_negatives, router_confusion_scores = self.router_guided_miner.mine_router_hard_negatives(
-                            anchor_gate_probs=anchor_gate_probs,
-                            negative_gate_probs=negative_gate_probs_reshaped,
-                            candidate_negatives=negative_emb_reshaped,
-                            k=k_negatives,
-                            return_scores=True
+                        router_hard_negatives, router_confusion_scores = (
+                            self.router_guided_miner.mine_router_hard_negatives(
+                                anchor_gate_probs=anchor_gate_probs,
+                                negative_gate_probs=negative_gate_probs_reshaped,
+                                candidate_negatives=negative_emb_reshaped,
+                                k=k_negatives,
+                                return_scores=True
+                            )
                         )
                     
                     # Mix router-hard negatives with embedding-hard negatives
@@ -900,7 +925,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 # Compute average expert selection diversity using entropy
                 gate_probs_combined = torch.cat(all_gate_probs, dim=0)
                 # Entropy: -sum(p * log(p)) for each row
-                log_probs = torch.log(gate_probs_combined + 1e-8)  # Add small epsilon for numerical stability
+                # Add small epsilon for numerical stability
+                log_probs = torch.log(gate_probs_combined + 1e-8)
                 entropy_per_token = -(gate_probs_combined * log_probs).sum(dim=1)
                 expert_diversity = entropy_per_token.mean()
                 self.log(
@@ -921,7 +947,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
             total_tokens = gate_probs.shape[0]
             num_experts = gate_probs.shape[1]
 
-            # Compute sums (not means) - divide by total_tokens only after all-reduce in distributed mode
+            # Compute sums (not means) - divide by total_tokens only after
+            # all-reduce in distributed mode
             prob_sum = gate_probs.sum(dim=0)
             
             expert_counts_micro = torch.zeros(num_experts, device=self.device)
@@ -1000,22 +1027,28 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 
                 # Log histogram of expert utilization (f_i)
                 # Only if TensorBoard logger is available
-                if hasattr(self.logger, 'experiment') and hasattr(self.logger.experiment, 'add_histogram'):
-                    try:
-                        self.logger.experiment.add_histogram(
-                            'train/moe/expert_utilization_hist',
-                            f,
-                            global_step=self.global_step
-                        )
-                        
-                        # Log histogram of gating probabilities (P_i)
-                        self.logger.experiment.add_histogram(
-                            'train/moe/gating_prob_hist',
-                            P,
-                            global_step=self.global_step
-                        )
-                    except Exception as e:
-                        logger.debug(f'Could not log histograms: {e}')
+                if (
+                    self.logger is not None and
+                    hasattr(self.logger, 'experiment') and
+                    self.logger.experiment is not None  # type: ignore[attr-defined]
+                ):
+                    experiment = self.logger.experiment  # type: ignore[attr-defined]
+                    if hasattr(experiment, 'add_histogram'):
+                        try:
+                            experiment.add_histogram(
+                                'train/moe/expert_utilization_hist',
+                                f,
+                                global_step=self.global_step
+                            )
+                            
+                            # Log histogram of gating probabilities (P_i)
+                            experiment.add_histogram(
+                                'train/moe/gating_prob_hist',
+                                P,
+                                global_step=self.global_step
+                            )
+                        except Exception as e:
+                            logger.debug(f'Could not log histograms: {e}')
                 
                 # Log summary statistics for f_i
                 f_mean = f.mean().item()
@@ -1133,7 +1166,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 
                 # Use the loss function's lorentz distance
                 from naics_embedder.text_model.hyperbolic import LorentzDistance
-                lorentz_dist = LorentzDistance(curvature=self.hparams.curvature)
+                curvature = getattr(self.hparams, 'curvature', 1.0)
+                lorentz_dist = LorentzDistance(curvature=curvature)
                 
                 hierarchy_loss = self.hierarchy_loss_fn(
                     all_embeddings,
@@ -1147,7 +1181,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
 
         # Add LambdaRank loss for global ranking (1 positive + k negatives per anchor)
         lambdarank_loss = torch.tensor(0.0, device=self.device)
-        if self.lambdarank_loss_fn is not None and 'anchor_code' in batch and 'positive_code' in batch:
+        if (
+            self.lambdarank_loss_fn is not None and
+            'anchor_code' in batch and
+            'positive_code' in batch
+        ):
             try:
                 # Get codes from batch
                 anchor_codes = batch['anchor_code']
@@ -1160,7 +1198,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 else:
                     # Use the loss function's lorentz distance
                     from naics_embedder.text_model.hyperbolic import LorentzDistance
-                    lorentz_dist = LorentzDistance(curvature=self.hparams.curvature)
+                    curvature = getattr(self.hparams, 'curvature', 1.0)
+                    lorentz_dist = LorentzDistance(curvature=curvature)
                     
                     lambdarank_loss = self.lambdarank_loss_fn(
                         anchor_emb,
@@ -1191,7 +1230,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
             x0 = all_embeddings[:, 0]  # Time component
             # Compute radius: r = sqrt(x0^2 - 1/c) for curvature c
             # For c=1: r = sqrt(x0^2 - 1)
-            c = self.hparams.curvature
+            c = getattr(self.hparams, 'curvature', 1.0)
             radius_squared = torch.clamp(x0 ** 2 - 1.0 / c, min=0.0)
             radius = torch.sqrt(radius_squared + 1e-8)  # Add small epsilon for stability
             
@@ -1223,7 +1262,13 @@ class NAICSContrastiveModel(pyl.LightningModule):
 
         batch_size = batch['batch_size']
         
-        total_loss = contrastive_loss + full_load_balancing_loss + hierarchy_loss + lambdarank_loss + radius_reg_loss
+        total_loss = (
+            contrastive_loss +
+            full_load_balancing_loss +
+            hierarchy_loss +
+            lambdarank_loss +
+            radius_reg_loss
+        )
         
         # Note: DCL loss may yield negative values (unlike InfoNCE which is always positive)
         # This is expected behavior for DCL: loss = (-pos_sim + logsumexp(neg_sims)).mean()
@@ -1337,14 +1382,24 @@ class NAICSContrastiveModel(pyl.LightningModule):
                         relation = get_relationship(anchor_code, neg_code)
                         
                         # Classify into categories
-                        if relation in ['child', 'grandchild', 'great-grandchild', 'great-great-grandchild']:
+                        child_relations = [
+                            'child', 'grandchild', 'great-grandchild',
+                            'great-great-grandchild'
+                        ]
+                        if relation in child_relations:
                             sample_types['child'] += 1
                         elif relation == 'sibling':
                             sample_types['sibling'] += 1
-                        elif relation in ['cousin', 'nephew/niece', 'grand-nephew/niece', 
-                                         'cousin_1_times_removed', 'second_cousin']:
+                        elif relation in [
+                            'cousin', 'nephew/niece', 'grand-nephew/niece',
+                            'cousin_1_times_removed', 'second_cousin'
+                        ]:
                             sample_types['cousin'] += 1
-                        elif relation in ['unrelated'] or relation.startswith('third_cousin') or relation.startswith('cousin_'):
+                        elif (
+                            relation in ['unrelated'] or
+                            relation.startswith('third_cousin') or
+                            relation.startswith('cousin_')
+                        ):
                             sample_types['distant'] += 1
                         else:
                             sample_types['unknown'] += 1
@@ -1370,7 +1425,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 # Log summary
                 if self.current_epoch % 5 == 0:  # Log every 5 epochs to reduce noise
                     logger.info(
-                        f'Negative sample distribution (Phase {phase}, Epoch {self.current_epoch}):\n'
+                        f'Negative sample distribution '
+                        f'(Phase {phase}, Epoch {self.current_epoch}):\n'
                         f'  • Child: {sample_types["child"]/total_samples*100:.1f}%\n'
                         f'  • Sibling: {sample_types["sibling"]/total_samples*100:.1f}%\n'
                         f'  • Cousin: {sample_types["cousin"]/total_samples*100:.1f}%\n'
@@ -1458,7 +1514,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
         max_batches = 100  # Limit number of batches to process
         batch_count = 0
 
-        try:            
+        try:
+            if self.trainer is None or self.trainer.train_dataloader is None:
+                logger.warning('Trainer or train_dataloader is None, cannot update pseudo-labels.')
+                return
+            
             dataloader = self.trainer.train_dataloader
             
             for batch in dataloader:
@@ -1482,22 +1542,25 @@ class NAICSContrastiveModel(pyl.LightningModule):
             all_embeddings = torch.cat(all_embeddings, dim=0)
             
             # Issue #5: More efficient cluster count calculation
+            fn_num_clusters = getattr(self.hparams, 'fn_num_clusters', 500)
             n_clusters = min(
                 max(50, len(all_embeddings) // 20),  # At least 50, at most 1 per 20 samples
-                self.hparams.fn_num_clusters
+                fn_num_clusters
             )
             # Safeguard: ensure n_clusters >= 1 (KMeans requires at least 1 cluster)
             n_clusters = max(1, n_clusters)
                     
             logger.info(
-                f'Clustering {len(all_embeddings)} hyperbolic embeddings into {n_clusters} clusters '
-                f'using Hyperbolic K-Means (Lorentz model)...'
+                f'Clustering {len(all_embeddings)} hyperbolic embeddings '
+                f'into {n_clusters} clusters using Hyperbolic K-Means '
+                f'(Lorentz model)...'
             )
             
             # Issue #17: Use Hyperbolic K-Means instead of Euclidean KMeans
+            curvature = getattr(self.hparams, 'curvature', 1.0)
             hyperbolic_kmeans = HyperbolicKMeans(
                 n_clusters=n_clusters,
-                curvature=self.hparams.curvature,
+                curvature=curvature,
                 max_iter=100,
                 tol=1e-4,
                 random_state=42,
@@ -1525,7 +1588,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
         Compute evaluation metrics and trigger pseudo-label update based on the curriculum schedule.
         '''
         
-        if self.current_epoch % self.hparams.eval_every_n_epochs != 0:
+        eval_every_n_epochs = getattr(self.hparams, 'eval_every_n_epochs', 1)
+        if self.current_epoch % eval_every_n_epochs != 0:
             return
         
         if not self.validation_embeddings or self.ground_truth_distances is None:
@@ -1540,10 +1604,15 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 self.validation_embeddings[code] for code in codes
             ]).to(self.device)
             
-            if len(codes) > self.hparams.eval_sample_size:
-                indices = torch.randperm(len(codes))[:self.hparams.eval_sample_size]
+            eval_sample_size = getattr(self.hparams, 'eval_sample_size', 500)
+            if len(codes) > eval_sample_size:
+                indices = torch.randperm(len(codes))[:eval_sample_size]
                 embeddings = embeddings[indices]
                 codes = [codes[i] for i in indices]
+            
+            if self.code_to_idx is None:
+                logger.warning('code_to_idx is None, cannot evaluate')
+                return
             
             code_indices = [self.code_to_idx[code] for code in codes if code in self.code_to_idx]
             if len(code_indices) < 2:
@@ -1555,16 +1624,17 @@ class NAICSContrastiveModel(pyl.LightningModule):
             num_samples = len(embeddings)
             
             # Check manifold validity and log diagnostics
+            curvature = getattr(self.hparams, 'curvature', 1.0)
             is_valid, lorentz_norms, violations = check_lorentz_manifold_validity(
                 embeddings, 
-                curvature=self.hparams.curvature
+                curvature=curvature
             )
             
             # Log hyperbolic diagnostics
             # Note: level_labels would require NAICS hierarchy level info - can be added later
             diagnostics = log_hyperbolic_diagnostics(
                 embeddings,
-                curvature=self.hparams.curvature,
+                curvature=curvature,
                 level_labels=None,  # TODO: Add NAICS level labels if available
                 logger_instance=logger
             )
@@ -1665,10 +1735,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
             )
             
             # Use Lorentzian distances for hyperbolic embeddings
+            curvature = getattr(self.hparams, 'curvature', 1.0)
             emb_dists = self.embedding_eval.compute_pairwise_distances(
                 embeddings,
                 metric='lorentz',
-                curvature=self.hparams.curvature
+                curvature=curvature
             )
             
             cophenetic_result = self.hierarchy_metrics.cophenetic_correlation(
@@ -1742,21 +1813,29 @@ class NAICSContrastiveModel(pyl.LightningModule):
             
             # Update clustering based on curriculum scheduler
             if self.curriculum_scheduler is not None:
+                fn_cluster_every_n_epochs = getattr(
+                    self.hparams, 'fn_cluster_every_n_epochs', 5
+                )
                 should_update = self.curriculum_scheduler.should_update_clustering(
                     self.current_epoch,
-                    self.hparams.fn_cluster_every_n_epochs
+                    fn_cluster_every_n_epochs
                 )
                 if should_update:
                     self._update_pseudo_labels()
             else:
                 # Fallback to old behavior if scheduler not initialized
-                if self.current_epoch >= self.hparams.fn_curriculum_start_epoch:
-                    if self.hparams.fn_cluster_every_n_epochs > 0:
+                fn_curriculum_start_epoch = getattr(
+                    self.hparams, 'fn_curriculum_start_epoch', 10
+                )
+                fn_cluster_every_n_epochs = getattr(
+                    self.hparams, 'fn_cluster_every_n_epochs', 5
+                )
+                if self.current_epoch >= fn_curriculum_start_epoch:
+                    if fn_cluster_every_n_epochs > 0:
                         epochs_since_start = (
-                            self.current_epoch - 
-                            self.hparams.fn_curriculum_start_epoch
+                            self.current_epoch - fn_curriculum_start_epoch
                         )
-                        if epochs_since_start % self.hparams.fn_cluster_every_n_epochs == 0:
+                        if epochs_since_start % fn_cluster_every_n_epochs == 0:
                             self._update_pseudo_labels()
             
             # Collect all evaluation metrics for JSON logging
@@ -1766,15 +1845,25 @@ class NAICSContrastiveModel(pyl.LightningModule):
             val_loss = None
             
             if hasattr(self.trainer, 'callback_metrics'):
-                train_loss = self.trainer.callback_metrics.get('train/total_loss', None)
-                train_contrastive_loss = self.trainer.callback_metrics.get('train/contrastive_loss', None)
+                train_loss = self.trainer.callback_metrics.get(
+                    'train/total_loss', None
+                )
+                train_contrastive_loss = self.trainer.callback_metrics.get(
+                    'train/contrastive_loss', None
+                )
                 val_loss = self.trainer.callback_metrics.get('val/contrastive_loss', None)
             
             epoch_metrics = {
                 'epoch': self.current_epoch,
                 # Training metrics (from callback_metrics)
-                'train_loss': self._to_python_scalar(train_loss) if train_loss is not None else None,
-                'train_contrastive_loss': self._to_python_scalar(train_contrastive_loss) if train_contrastive_loss is not None else None,
+                'train_loss': (
+                    self._to_python_scalar(train_loss)
+                    if train_loss is not None else None
+                ),
+                'train_contrastive_loss': (
+                    self._to_python_scalar(train_contrastive_loss)
+                    if train_contrastive_loss is not None else None
+                ),
                 # Validation metrics
                 'val_loss': self._to_python_scalar(val_loss) if val_loss is not None else None,
                 # Hyperbolic metrics
@@ -1857,10 +1946,12 @@ class NAICSContrastiveModel(pyl.LightningModule):
         This ensures fresh optimizer state for each curriculum stage.
         Issue #13: Add warmup + cosine decay for large training jobs.
         '''
+        learning_rate = getattr(self.hparams, 'learning_rate', 2e-4)
+        weight_decay = getattr(self.hparams, 'weight_decay', 0.01)
         optimizer = torch.optim.AdamW(
             self.parameters(),
-            lr=self.hparams.learning_rate,
-            weight_decay=self.hparams.weight_decay
+            lr=learning_rate,
+            weight_decay=weight_decay
         )
         
         use_warmup_cosine = getattr(self.hparams, 'use_warmup_cosine', False)
@@ -1869,7 +1960,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
             # Warmup + Cosine Annealing scheduler
             # Use LambdaLR for flexible scheduling that works even when trainer isn't initialized
             warmup_steps = getattr(self.hparams, 'warmup_steps', 500)
-            base_lr = self.hparams.learning_rate
+            base_lr = learning_rate
             min_lr = 1e-6
             
             # Capture self in closure for accessing trainer later

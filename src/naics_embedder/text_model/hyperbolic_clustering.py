@@ -4,13 +4,12 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import torch
-import torch.nn as nn
 
-from naics_embedder.text_model.hyperbolic import LorentzDistance, LorentzOps
+from naics_embedder.text_model.hyperbolic import LorentzDistance
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +152,6 @@ class HyperbolicKMeans:
         if points.shape[0] == 1:
             return points
         
-        device = points.device
         
         # Initialize with first point or provided guess
         if initial_guess is not None:
@@ -219,7 +217,8 @@ class HyperbolicKMeans:
         # Project to tangent space (simplified - assumes base is near origin)
         # For more accuracy, we'd need proper parallel transport
         # This approximation works well when base points are not too far from origin
-        tangent_vec = direction * dist.unsqueeze(0) / (torch.norm(direction, dim=1, keepdim=True) + 1e-8)
+        direction_norm = torch.norm(direction, dim=1, keepdim=True) + 1e-8
+        tangent_vec = direction * dist.unsqueeze(0) / direction_norm
         
         return tangent_vec
     
@@ -271,7 +270,7 @@ class HyperbolicKMeans:
         Returns:
             Projected point on hyperboloid (1, D+1)
         '''
-        x0 = point[:, 0:1]
+        point[:, 0:1]
         x_spatial = point[:, 1:]
         
         # Compute spatial norm
@@ -314,7 +313,7 @@ class HyperbolicKMeans:
         
         if n_samples < self.n_clusters:
             raise ValueError(
-                f"Number of samples ({n_samples}) must be >= n_clusters ({self.n_clusters})"
+                f'Number of samples ({n_samples}) must be >= n_clusters ({self.n_clusters})'
             )
         
         # Initialize centers
@@ -406,7 +405,7 @@ class HyperbolicKMeans:
         '''
         self.fit(embeddings)
         if self.labels_ is None:
-            raise RuntimeError("Labels not set after fit")
+            raise RuntimeError('Labels not set after fit')
         return self.labels_
     
     def predict(self, embeddings: torch.Tensor) -> np.ndarray:
@@ -420,7 +419,7 @@ class HyperbolicKMeans:
             Cluster labels (N,)
         '''
         if self.cluster_centers_ is None:
-            raise ValueError("Model must be fitted before prediction")
+            raise ValueError('Model must be fitted before prediction')
         
         device = embeddings.device
         n_samples = embeddings.shape[0]

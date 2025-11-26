@@ -71,11 +71,19 @@ class CurriculumScheduler:
         self.phase2_end_epoch = int(max_epochs * phase2_end)
         self.phase3_end_epoch = int(max_epochs * phase3_end)
         
+        phase1_pct = phase1_end * 100
+        phase2_pct = phase2_end * 100
+        phase3_pct = phase3_end * 100
         logger.info(
             f'CurriculumScheduler initialized:\n'
-            f'  Phase 1 (Structural Initialization): epochs 0-{self.phase1_end_epoch} (0-{phase1_end*100:.0f}%)\n'
-            f'  Phase 2 (Geometric Refinement): epochs {self.phase1_end_epoch+1}-{self.phase2_end_epoch} ({phase1_end*100:.0f}-{phase2_end*100:.0f}%)\n'
-            f'  Phase 3 (False Negative Mitigation): epochs {self.phase2_end_epoch+1}-{self.phase3_end_epoch} ({phase2_end*100:.0f}-{phase3_end*100:.0f}%)'
+            f'  Phase 1 (Structural Initialization): '
+            f'epochs 0-{self.phase1_end_epoch} (0-{phase1_pct:.0f}%)\n'
+            f'  Phase 2 (Geometric Refinement): '
+            f'epochs {self.phase1_end_epoch+1}-{self.phase2_end_epoch} '
+            f'({phase1_pct:.0f}-{phase2_pct:.0f}%)\n'
+            f'  Phase 3 (False Negative Mitigation): '
+            f'epochs {self.phase2_end_epoch+1}-{self.phase3_end_epoch} '
+            f'({phase2_pct:.0f}-{phase3_pct:.0f}%)'
         )
     
     def get_phase(self, current_epoch: int) -> int:
@@ -123,7 +131,7 @@ class CurriculumScheduler:
             - enable_clustering: Enable clustering-based FNE
         '''
         phase = self.get_phase(current_epoch)
-        progress = self.get_epoch_progress(current_epoch)
+        self.get_epoch_progress(current_epoch)
         
         flags = {
             'use_tree_distance': phase == 1,  # Phase 1 only
@@ -173,11 +181,12 @@ class CurriculumScheduler:
                 2: 'Geometric Refinement',
                 3: 'False Negative Mitigation'
             }
+            progress_pct = self.get_epoch_progress(current_epoch) * 100
             logger.info(
                 f'\n{"="*80}\n'
                 f'CURRICULUM PHASE TRANSITION: Phase {previous_phase} -> Phase {current_phase}\n'
                 f'Phase {current_phase}: {phase_names[current_phase]}\n'
-                f'Epoch: {current_epoch}/{self.max_epochs} ({self.get_epoch_progress(current_epoch)*100:.1f}%)\n'
+                f'Epoch: {current_epoch}/{self.max_epochs} ({progress_pct:.1f}%)\n'
                 f'{"="*80}\n'
             )
             

@@ -145,7 +145,7 @@ class MixtureOfExperts(nn.Module):
             end_idx = expert_boundaries[i + 1]
             
             if end_idx > start_idx:
-                expert_idx = expert_indices_sorted[start_idx].item()
+                expert_idx = int(expert_indices_sorted[start_idx].item())
                 
                 # Extract all inputs for this expert in one slice
                 expert_input = x_sorted[start_idx:end_idx]  # (n_items, input_dim)

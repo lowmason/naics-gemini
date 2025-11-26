@@ -37,10 +37,7 @@ from naics_embedder.utils.config import (
 )
 from naics_embedder.utils.console import configure_logging
 from naics_embedder.utils.training import (
-    HardwareInfo,
     TrainingResult,
-    collect_training_result,
-    create_trainer,
     detect_hardware,
     parse_config_overrides,
     resolve_checkpoint,
@@ -67,7 +64,8 @@ def generate_embeddings_from_checkpoint(
     output_path: Optional[str] = None,
     batch_size: int = 32
 ) -> str:
-    """Generate hyperbolic embeddings parquet file from a trained checkpoint.
+
+    '''Generate hyperbolic embeddings parquet file from a trained checkpoint.
 
     Loads a trained model checkpoint, runs inference on all NAICS codes, and
     writes the resulting embeddings to a parquet file compatible with HGCN
@@ -85,7 +83,8 @@ def generate_embeddings_from_checkpoint(
 
     Returns:
         str: Filesystem path to the generated embeddings parquet file.
-    """
+    '''
+    
     logger.info('=' * 80)
     logger.info('GENERATING EMBEDDINGS FROM CHECKPOINT')
     logger.info('=' * 80)
@@ -172,15 +171,17 @@ def generate_embeddings_from_checkpoint(
                 tokens = token_cache[idx]
                 
                 for channel in ['title', 'description', 'excluded', 'examples']:
-                    channel_inputs[channel]['input_ids'].append(tokens[channel]['input_ids'])
-                    channel_inputs[channel]['attention_mask'].append(tokens[channel]['attention_mask'])
+                    channel_inputs[channel]['input_ids'].append(tokens[channel]['input_ids'])  # pyright: ignore[reportArgumentType]
+                    channel_inputs[channel]['attention_mask'].append(
+                        tokens[channel]['attention_mask']  # pyright: ignore[reportArgumentType]
+                    )
             
             # Stack tensors
             for channel in channel_inputs:
-                channel_inputs[channel]['input_ids'] = torch.stack(
+                channel_inputs[channel]['input_ids'] = torch.stack(  # pyright: ignore[reportArgumentType]
                     channel_inputs[channel]['input_ids']
                 ).to(device)
-                channel_inputs[channel]['attention_mask'] = torch.stack(
+                channel_inputs[channel]['attention_mask'] = torch.stack(  # pyright: ignore[reportArgumentType]
                     channel_inputs[channel]['attention_mask']
                 ).to(device)
             
@@ -195,7 +196,10 @@ def generate_embeddings_from_checkpoint(
             all_codes.extend(batch_codes)
             
             if (batch_idx + 1) % 10 == 0 or batch_idx == num_batches - 1:
-                logger.info(f'  Processed {end_idx:,} / {df.height:,} codes ({(end_idx/df.height)*100:.1f}%)')
+                logger.info(
+                    f'  Processed {end_idx:,} / {df.height:,} '
+                    f'codes ({(end_idx/df.height)*100:.1f}%)'
+                )
     
     # Concatenate all embeddings
     logger.info('Concatenating embeddings...')
@@ -263,6 +267,7 @@ def train(
         ),
     ] = None,
 ):
+
     '''
     Train the NAICS text encoder with contrastive learning.
     
@@ -428,11 +433,18 @@ def train(
         
         # Handle checkpoint resumption using centralized utility
         checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
-        checkpoint_info = resolve_checkpoint(ckpt_path, Path(cfg.dirs.checkpoint_dir), cfg.experiment_name)
+        checkpoint_info = resolve_checkpoint(
+            ckpt_path, 
+            Path(cfg.dirs.checkpoint_dir), 
+            cfg.experiment_name
+        )
         checkpoint_path = checkpoint_info.path
         
         if checkpoint_info.exists:
-            console.print(f'[green]✓[/green] Resuming from checkpoint: [cyan]{checkpoint_path}[/cyan]\n')
+            console.print(
+                '[green]✓[/green] Resuming from checkpoint: '
+                f'[cyan]{checkpoint_path}[/cyan]\n'
+            )
         elif ckpt_path:
             console.print(f'[yellow]Warning:[/yellow] Checkpoint not found at {ckpt_path}')
             console.print('Starting training from scratch.\n')
@@ -446,7 +458,7 @@ def train(
                 checkpoint_path,
                 # Override learning rate if needed (checkpoint may have different LR)
                 learning_rate=cfg.training.learning_rate,
-                base_margin=cfg.loss.base_margin,
+                base_margin=cfg.loss.base_margin,  # pyright: ignore[reportAttributeAccessIssue]
             )
             logger.info(f'Model loaded from checkpoint: {checkpoint_path}')
         else:
@@ -471,7 +483,7 @@ def train(
                 distance_matrix_path=cfg.data_loader.streaming.distance_matrix_parquet,
                 eval_every_n_epochs=cfg.model.eval_every_n_epochs,
                 eval_sample_size=cfg.model.eval_sample_size,
-                base_margin=cfg.loss.base_margin,
+                base_margin=cfg.loss.base_margin,  # pyright: ignore[reportAttributeAccessIssue]
                 tree_distance_alpha=cfg.curriculum.tree_distance_alpha,
                 curriculum_phase1_end=cfg.curriculum.phase1_end,
                 curriculum_phase2_end=cfg.curriculum.phase2_end,
@@ -486,15 +498,25 @@ def train(
         logger.info('Setting up callbacks and checkpointing...\n')
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
-        # Check if checkpoint is from the same stage (for resuming) or different stage (for loading weights)
+        # Check if checkpoint is from the same stage (for resuming)
+        # Check if different stage (for loading weights)
         resuming_same_stage = checkpoint_info.is_same_stage
         if checkpoint_path:
             if resuming_same_stage:
                 logger.info('Checkpoint is from same stage - will resume training from checkpoint')
-                console.print('[cyan]Resuming training from checkpoint (will continue from saved epoch)[/cyan]\n')
+                console.print(
+                    '[cyan]Resuming training from checkpoint '
+                    '(will continue from saved epoch)[/cyan]\n'
+                )
             else:
-                logger.info('Checkpoint is from different stage - will load weights only, start fresh training')
-                console.print('[cyan]Loading weights from previous stage checkpoint, starting fresh training[/cyan]\n')
+                logger.info(
+                    'Checkpoint is from different stage - will '
+                    'load weights only, start fresh training'
+                )
+                console.print(
+                    '[cyan]Loading weights from previous stage checkpoint, '
+                    'starting fresh training[/cyan]\n'
+                )
         
         checkpoint_callback = ModelCheckpoint(
             dirpath=checkpoint_dir,
@@ -585,7 +607,10 @@ def train(
         best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
         
         if early_stop_triggered and best_loss is not None:
-            logger.info(f'Early stopping triggered at epoch {early_stopping.stopped_epoch} with best loss: {best_loss:.6f}')
+            logger.info(
+                f'Early stopping triggered at epoch {early_stopping.stopped_epoch} '
+                f'with best loss: {best_loss:.6f}'
+            )
         
         console.print(
             f'\n[bold green]✓ Training completed successfully![/bold green]\n'
@@ -594,7 +619,10 @@ def train(
         
         # Print the loss that decided early stopping as the final metric
         if best_loss is not None:
-            label = 'Final evaluation metric (early stopping)' if early_stop_triggered else 'Final evaluation metric'
+            if early_stop_triggered:
+               label = 'Final evaluation metric (early stopping)' 
+            else:
+                label = 'Final evaluation metric'
             console.print(
                 f'[bold]{label}:[/bold] '
                 f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
@@ -623,7 +651,10 @@ def train(
             hardware=hardware,
             output_dir=checkpoint_dir
         )
-        console.print(f'Training summary saved: [cyan]{summary_paths.get("yaml", summary_paths.get("json"))}[/cyan]\n')
+        console.print(
+            'Training summary saved: [cyan]'
+            f'f{summary_paths.get("yaml", summary_paths.get("json"))}[/cyan]\n'
+        )
         
         # Prompt to generate embeddings for HGCN training
         console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
@@ -688,6 +719,7 @@ def train_sequential(
         ),
     ] = None,
 ):
+
     '''
     Deprecated legacy sequential training (unsupported).
 
@@ -725,7 +757,10 @@ def train_sequential(
         console.print('  [cyan]uv run naics-embedder train[/cyan]')
         console.print('\n[bold]To continue with deprecated sequential training:[/bold]')
         console.print('  [cyan]uv run naics-embedder train-seq --legacy[/cyan]')
-        console.print('\nFor migration guidance, see: [link]https://lowmason.github.io/naics-embedder/text_training[/link]\n')
+        console.print(
+            '\nFor migration guidance, see: '
+            '[link]https://lowmason.github.io/naics-embedder/text_training[/link]\n'
+        )
         raise typer.Exit(code=1)
 
     console.rule('[bold cyan]Starting Sequential Training (Legacy)[/bold cyan]')
@@ -739,6 +774,9 @@ def train_sequential(
     # Train each stage
     for i in range(1, num_stages + 1):
         console.rule(f'[bold green]Stage {i}/{num_stages}[/bold green]')
+        
+        # Generate curriculum identifier for this stage (e.g., "01_text", "02_text")
+        curriculum = f'{i:02d}_text'
 
         try:
             # Load config for this stage
@@ -763,7 +801,7 @@ def train_sequential(
             Path(cfg.dirs.checkpoint_dir).mkdir(parents=True, exist_ok=True)
             
             # Initialize data module
-            datamodule = NAICSDataModule(cfg)
+            datamodule = NAICSDataModule(cfg)  # pyright: ignore[reportArgumentType]
             
             # Initialize model (load from checkpoint if available)
             if last_checkpoint:
@@ -774,7 +812,7 @@ def train_sequential(
                     strict=False
                 )
             else:
-                model = NAICSContrastiveModel(cfg)
+                model = NAICSContrastiveModel(cfg) # pyright: ignore[reportArgumentType]
             
             # Setup callbacks
             checkpoint_callback = ModelCheckpoint(
@@ -788,7 +826,7 @@ def train_sequential(
             
             early_stopping = EarlyStopping(
                 monitor='val_loss',
-                patience=cfg.training.trainer.early_stopping_patience,
+                patience=cfg.training.trainer.early_stopping_patience,  # pyright: ignore[reportAttributeAccessIssue]
                 mode='min',
                 verbose=True
             )
@@ -805,8 +843,8 @@ def train_sequential(
                 accelerator='gpu' if get_device() == 'cuda' else 'cpu',
                 devices=1,
                 precision='16-mixed',
-                gradient_clip_val=cfg.training.optimizer.gradient_clip_val,
-                accumulate_grad_batches=cfg.training.optimizer.accumulate_grad_batches,
+                gradient_clip_val=cfg.training.optimizer.gradient_clip_val,  # pyright: ignore[reportAttributeAccessIssue]
+                accumulate_grad_batches=cfg.training.optimizer.accumulate_grad_batches,  # pyright: ignore[reportAttributeAccessIssue]
                 log_every_n_steps=cfg.training.trainer.log_every_n_steps,
                 val_check_interval=cfg.training.trainer.val_check_interval,
                 callbacks=[checkpoint_callback, early_stopping],
@@ -826,7 +864,10 @@ def train_sequential(
             best_loss = early_stopping.best_score if early_stopping.best_score is not None else None
             
             if early_stop_triggered and best_loss is not None:
-                logger.info(f'Early stopping triggered at epoch {early_stopping.stopped_epoch} with best loss: {best_loss:.6f}')
+                logger.info(
+                    f'Early stopping triggered at epoch {early_stopping.stopped_epoch} '
+                    f'with best loss: {best_loss:.6f}'
+                )
             
             console.print(
                 f'\n[green]✓[/green] Stage {i} complete. '
@@ -835,7 +876,10 @@ def train_sequential(
             
             # Print the loss that decided early stopping as the final metric
             if best_loss is not None:
-                label = 'Final evaluation metric (early stopping)' if early_stop_triggered else 'Final evaluation metric'
+                if early_stop_triggered:
+                    label = 'Final evaluation metric (early stopping)'
+                else:
+                    label = 'Final evaluation metric'
                 console.print(
                     f'[bold]{label}:[/bold] '
                     f'[cyan]val/contrastive_loss = {best_loss:.6f}[/cyan]\n'
@@ -868,7 +912,8 @@ def train_sequential(
     if last_checkpoint:
         console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
         generate_embeddings = typer.confirm(
-            f'Generate embeddings parquet file from final checkpoint ({Path(last_checkpoint).name})?',
+            'Generate embeddings parquet file from final checkpoint '
+            f'({Path(last_checkpoint).name})?',
             default=False
         )
 

@@ -73,7 +73,6 @@ naics-embedder/
 │   │   └── dataloader/       # Graph data loading
 │   ├── tools/                # Utility tools for config, metrics, visualization
 │   │   ├── config_tools.py
-│   │   ├── evaluate_training.py
 │   │   ├── metrics_tools.py
 │   │   ├── _visualize_metrics.py
 │   │   └── _investigate_hierarchy.py

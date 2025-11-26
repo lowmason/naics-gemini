@@ -65,10 +65,11 @@ class LorentzianHardNegativeMiner(nn.Module):
         time_norm_sq = time_coord ** 2
         
         # For valid hyperboloid points: spatial_norm_sq - time_norm_sq = -1/c
-        # Lorentz norm (hyperbolic radius) = sqrt(time_norm_sq - spatial_norm_sq) = sqrt(x0^2 - ||x_spatial||^2)
-        # But we can also use: ||x||_L = sqrt(⟨x, x⟩_L + 2/c) = sqrt(-1/c + 2/c) = sqrt(1/c)
+        # Lorentz norm (hyperbolic radius) = sqrt(time_norm_sq - spatial_norm_sq)
+        # = sqrt(x0^2 - ||x_spatial||^2)
+        # But we can also use: ||x||_L = sqrt(⟨x, x⟩_L + 2/c) = sqrt(-1/c + 2/c)
+        # = sqrt(1/c)
         # Actually, the hyperbolic radius is: r = sqrt(x0^2 - 1/c)
-        c = self.curvature
         lorentz_norm_sq = time_norm_sq - spatial_norm_sq  # Should be 1/c for valid points
         lorentz_norm = torch.sqrt(torch.clamp(lorentz_norm_sq, min=1e-8))
         
@@ -84,7 +85,8 @@ class LorentzianHardNegativeMiner(nn.Module):
         
         Args:
             u: First point on hyperboloid (batch_size, embedding_dim+1)
-            v: Second point on hyperboloid (batch_size, k, embedding_dim+1) or (batch_size, embedding_dim+1)
+            v: Second point on hyperboloid (batch_size, k, embedding_dim+1) or
+                (batch_size, embedding_dim+1)
         
         Returns:
             Tuple of (safe_dot_product, is_valid)
@@ -150,7 +152,7 @@ class LorentzianHardNegativeMiner(nn.Module):
             num_candidates = candidate_negatives.shape[1]
         else:
             raise ValueError(
-                f"Invalid candidate_negatives shape: {candidate_negatives.shape}"
+                f'Invalid candidate_negatives shape: {candidate_negatives.shape}'
             )
         
         # Safety check: ensure Lorentz inner products are valid
@@ -161,8 +163,8 @@ class LorentzianHardNegativeMiner(nn.Module):
         
         if not is_valid:
             logger.warning(
-                f"Some anchor-negative pairs violate Lorentz constraint "
-                f"(⟨u, v⟩_L < -1). Clamping applied."
+                'Some anchor-negative pairs violate Lorentz constraint '
+                '(⟨u, v⟩_L < -1). Clamping applied.'
             )
         
         # Compute Lorentzian distances for all anchor-candidate pairs
@@ -241,8 +243,10 @@ class RouterGuidedNegativeMiner(nn.Module):
         
         KL(P_anchor || P_negative) = sum(P_anchor * log(P_anchor / P_negative))
         
-        Lower KL-divergence means similar distributions (router assigns similar expert probabilities).
-        We want negatives with similar gate distributions (low KL-divergence) to confuse the router,
+        Lower KL-divergence means similar distributions
+        (router assigns similar expert probabilities).
+        We want negatives with similar gate distributions (low KL-divergence)
+        to confuse the router,
         as they make the router think the negative is similar to the anchor.
         
         Args:
@@ -292,7 +296,8 @@ class RouterGuidedNegativeMiner(nn.Module):
         anchor_norm = torch.norm(anchor_gate_probs, dim=1, keepdim=True)  # (batch_size, 1)
         anchor_normalized = anchor_gate_probs / (anchor_norm + 1e-8)
         
-        negative_norm = torch.norm(negative_gate_probs, dim=2, keepdim=True)  # (batch_size, k_negatives, 1)
+        # (batch_size, k_negatives, 1)
+        negative_norm = torch.norm(negative_gate_probs, dim=2, keepdim=True)
         negative_normalized = negative_gate_probs / (negative_norm + 1e-8)
         
         # Expand anchor for broadcasting: (batch_size, 1, num_experts)
@@ -330,7 +335,7 @@ class RouterGuidedNegativeMiner(nn.Module):
             # Higher cosine similarity = more confusion
             return scores
         else:
-            raise ValueError(f"Unknown metric: {self.metric}")
+            raise ValueError(f'Unknown metric: {self.metric}')
     
     def mine_router_hard_negatives(
         self,
@@ -345,8 +350,10 @@ class RouterGuidedNegativeMiner(nn.Module):
         
         Args:
             anchor_gate_probs: Anchor gate probabilities (batch_size, num_experts)
-            negative_gate_probs: Negative gate probabilities (batch_size, k_negatives, num_experts)
-            candidate_negatives: Candidate negative embeddings (batch_size, k_negatives, embedding_dim+1)
+            negative_gate_probs: Negative gate probabilities
+                (batch_size, k_negatives, num_experts)
+            candidate_negatives: Candidate negative embeddings
+                (batch_size, k_negatives, embedding_dim+1)
             k: Number of router-hard negatives to select
             return_scores: If True, also return confusion scores
         
@@ -438,7 +445,6 @@ class NormAdaptiveMargin(nn.Module):
         
         # Hyperbolic radius: r = sqrt(x0^2 - ||x_spatial||^2)
         # For valid hyperboloid: x0^2 - ||x_spatial||^2 = 1/c
-        c = self.curvature
         lorentz_norm_sq = time_norm_sq - spatial_norm_sq
         lorentz_norm = torch.sqrt(torch.clamp(lorentz_norm_sq, min=1e-8))
         

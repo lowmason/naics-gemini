@@ -15,8 +15,6 @@ import polars as pl
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from naics_embedder.utils.utilities import get_indices_codes
-
 logger = logging.getLogger(__name__)
 
 
@@ -207,7 +205,7 @@ def _build_polars_query(
     )
     
     # Execute query
-    logger.info(f'Executing Polars query (this may take 30-60 seconds for large datasets)...')
+    logger.info('Executing Polars query (this may take 30-60 seconds for large datasets)...')
     df_1 = df_1.collect()
     logger.info(f'✓ Polars query complete: {len(df_1)} rows')
     
@@ -304,6 +302,14 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
 # Create dataloader
 # -------------------------------------------------------------------------------------------------
 
+def _load_codes_and_indices(descriptions_parquet: str) -> tuple[List[str], Dict[str, int]]:
+    '''Load codes and code_to_idx mapping from parquet file.'''
+    df_codes = pl.read_parquet(descriptions_parquet).select('index', 'code')
+    codes = df_codes['code'].to_list()
+    code_to_idx = {row['code']: row['index'] for row in df_codes.iter_rows(named=True)}
+    return codes, code_to_idx
+
+
 def create_dataloader(cfg: Config) -> DataLoader:
     '''
     Create a PyTorch DataLoader for graph training.
@@ -317,8 +323,7 @@ def create_dataloader(cfg: Config) -> DataLoader:
         DataLoader instance
     '''
     # Load codes and indices
-    codes = get_indices_codes(cfg.descriptions_parquet, return_type='codes')
-    code_to_idx = get_indices_codes(cfg.descriptions_parquet, return_type='code_to_idx')
+    codes, code_to_idx = _load_codes_and_indices(cfg.descriptions_parquet)
     
     # Build Polars query
     df_1 = _build_polars_query(cfg, codes, code_to_idx)

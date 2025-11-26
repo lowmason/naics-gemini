@@ -6,7 +6,6 @@ import hashlib
 import json
 import logging
 import operator
-import os
 import pickle
 import time
 from collections import defaultdict
@@ -18,7 +17,6 @@ import numpy as np
 import polars as pl
 
 from naics_embedder.utils.config import StreamingConfig
-from naics_embedder.utils.utilities import get_indices_codes
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +139,9 @@ def _get_weighted_sample(
     )
 
 
-def _load_codes_and_indices(descriptions_parquet: str, worker_id: str) -> tuple[List[str], Dict[str, int]]:
+def _load_codes_and_indices(
+    descriptions_parquet: str, worker_id: str
+) -> tuple[List[str], Dict[str, int]]:
     '''Load codes and code_to_idx mapping from cache or parquet.'''
     cache_dir = Path(descriptions_parquet).parent / 'codes_cache'
     codes_cache_path = cache_dir / 'codes_indices.pkl'
@@ -265,7 +265,10 @@ def _build_polars_query(
     )
     
     # Execute query
-    logger.info(f'{worker_id} Executing Polars query (this may take 30-60 seconds for large datasets)...')
+    logger.info(
+        f'{worker_id} Executing Polars query '
+        f'(this may take 30-60 seconds for large datasets)...'
+    )
     start_time = time.time()
     df_1 = df_1.collect()
     query_time = time.time() - start_time
@@ -315,10 +318,10 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
     try:
         import torch
         worker_info = torch.utils.data.get_worker_info()
-    except:
+    except Exception:
         pass
     
-    worker_id = f"Worker {worker_info.id}" if worker_info else "Main"
+    worker_id = f'Worker {worker_info.id}' if worker_info else 'Main'
     
     # Try to load final cache first
     df_list = _load_final_cache(cfg)
@@ -343,8 +346,8 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
     # Log statistics (main process only, once per config)
     if worker_info is None:
         config_id = (
-            f"{cfg.descriptions_parquet}_{cfg.triplets_parquet}_{cfg.anchor_level}_"
-            f"{cfg.n_positives}_{cfg.n_negatives}_{cfg.seed}"
+            f'{cfg.descriptions_parquet}_{cfg.triplets_parquet}_{cfg.anchor_level}_'
+            f'{cfg.n_positives}_{cfg.n_negatives}_{cfg.seed}'
         )
         
         if config_id not in _logged_configs:
@@ -361,10 +364,6 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
     
     # Iterate from list of dicts (no Polars involved)
     for row in df_list:
-        
-        # Group by (anchor_idx, positive_idx) to deduplicate
-        key = (row['anchors']['anchor_idx'], row['positives']['positive_idx'])
-        
         negatives = [
             {
                 'negative_idx': neg['negative_idx'],
@@ -398,13 +397,14 @@ def create_streaming_dataset(
     
     # Yield triplets with tokenized embeddings
     for triplets in triplets_iterator:
-        
         anchor_idx = triplets['anchor_idx']
         anchor_code = triplets['anchor_code']
         try:
-            anchor_embedding = {k: v for k, v in token_cache[anchor_idx].items() if k != 'code'}
+            anchor_embedding = {
+                k: v for k, v in token_cache[anchor_idx].items() if k != 'code'
+            }
         except KeyError as e:
-            logger.error(f'{worker_id} KeyError accessing token_cache[{anchor_idx}]: {e}')
+            logger.error(f'KeyError accessing token_cache[{anchor_idx}]: {e}')
             raise
         
         positive_idx = triplets['positive_idx']

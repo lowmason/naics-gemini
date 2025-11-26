@@ -10,8 +10,8 @@ import torch.nn as nn
 from peft import LoraConfig, get_peft_model
 from transformers import AutoModel
 
-from naics_embedder.text_model.moe import MixtureOfExperts
 from naics_embedder.text_model.hyperbolic import HyperbolicProjection
+from naics_embedder.text_model.moe import MixtureOfExperts
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +65,10 @@ class MultiChannelEncoder(nn.Module):
         # Enable gradient checkpointing to save memory
         if use_gradient_checkpointing:
             for channel in self.channels:
-                self.encoders[channel].enable_input_require_grads()
-                self.encoders[channel].base_model.gradient_checkpointing_enable()
+                encoder = self.encoders[channel]  # type: ignore[assignment]
+                encoder.enable_input_require_grads()  # type: ignore[attr-defined]
+                base_model = encoder.base_model  # type: ignore[attr-defined]
+                base_model.gradient_checkpointing_enable()  # type: ignore[attr-defined]
             logger.info('Gradient checkpointing enabled for memory efficiency\n')
         
         # Mixture of Experts
@@ -116,8 +118,10 @@ class MultiChannelEncoder(nn.Module):
         
         Returns:
             Dict with:
-                - 'embedding': Hyperbolic embedding in Lorentz model (batch_size, embedding_dim+1)
-                - 'embedding_euc': Euclidean embedding before projection (batch_size, embedding_dim) [optional]
+                - 'embedding': Hyperbolic embedding in Lorentz model
+                    (batch_size, embedding_dim+1)
+                - 'embedding_euc': Euclidean embedding before projection
+                    (batch_size, embedding_dim) [optional]
                 - 'gate_probs': MoE gating probabilities
                 - 'top_k_indices': MoE top-k expert indices
         '''

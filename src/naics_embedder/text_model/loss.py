@@ -3,11 +3,10 @@
 # -------------------------------------------------------------------------------------------------
 
 import logging
-from typing import Optional, Dict, List, Callable
+from typing import Callable, Dict, List, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from naics_embedder.text_model.hyperbolic import LorentzDistance
 
@@ -55,8 +54,10 @@ class HyperbolicInfoNCELoss(nn.Module):
         
         Args:
             anchor_emb: Anchor hyperbolic embeddings (batch_size, embedding_dim+1)
-            positive_emb: Positive hyperbolic embeddings (batch_size, embedding_dim+1)
-            negative_embs: Negative hyperbolic embeddings (batch_size * k_negatives, embedding_dim+1)
+            positive_emb: Positive hyperbolic embeddings
+                (batch_size, embedding_dim+1)
+            negative_embs: Negative hyperbolic embeddings
+                (batch_size * k_negatives, embedding_dim+1)
             batch_size: Batch size
             k_negatives: Number of negatives per anchor
             false_negative_mask: Optional mask for false negatives (batch_size, k_negatives)
@@ -182,7 +183,7 @@ class HierarchyPreservationLoss(nn.Module):
         ], device=embeddings.device)
         
         # Get ground truth distances for these codes
-        gt_dists = self.tree_distances[gt_indices][:, gt_indices]
+        gt_dists = self.tree_distances[gt_indices][:, gt_indices]  # type: ignore[index]
         
         # Compute embedding distances
         N = valid_embeddings.shape[0]
@@ -295,7 +296,7 @@ class RankOrderPreservationLoss(nn.Module):
         ], device=embeddings.device)
         
         # Get ground truth distances for these codes
-        gt_dists = self.tree_distances[gt_indices][:, gt_indices]
+        gt_dists = self.tree_distances[gt_indices][:, gt_indices]  # type: ignore[index]
         
         # Compute embedding distances (efficiently using vectorized operations)
         # For each pair (i, j), compute distance
@@ -312,7 +313,8 @@ class RankOrderPreservationLoss(nn.Module):
                 emb_dists[j, i] = dist
         
         # Ranking loss: for each anchor i, compare all pairs (j, k) where j != k != i
-        # If gt_dists[i, j] < gt_dists[i, k], then emb_dists[i, j] should be < emb_dists[i, k] + margin
+        # If gt_dists[i, j] < gt_dists[i, k], then emb_dists[i, j] should be
+        # < emb_dists[i, k] + margin
         total_loss = torch.tensor(0.0, device=embeddings.device)
         num_violations = 0
         
@@ -583,13 +585,13 @@ class LambdaRankLoss(nn.Module):
             pos_idx = self.code_to_idx[positive_code]
             
             # Get tree distance for positive
-            pos_tree_dist = self.tree_distances[anchor_idx, pos_idx]
+            pos_tree_dist = self.tree_distances[anchor_idx, pos_idx]  # type: ignore[index]
             
             # Get tree distances for negatives
             neg_tree_dists = []
             for neg_code in valid_neg_codes:
                 neg_idx = self.code_to_idx[neg_code]
-                neg_tree_dist = self.tree_distances[anchor_idx, neg_idx]
+                neg_tree_dist = self.tree_distances[anchor_idx, neg_idx]  # type: ignore[index]
                 neg_tree_dists.append(neg_tree_dist)
             
             all_tree_dists = torch.cat([
