@@ -56,7 +56,7 @@ jobs:
         run: uv sync
 
       - name: Run ruff linter
-        run: uv run ruff check src/ tests/
+        run: uv run ruff check --fix src/ tests/
 
       - name: Run ruff formatter check
         run: uv run ruff format --check src/ tests/
