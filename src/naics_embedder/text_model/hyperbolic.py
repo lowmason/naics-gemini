@@ -11,11 +11,9 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Hyperbolic Projection to Lorentz Model
 # -------------------------------------------------------------------------------------------------
-
 
 class HyperbolicProjection(nn.Module):
     '''
@@ -97,11 +95,9 @@ class HyperbolicProjection(nn.Module):
         hyperbolic_embedding = self.exp_map_zero(tangent_vec)
         return hyperbolic_embedding
 
-
 # -------------------------------------------------------------------------------------------------
 # Lorentz Distance Computation
 # -------------------------------------------------------------------------------------------------
-
 
 class LorentzDistance(nn.Module):
     '''
@@ -182,11 +178,9 @@ class LorentzDistance(nn.Module):
 
         return dist
 
-
 # -------------------------------------------------------------------------------------------------
 # Hyperbolic Manifold Validation and Diagnostics
 # -------------------------------------------------------------------------------------------------
-
 
 def check_lorentz_manifold_validity(
     embeddings: torch.Tensor, curvature: float = 1.0, tolerance: float = 1e-3
@@ -223,7 +217,6 @@ def check_lorentz_manifold_validity(
 
     return is_valid, lorentz_norms, violations
 
-
 def compute_hyperbolic_radii(embeddings: torch.Tensor) -> torch.Tensor:
     '''
     Extract hyperbolic radii (time coordinates) from Lorentz embeddings.
@@ -237,7 +230,6 @@ def compute_hyperbolic_radii(embeddings: torch.Tensor) -> torch.Tensor:
         Hyperbolic radii of shape (batch_size,)
     '''
     return embeddings[:, 0]
-
 
 def log_hyperbolic_diagnostics(
     embeddings: torch.Tensor,
@@ -312,11 +304,9 @@ def log_hyperbolic_diagnostics(
 
     return diagnostics
 
-
 # -------------------------------------------------------------------------------------------------
 # Lorentz Operations Utility Class
 # -------------------------------------------------------------------------------------------------
-
 
 class LorentzOps:
     '''

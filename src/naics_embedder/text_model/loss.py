@@ -12,11 +12,9 @@ from naics_embedder.text_model.hyperbolic import LorentzDistance
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Hyperbolic InfoNCE Loss
 # -------------------------------------------------------------------------------------------------
-
 
 class HyperbolicInfoNCELoss(nn.Module):
     '''
@@ -109,11 +107,9 @@ class HyperbolicInfoNCELoss(nn.Module):
 
         return loss
 
-
 # -------------------------------------------------------------------------------------------------
 # Hierarchy Preservation Loss
 # -------------------------------------------------------------------------------------------------
-
 
 class HierarchyPreservationLoss(nn.Module):
     '''
@@ -181,7 +177,7 @@ class HierarchyPreservationLoss(nn.Module):
 
         for i in range(N):
             for j in range(i + 1, N):
-                dist = lorentz_distance_fn(valid_embeddings[i : i + 1], valid_embeddings[j : j + 1])
+                dist = lorentz_distance_fn(valid_embeddings[i:i + 1], valid_embeddings[j:j + 1])
                 emb_dists[i, j] = dist
                 emb_dists[j, i] = dist
 
@@ -206,15 +202,13 @@ class HierarchyPreservationLoss(nn.Module):
         gt_dists_norm = gt_dists_filtered / (gt_mean + 1e-8)
 
         # MSE loss between normalized distances
-        mse_loss = torch.mean((emb_dists_norm - gt_dists_norm) ** 2)
+        mse_loss = torch.mean((emb_dists_norm - gt_dists_norm)**2)
 
         return self.weight * mse_loss
-
 
 # -------------------------------------------------------------------------------------------------
 # Rank Order Preservation Loss
 # -------------------------------------------------------------------------------------------------
-
 
 class RankOrderPreservationLoss(nn.Module):
     '''
@@ -293,7 +287,7 @@ class RankOrderPreservationLoss(nn.Module):
         # Use vectorized computation if possible, otherwise loop
         for i in range(N):
             for j in range(i + 1, N):
-                dist = lorentz_distance_fn(valid_embeddings[i : i + 1], valid_embeddings[j : j + 1])
+                dist = lorentz_distance_fn(valid_embeddings[i:i + 1], valid_embeddings[j:j + 1])
                 emb_dists[i, j] = dist
                 emb_dists[j, i] = dist
 
@@ -320,7 +314,7 @@ class RankOrderPreservationLoss(nn.Module):
 
             # For each pair (j, k) where j < k and both are valid
             for idx_j, j in enumerate(valid_j):
-                for k in valid_j[idx_j + 1 :]:
+                for k in valid_j[idx_j + 1:]:
                     gt_dist_j = anchor_gt_dists[j]
                     gt_dist_k = anchor_gt_dists[k]
                     emb_dist_j = anchor_emb_dists[j]
@@ -351,11 +345,9 @@ class RankOrderPreservationLoss(nn.Module):
 
         return self.weight * avg_loss
 
-
 # -------------------------------------------------------------------------------------------------
 # LambdaRank Loss (Global Ranking)
 # -------------------------------------------------------------------------------------------------
-
 
 class LambdaRankLoss(nn.Module):
     '''
@@ -532,8 +524,8 @@ class LambdaRankLoss(nn.Module):
                 continue
 
             # Get embeddings for this anchor
-            anchor_emb_b = anchor_emb[b : b + 1]  # (1, D+1)
-            positive_emb_b = positive_emb[b : b + 1]  # (1, D+1)
+            anchor_emb_b = anchor_emb[b:b + 1]  # (1, D+1)
+            positive_emb_b = positive_emb[b:b + 1]  # (1, D+1)
             negative_embs_b = negative_embs_reshaped[b]  # (k_negatives, D+1)
 
             # Compute distances from anchor to positive and negatives
@@ -546,7 +538,7 @@ class LambdaRankLoss(nn.Module):
 
             for i, neg_code in enumerate(negative_codes_b):
                 if neg_code in self.code_to_idx:
-                    neg_emb = negative_embs_b[i : i + 1]  # (1, D+1)
+                    neg_emb = negative_embs_b[i:i + 1]  # (1, D+1)
                     neg_dist = lorentz_distance_fn(anchor_emb_b, neg_emb).squeeze()  # scalar
                     neg_dists.append(neg_dist)
                     valid_neg_indices.append(i)

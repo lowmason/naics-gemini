@@ -41,11 +41,9 @@ try:
 except ImportError:
     HAS_INVESTIGATE = False
 
-
 # -------------------------------------------------------------------------------------------------
 # Visualize metrics
 # -------------------------------------------------------------------------------------------------
-
 
 def visualize_metrics(
     stage: str = '02_text',
@@ -126,11 +124,9 @@ def visualize_metrics(
         'num_epochs': len(metrics),
     }
 
-
 # -------------------------------------------------------------------------------------------------
 # Investigate hierarchy preservation metrics
 # -------------------------------------------------------------------------------------------------
-
 
 def investigate_hierarchy(
     distance_matrix_path: Optional[Path] = None,

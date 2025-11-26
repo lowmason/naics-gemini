@@ -13,11 +13,9 @@ from naics_embedder.text_model.hyperbolic import LorentzDistance
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Hyperbolic K-Means Clustering
 # -------------------------------------------------------------------------------------------------
-
 
 class HyperbolicKMeans:
     '''
@@ -93,7 +91,7 @@ class HyperbolicKMeans:
             torch.manual_seed(self.random_state)
 
         # Select first center randomly
-        centers = [embeddings[torch.randint(0, n_samples, (1,), device=device)]]
+        centers = [embeddings[torch.randint(0, n_samples, (1, ), device=device)]]
 
         # Select remaining centers using k-means++ strategy
         for _ in range(n_clusters - 1):
@@ -120,7 +118,10 @@ class HyperbolicKMeans:
         return torch.cat(centers, dim=0)
 
     def _frechet_mean(
-        self, points: torch.Tensor, initial_guess: Optional[torch.Tensor] = None, max_iter: int = 10
+        self,
+        points: torch.Tensor,
+        initial_guess: Optional[torch.Tensor] = None,
+        max_iter: int = 10
     ) -> torch.Tensor:
         '''
         Compute Fréchet mean (hyperbolic centroid) of points on hyperboloid.
@@ -329,11 +330,13 @@ class HyperbolicKMeans:
 
                 if len(cluster_points) == 0:
                     # Empty cluster: reinitialize randomly
-                    new_centers.append(embeddings[torch.randint(0, n_samples, (1,), device=device)])
+                    new_centers.append(
+                        embeddings[torch.randint(0, n_samples, (1, ), device=device)]
+                    )
                 else:
                     # Compute Fréchet mean
                     cluster_mean = self._frechet_mean(
-                        cluster_points, initial_guess=centers[cluster_id : cluster_id + 1]
+                        cluster_points, initial_guess=centers[cluster_id:cluster_id + 1]
                     )
                     new_centers.append(cluster_mean)
 
@@ -342,9 +345,8 @@ class HyperbolicKMeans:
             # Check convergence
             center_shift = torch.tensor(0.0, device=device)
             for old_center, new_center in zip(centers, new_centers):
-                shift = self.lorentz_distance(
-                    old_center.unsqueeze(0), new_center.unsqueeze(0)
-                ).item()
+                shift = self.lorentz_distance(old_center.unsqueeze(0),
+                                              new_center.unsqueeze(0)).item()
                 center_shift = max(center_shift, shift)
 
             centers = new_centers

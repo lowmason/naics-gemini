@@ -11,11 +11,9 @@ from naics_embedder.text_model.hyperbolic import LorentzOps
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Validation Metrics
 # -------------------------------------------------------------------------------------------------
-
 
 def compute_validation_metrics(
     emb: torch.Tensor,

@@ -21,11 +21,9 @@ from naics_embedder.utils.config import StreamingConfig, TokenizationConfig
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Collate function for DataLoader
 # -------------------------------------------------------------------------------------------------
-
 
 def collate_fn(batch: List[Dict]) -> Dict:
     '''Collate function to batch triplets for training.
@@ -150,11 +148,9 @@ def collate_fn(batch: List[Dict]) -> Dict:
 
     return result
 
-
 # -------------------------------------------------------------------------------------------------
 # Wrapper to make generator function work with DataLoader
 # -------------------------------------------------------------------------------------------------
-
 
 class GeneratorDataset(IterableDataset):
     '''Dataset wrapper for streaming generators.'''
@@ -228,11 +224,9 @@ class GeneratorDataset(IterableDataset):
                     yield item
                 count += 1
 
-
 # -------------------------------------------------------------------------------------------------
 # Main DataModule for PyTorch Lightning
 # -------------------------------------------------------------------------------------------------
-
 
 class NAICSDataModule(LightningDataModule):
     '''DataModule for NAICS embedding training.'''

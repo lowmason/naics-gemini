@@ -1,7 +1,6 @@
 # -------------------------------------------------------------------------------------------------
 # Training Commands
 # -------------------------------------------------------------------------------------------------
-
 '''
 CLI commands for training NAICS embedding models.
 
@@ -53,11 +52,9 @@ configure_warnings()
 console = Console()
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Embedding Generation
 # -------------------------------------------------------------------------------------------------
-
 
 def generate_embeddings_from_checkpoint(
     checkpoint_path: str, config: Config, output_path: Optional[str] = None, batch_size: int = 32
@@ -145,10 +142,22 @@ def generate_embeddings_from_checkpoint(
 
             # Prepare batch inputs
             channel_inputs = {
-                'title': {'input_ids': [], 'attention_mask': []},
-                'description': {'input_ids': [], 'attention_mask': []},
-                'excluded': {'input_ids': [], 'attention_mask': []},
-                'examples': {'input_ids': [], 'attention_mask': []},
+                'title': {
+                    'input_ids': [],
+                    'attention_mask': []
+                },
+                'description': {
+                    'input_ids': [],
+                    'attention_mask': []
+                },
+                'excluded': {
+                    'input_ids': [],
+                    'attention_mask': []
+                },
+                'examples': {
+                    'input_ids': [],
+                    'attention_mask': []
+                },
             }
 
             batch_indices = []
@@ -165,7 +174,9 @@ def generate_embeddings_from_checkpoint(
                 tokens = token_cache[idx]
 
                 for channel in ['title', 'description', 'excluded', 'examples']:
-                    channel_inputs[channel]['input_ids'].append(tokens[channel]['input_ids'])  # pyright: ignore[reportArgumentType]
+                    channel_inputs[channel]['input_ids'].append(
+                        tokens[channel]['input_ids']
+                    )  # pyright: ignore[reportArgumentType]
                     channel_inputs[channel]['attention_mask'].append(
                         tokens[channel]['attention_mask']  # pyright: ignore[reportArgumentType]
                     )
@@ -226,7 +237,6 @@ def generate_embeddings_from_checkpoint(
     logger.info(f'Embedding dimension: {embedding_dim}')
 
     return output_path
-
 
 def train(
     config_file: Annotated[
@@ -652,7 +662,6 @@ def train(
         console.print(f'\n[bold red]✗ Training failed:[/bold red] {e}\n')
         raise typer.Exit(code=1)
 
-
 def train_sequential(
     num_stages: Annotated[
         int,
@@ -792,7 +801,8 @@ def train_sequential(
 
             early_stopping = EarlyStopping(
                 monitor='val_loss',
-                patience=cfg.training.trainer.early_stopping_patience,  # pyright: ignore[reportAttributeAccessIssue]
+                patience=cfg.training.trainer
+                .early_stopping_patience,  # pyright: ignore[reportAttributeAccessIssue]
                 mode='min',
                 verbose=True,
             )
@@ -807,8 +817,10 @@ def train_sequential(
                 accelerator='gpu' if get_device() == 'cuda' else 'cpu',
                 devices=1,
                 precision='16-mixed',
-                gradient_clip_val=cfg.training.optimizer.gradient_clip_val,  # pyright: ignore[reportAttributeAccessIssue]
-                accumulate_grad_batches=cfg.training.optimizer.accumulate_grad_batches,  # pyright: ignore[reportAttributeAccessIssue]
+                gradient_clip_val=cfg.training.optimizer
+                .gradient_clip_val,  # pyright: ignore[reportAttributeAccessIssue]
+                accumulate_grad_batches=cfg.training.optimizer
+                .accumulate_grad_batches,  # pyright: ignore[reportAttributeAccessIssue]
                 log_every_n_steps=cfg.training.trainer.log_every_n_steps,
                 val_check_interval=cfg.training.trainer.val_check_interval,
                 callbacks=[checkpoint_callback, early_stopping],

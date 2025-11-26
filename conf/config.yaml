@@ -82,7 +82,7 @@ training:
   use_warmup_cosine: false  # Set to true for large training jobs with many epochs
 
   trainer:
-    max_epochs: 15  # Reduced to prevent unnecessary training
+    max_epochs: 20
     accelerator: auto
     devices: 1
     precision: "16-mixed"

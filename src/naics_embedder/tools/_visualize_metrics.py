@@ -25,11 +25,9 @@ except ImportError:
     HAS_MATPLOTLIB = False
     plt = None
 
-
 # -------------------------------------------------------------------------------------------------
 # Parse log file
 # -------------------------------------------------------------------------------------------------
-
 
 def parse_log_file(log_file: Path, stage: Optional[str] = None) -> List[Dict]:
     '''Parse training log file and extract evaluation metrics.'''
@@ -136,11 +134,9 @@ def parse_log_file(log_file: Path, stage: Optional[str] = None) -> List[Dict]:
     metrics.sort(key=lambda x: x.get('epoch', 0))
     return metrics
 
-
 # -------------------------------------------------------------------------------------------------
 # Create visualizations
 # -------------------------------------------------------------------------------------------------
-
 
 def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
     '''Create visualization plots for the metrics.'''
@@ -191,7 +187,12 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
             train_loss_clean = [loss for loss in train_loss if loss is not None]
             epochs_train = [e for e, loss in zip(epochs_loss, train_loss) if loss is not None]
             ax2.plot(
-                epochs_train, train_loss_clean, 'b-o', label='Train Loss', linewidth=2, markersize=6
+                epochs_train,
+                train_loss_clean,
+                'b-o',
+                label='Train Loss',
+                linewidth=2,
+                markersize=6
             )
         if any(loss is not None for loss in val_loss):
             val_loss_clean = [loss for loss in val_loss if loss is not None]
@@ -345,11 +346,9 @@ def create_visualizations(metrics: List[Dict], output_dir: Path, stage: str):
 
     plt.close()
 
-
 # -------------------------------------------------------------------------------------------------
 # Print analysis
 # -------------------------------------------------------------------------------------------------
-
 
 def print_analysis(metrics: List[Dict], stage: str):
     '''Print detailed analysis of the metrics.'''
@@ -380,8 +379,7 @@ def print_analysis(metrics: List[Dict], stage: str):
 
     # Loss Analysis
     train_losses = [
-        m.get('train_loss')
-        for m in metrics
+        m.get('train_loss') for m in metrics
         if 'train_loss' in m and m.get('train_loss') is not None
     ]
     val_losses = [
@@ -471,11 +469,9 @@ def print_analysis(metrics: List[Dict], stage: str):
 
     print()
 
-
 # -------------------------------------------------------------------------------------------------
 # Main entry point
 # -------------------------------------------------------------------------------------------------
-
 
 def main():
     '''Main entry point.'''
@@ -535,13 +531,11 @@ def main():
         radius = f"{m.get('radius_mean', 0):.2f}±{m.get('radius_std', 0):.2f}"
         train_loss = (
             f"{m.get('train_loss', 0):.6f}"
-            if 'train_loss' in m and m.get('train_loss') is not None
-            else 'N/A'
+            if 'train_loss' in m and m.get('train_loss') is not None else 'N/A'
         )
         val_loss = (
             f"{m.get('val_loss', 0):.6f}"
-            if 'val_loss' in m and m.get('val_loss') is not None
-            else 'N/A'
+            if 'val_loss' in m and m.get('val_loss') is not None else 'N/A'
         )
         cophenetic = f"{m.get('cophenetic', 0):.4f}" if 'cophenetic' in m else 'N/A'
         dist_cv = f"{m.get('dist_cv', 0):.4f}" if 'dist_cv' in m else 'N/A'
@@ -551,7 +545,6 @@ def main():
             f'{cophenetic:<12} {dist_cv:<10} {collapse:<10}'
         )
     print()
-
 
 if __name__ == '__main__':
     main()

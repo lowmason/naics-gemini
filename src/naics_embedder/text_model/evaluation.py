@@ -15,13 +15,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Embedding similarity and distance utilities
 # -------------------------------------------------------------------------------------------------
 
-
 class EmbeddingEvaluator:
+
     def __init__(self):
         '''
         Evaluator for embedding quality metrics.
@@ -128,13 +127,12 @@ class EmbeddingEvaluator:
 
         return similarities
 
-
 # -------------------------------------------------------------------------------------------------
 # Retrieval metrics
 # -------------------------------------------------------------------------------------------------
 
-
 class RetrievalMetrics:
+
     def __init__(self):
         '''
         Metrics for evaluating retrieval quality.
@@ -236,7 +234,7 @@ class RetrievalMetrics:
         k = k or N
 
         # Sort by distance (ascending)
-        sorted_indices = torch.argsort(distances, dim=1)[:, 1 : k + 1]  # Exclude self
+        sorted_indices = torch.argsort(distances, dim=1)[:, 1:k + 1]  # Exclude self
 
         # Get relevance of sorted results
         batch_indices = torch.arange(N, device=self.device).unsqueeze(1)
@@ -303,13 +301,12 @@ class RetrievalMetrics:
 
         return ndcg
 
-
 # -------------------------------------------------------------------------------------------------
 # Hierarchy preservation metrics
 # -------------------------------------------------------------------------------------------------
 
-
 class HierarchyMetrics:
+
     def __init__(self):
         '''
         Metrics for evaluating hierarchy preservation.
@@ -560,9 +557,8 @@ class HierarchyMetrics:
 
         return ranks
 
-    def distortion(
-        self, embedding_distances: torch.Tensor, tree_distances: torch.Tensor
-    ) -> Dict[str, torch.Tensor]:
+    def distortion(self, embedding_distances: torch.Tensor,
+                   tree_distances: torch.Tensor) -> Dict[str, torch.Tensor]:
         '''
         Compute distortion metrics (how much distances are stretched/compressed).
 
@@ -598,13 +594,12 @@ class HierarchyMetrics:
             'median_distortion': ratios.median(),
         }
 
-
 # -------------------------------------------------------------------------------------------------
 # Embedding space statistics
 # -------------------------------------------------------------------------------------------------
 
-
 class EmbeddingStatistics:
+
     def __init__(self):
         '''
         Statistics for analyzing embedding space.
@@ -719,13 +714,12 @@ class EmbeddingStatistics:
             'distance_std': distance_std,
         }
 
-
 # -------------------------------------------------------------------------------------------------
 # Evaluation runner
 # -------------------------------------------------------------------------------------------------
 
-
 class NAICSEvaluationRunner:
+
     def __init__(self, model: 'NAICSContrastiveModel'):
         '''
         Complete evaluation runner for NAICS embeddings.

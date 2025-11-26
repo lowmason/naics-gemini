@@ -19,11 +19,9 @@ from naics_embedder.utils.config import DirConfig
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Make directories
 # -------------------------------------------------------------------------------------------------
-
 
 def make_directories(dir_config: DirConfig = DirConfig()) -> None:
     logging.info('Directory setup:')
@@ -39,11 +37,9 @@ def make_directories(dir_config: DirConfig = DirConfig()) -> None:
 
     logging.info('\n')
 
-
 # -------------------------------------------------------------------------------------------------
 # Get relationship mapping
 # -------------------------------------------------------------------------------------------------
-
 
 def map_relationships(key: Union[str, int]) -> Union[Dict[str, int], Dict[int, str]]:
     relation_map = [
@@ -71,11 +67,9 @@ def map_relationships(key: Union[str, int]) -> Union[Dict[str, int], Dict[int, s
     else:
         raise ValueError('Key must be either str or int.')
 
-
 # -------------------------------------------------------------------------------------------------
 # Get relationship
 # -------------------------------------------------------------------------------------------------
-
 
 def get_relationship(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> str:
     filter_list = []
@@ -92,18 +86,13 @@ def get_relationship(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -
     filters = reduce(operator.and_, filter_list)
 
     return (
-        pl.read_parquet('./data/naics_relations.parquet')
-        .filter(filters)
-        .select('relation')
-        .get_column('relation')
-        .item()
+        pl.read_parquet('./data/naics_relations.parquet'
+                        ).filter(filters).select('relation').get_column('relation').item()
     )
-
 
 # -------------------------------------------------------------------------------------------------
 # Get distance
 # -------------------------------------------------------------------------------------------------
-
 
 def get_distance(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> float:
     filter_list = []
@@ -120,22 +109,16 @@ def get_distance(idx_code_i: Union[str, int], idx_code_j: Union[str, int]) -> fl
     filters = reduce(operator.and_, filter_list)
 
     return (
-        pl.read_parquet('./data/naics_distances.parquet')
-        .filter(filters)
-        .select('distance')
-        .get_column('distance')
-        .item()
+        pl.read_parquet('./data/naics_distances.parquet'
+                        ).filter(filters).select('distance').get_column('distance').item()
     )
-
 
 # -------------------------------------------------------------------------------------------------
 # Indices, codes, and mappings
 # -------------------------------------------------------------------------------------------------
 
-
-def get_indices_codes(
-    return_type: Literal['codes', 'indices', 'code_to_idx', 'idx_to_code'],
-) -> Union[List[str], List[int], Dict[str, int], Dict[int, str]]:
+def get_indices_codes(return_type: Literal['codes', 'indices', 'code_to_idx', 'idx_to_code'],
+                      ) -> Union[List[str], List[int], Dict[str, int], Dict[int, str]]:
     '''
     Extract indices and NAICS codes from a parquet file.
 
@@ -151,9 +134,9 @@ def get_indices_codes(
     '''
 
     idx_code_iter = (
-        pl.read_parquet('./data/naics_descriptions.parquet')
-        .select('index', 'code')
-        .iter_rows(named=True)
+        pl.read_parquet('./data/naics_descriptions.parquet').select('index', 'code').iter_rows(
+            named=True
+        )
     )
 
     indices, codes, code_to_idx, idx_to_code = [], [], {}, {}
@@ -180,11 +163,9 @@ def get_indices_codes(
                 'Expected one of: codes, indices, code_to_idx, idx_to_code.'
             )
 
-
 # -------------------------------------------------------------------------------------------------
 # Download with exponential backoff retry
 # -------------------------------------------------------------------------------------------------
-
 
 def download_with_retry(
     url: str,
@@ -232,11 +213,9 @@ def download_with_retry(
 
                 raise last_exception
 
-
 # -------------------------------------------------------------------------------------------------
 # Parquet stats
 # -------------------------------------------------------------------------------------------------
-
 
 def parquet_stats(
     parquet_df: pl.DataFrame, message: str, output_parquet: str, logger: logging.Logger
@@ -255,11 +234,9 @@ def parquet_stats(
     logger.info(f'{parquet_df.height: ,} {message}:')
     logger.info(f'  {output_parquet}\n')
 
-
 # -------------------------------------------------------------------------------------------------
 # Device and directory utilities
 # -------------------------------------------------------------------------------------------------
-
 
 def pick_device(device_str: str = 'auto') -> 'torch.device':
     '''
@@ -282,7 +259,6 @@ def pick_device(device_str: str = 'auto') -> 'torch.device':
             return torch.device('cpu')
     else:
         return torch.device(device_str)
-
 
 def setup_directory(dir_path: str) -> Path:
     '''

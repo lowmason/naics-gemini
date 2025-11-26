@@ -1,7 +1,6 @@
 # -------------------------------------------------------------------------------------------------
 # Training Utilities
 # -------------------------------------------------------------------------------------------------
-
 '''
 Training orchestration utilities for NAICS Embedder.
 
@@ -33,11 +32,9 @@ from naics_embedder.utils.config import Config, parse_override_value
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Data Classes
 # -------------------------------------------------------------------------------------------------
-
 
 @dataclass
 class HardwareInfo:
@@ -56,7 +53,6 @@ class HardwareInfo:
     num_devices: int
     gpu_memory: Optional[Dict[str, float]] = None
 
-
 @dataclass
 class CheckpointInfo:
     '''
@@ -71,7 +67,6 @@ class CheckpointInfo:
     path: Optional[str]
     is_same_stage: bool
     exists: bool
-
 
 @dataclass
 class TrainingResult:
@@ -99,11 +94,9 @@ class TrainingResult:
     early_stopped: bool = False
     metrics: Dict[str, Any] = field(default_factory=dict)
 
-
 # -------------------------------------------------------------------------------------------------
 # Hardware Detection
 # -------------------------------------------------------------------------------------------------
-
 
 def detect_hardware(log_info: bool = False) -> HardwareInfo:
     '''
@@ -130,9 +123,11 @@ def detect_hardware(log_info: bool = False) -> HardwareInfo:
         gpu_memory = get_gpu_memory_info()
 
     return HardwareInfo(
-        accelerator=accelerator, precision=precision, num_devices=num_devices, gpu_memory=gpu_memory
+        accelerator=accelerator,
+        precision=precision,
+        num_devices=num_devices,
+        gpu_memory=gpu_memory
     )
-
 
 def get_gpu_memory_info() -> Optional[Dict[str, float]]:
     '''
@@ -170,11 +165,9 @@ def get_gpu_memory_info() -> Optional[Dict[str, float]]:
         logger.debug(f'Could not get GPU memory info: {e}')
         return None
 
-
 # -------------------------------------------------------------------------------------------------
 # Configuration Parsing
 # -------------------------------------------------------------------------------------------------
-
 
 def parse_config_overrides(overrides: Optional[List[str]]) -> Tuple[Dict[str, Any], List[str]]:
     '''
@@ -214,11 +207,9 @@ def parse_config_overrides(overrides: Optional[List[str]]) -> Tuple[Dict[str, An
 
     return override_dict, invalid_overrides
 
-
 # -------------------------------------------------------------------------------------------------
 # Checkpoint Resolution
 # -------------------------------------------------------------------------------------------------
-
 
 def resolve_checkpoint(
     ckpt_path: Optional[str], checkpoint_dir: Path, experiment_name: str
@@ -277,11 +268,9 @@ def resolve_checkpoint(
         logger.warning(f'Checkpoint not found at {ckpt_path}')
         return CheckpointInfo(path=None, is_same_stage=False, exists=False)
 
-
 # -------------------------------------------------------------------------------------------------
 # Trainer Creation
 # -------------------------------------------------------------------------------------------------
-
 
 def create_trainer(
     cfg: Config,
@@ -364,7 +353,6 @@ def create_trainer(
 
     return trainer, checkpoint_callback, early_stopping
 
-
 def collect_training_result(
     checkpoint_callback: ModelCheckpoint,
     early_stopping: EarlyStopping,
@@ -406,11 +394,9 @@ def collect_training_result(
         metrics={'best_val_loss': best_loss},
     )
 
-
 # -------------------------------------------------------------------------------------------------
 # Summary Artifacts
 # -------------------------------------------------------------------------------------------------
-
 
 def save_training_summary(
     result: TrainingResult,

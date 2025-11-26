@@ -4,7 +4,6 @@ Unit tests for curriculum scheduler weighting logic.
 
 from naics_embedder.text_model.curriculum import CurriculumScheduler
 
-
 def test_inverse_tree_distance_weighting_masks_siblings():
     '''Phase 1 weighting should mask siblings and favor closer non-siblings.'''
 
@@ -36,7 +35,6 @@ def test_inverse_tree_distance_weighting_masks_siblings():
     # Closer ancestor/descendant gets higher probability than distant cousin
     assert weights[0] > weights[2]
 
-
 def test_tree_distance_weights_uniform_when_missing_distances():
     '''When tree distances are unavailable, fallback to uniform weights.'''
 
@@ -53,7 +51,6 @@ def test_tree_distance_weights_uniform_when_missing_distances():
 
     assert len(weights) == 3
     assert all(abs(w - 1 / 3) < 1e-6 for w in weights)
-
 
 def test_tree_distance_uniform_when_all_masked():
     '''If all weights are masked to zero, fall back to uniform sampling.'''

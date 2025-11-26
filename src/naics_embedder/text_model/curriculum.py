@@ -7,11 +7,9 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Structure-Aware Dynamic Curriculum (SADC) Scheduler
 # -------------------------------------------------------------------------------------------------
-
 
 class CurriculumScheduler:
     '''

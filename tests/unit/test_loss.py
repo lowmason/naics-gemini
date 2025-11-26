@@ -21,7 +21,6 @@ from naics_embedder.text_model.loss import (
 # HyperbolicInfoNCELoss Tests
 # -------------------------------------------------------------------------------------------------
 
-
 @pytest.mark.unit
 class TestHyperbolicInfoNCELoss:
     '''Test suite for Hyperbolic InfoNCE loss.'''
@@ -162,7 +161,7 @@ class TestHyperbolicInfoNCELoss:
 
         loss_fn = HyperbolicInfoNCELoss(embedding_dim=384, temperature=0.07, curvature=1.0)
 
-        adaptive_margins = torch.full((batch_size,), 0.5, device=anchor.device)
+        adaptive_margins = torch.full((batch_size, ), 0.5, device=anchor.device)
 
         loss_nomargin = loss_fn(anchor, positive, negatives, batch_size, k_negatives)
         loss_margin = loss_fn(
@@ -170,7 +169,6 @@ class TestHyperbolicInfoNCELoss:
         )
 
         assert loss_margin > loss_nomargin
-
 
 class TestNormAdaptiveMargin:
     '''Tests for norm-adaptive margin computation.'''
@@ -191,11 +189,9 @@ class TestNormAdaptiveMargin:
 
         assert torch.all(margin_small > margin_large)
 
-
 # -------------------------------------------------------------------------------------------------
 # HierarchyPreservationLoss Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestHierarchyPreservationLoss:
@@ -291,11 +287,9 @@ class TestHierarchyPreservationLoss:
         # loss_2 should be approximately 2x loss_1
         assert torch.allclose(loss_2, 2 * loss_1, rtol=0.01)
 
-
 # -------------------------------------------------------------------------------------------------
 # RankOrderPreservationLoss Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestRankOrderPreservationLoss:
@@ -394,11 +388,9 @@ class TestRankOrderPreservationLoss:
         assert not torch.isnan(loss_small)
         assert not torch.isnan(loss_large)
 
-
 # -------------------------------------------------------------------------------------------------
 # LambdaRankLoss Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestLambdaRankLoss:
@@ -573,11 +565,9 @@ class TestLambdaRankLoss:
 
         assert loss == 0.0
 
-
 # -------------------------------------------------------------------------------------------------
 # Integration Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestLossIntegration:

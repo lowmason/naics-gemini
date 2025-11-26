@@ -15,13 +15,12 @@ from naics_embedder.text_model.moe import MixtureOfExperts
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Multi-Channel Encoder with LoRA
 # -------------------------------------------------------------------------------------------------
 
-
 class MultiChannelEncoder(nn.Module):
+
     def __init__(
         self,
         base_model_name: str = 'sentence-transformers/all-mpnet-base-v2',
@@ -99,9 +98,8 @@ class MultiChannelEncoder(nn.Module):
             f'({100 * trainable_params / total_params:.2f}%)\n'
         )
 
-    def forward(
-        self, channel_inputs: Dict[str, Dict[str, torch.Tensor]]
-    ) -> Dict[str, Optional[torch.Tensor]]:
+    def forward(self, channel_inputs: Dict[str, Dict[str, torch.Tensor]]
+                ) -> Dict[str, Optional[torch.Tensor]]:
         '''
         Forward pass through multi-channel encoder.
 

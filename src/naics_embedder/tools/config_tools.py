@@ -12,7 +12,6 @@ from rich.panel import Panel
 
 console = Console()
 
-
 def show_current_config(config_path: str = './conf/config.yaml'):
     '''
     Display current training and curriculum configuration.
@@ -74,7 +73,6 @@ def show_current_config(config_path: str = './conf/config.yaml'):
             expand=True,
         )
     )
-
 
 def load_config(config_path: str = './conf/config.yaml'):
     '''Load main configuration file.'''

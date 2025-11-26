@@ -34,11 +34,9 @@ from naics_embedder.text_model.loss import HyperbolicInfoNCELoss
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Distributed Utilities for Global Batch Sampling
 # -------------------------------------------------------------------------------------------------
-
 
 def gather_embeddings_global(
     local_embeddings: torch.Tensor, world_size: Optional[int] = None
@@ -86,7 +84,6 @@ def gather_embeddings_global(
 
     return global_embeddings
 
-
 def gather_negative_codes_global(
     local_negative_codes: List[List[str]], world_size: Optional[int] = None
 ) -> List[List[str]]:
@@ -122,13 +119,12 @@ def gather_negative_codes_global(
 
     return global_negative_codes
 
-
 # -------------------------------------------------------------------------------------------------
 # Main NAICS Contrastive Learning Model: combining encoder, loss, MoE, and hyperbolic projections
 # -------------------------------------------------------------------------------------------------
 
-
 class NAICSContrastiveModel(pyl.LightningModule):
+
     def __init__(
         self,
         base_model_name: str = 'sentence-transformers/all-mpnet-base-v2',
@@ -205,8 +201,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
         self.hierarchy_loss_fn = None
         hierarchy_weight = getattr(self.hparams, 'hierarchy_weight', 0.1)
         if (
-            self.ground_truth_distances is not None
-            and self.code_to_idx is not None
+            self.ground_truth_distances is not None and self.code_to_idx is not None
             and hierarchy_weight > 0
         ):
             from naics_embedder.text_model.loss import HierarchyPreservationLoss
@@ -221,8 +216,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
         self.lambdarank_loss_fn = None
         rank_order_weight = getattr(self.hparams, 'rank_order_weight', 0.15)
         if (
-            self.ground_truth_distances is not None
-            and self.code_to_idx is not None
+            self.ground_truth_distances is not None and self.code_to_idx is not None
             and rank_order_weight > 0
         ):
             from naics_embedder.text_model.loss import LambdaRankLoss
@@ -295,9 +289,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
             ground_truth_distances = None
             code_to_idx = None
 
-    def forward(
-        self, channel_inputs: Dict[str, Dict[str, torch.Tensor]]
-    ) -> Dict[str, torch.Tensor]:
+    def forward(self, channel_inputs: Dict[str, Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         return self.encoder(channel_inputs)
 
     def _compute_contrastive_loss(
@@ -539,8 +531,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
         # for finding meaningful "Cousin" negatives that may not appear in small local batches
         use_global_batch = (
             (enable_hard_negative_mining or enable_router_guided_sampling)
-            and torch.distributed.is_initialized()
-            and torch.distributed.get_world_size() > 1
+            and torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1
         )
 
         if use_global_batch:
@@ -978,15 +969,16 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 # Log histogram of expert utilization (f_i)
                 # Only if TensorBoard logger is available
                 if (
-                    self.logger is not None
-                    and hasattr(self.logger, 'experiment')
+                    self.logger is not None and hasattr(self.logger, 'experiment')
                     and self.logger.experiment is not None  # type: ignore[attr-defined]
                 ):
                     experiment = self.logger.experiment  # type: ignore[attr-defined]
                     if hasattr(experiment, 'add_histogram'):
                         try:
                             experiment.add_histogram(
-                                'train/moe/expert_utilization_hist', f, global_step=self.global_step
+                                'train/moe/expert_utilization_hist',
+                                f,
+                                global_step=self.global_step
                             )
 
                             # Log histogram of gating probabilities (P_i)
@@ -1127,8 +1119,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
         # Add LambdaRank loss for global ranking (1 positive + k negatives per anchor)
         lambdarank_loss = torch.tensor(0.0, device=self.device)
         if (
-            self.lambdarank_loss_fn is not None
-            and 'anchor_code' in batch
+            self.lambdarank_loss_fn is not None and 'anchor_code' in batch
             and 'positive_code' in batch
         ):
             try:
@@ -1197,11 +1188,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
         batch_size = batch['batch_size']
 
         total_loss = (
-            contrastive_loss
-            + full_load_balancing_loss
-            + hierarchy_loss
-            + lambdarank_loss
-            + radius_reg_loss
+            contrastive_loss + full_load_balancing_loss + hierarchy_loss + lambdarank_loss +
+            radius_reg_loss
         )
 
         # Note: DCL loss may yield negative values (unlike InfoNCE which is always positive)
@@ -1304,8 +1292,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
                         ]:
                             sample_types['cousin'] += 1
                         elif (
-                            relation in ['unrelated']
-                            or relation.startswith('third_cousin')
+                            relation in ['unrelated'] or relation.startswith('third_cousin')
                             or relation.startswith('cousin_')
                         ):
                             sample_types['distant'] += 1
@@ -1447,7 +1434,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
             # Issue #5: More efficient cluster count calculation
             fn_num_clusters = getattr(self.hparams, 'fn_num_clusters', 500)
             n_clusters = min(
-                max(50, len(all_embeddings) // 20),  # At least 50, at most 1 per 20 samples
+                max(50,
+                    len(all_embeddings) // 20),  # At least 50, at most 1 per 20 samples
                 fn_num_clusters,
             )
             # Safeguard: ensure n_clusters >= 1 (KMeans requires at least 1 cluster)
@@ -1501,9 +1489,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
             logger.info(f'\nRunning evaluation metrics (epoch {self.current_epoch})...')
 
             codes = sorted(self.validation_embeddings.keys())
-            embeddings = torch.stack([self.validation_embeddings[code] for code in codes]).to(
-                self.device
-            )
+            embeddings = torch.stack([self.validation_embeddings[code]
+                                      for code in codes]).to(self.device)
 
             eval_sample_size = getattr(self.hparams, 'eval_sample_size', 500)
             if len(codes) > eval_sample_size:
@@ -1717,52 +1704,80 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 val_loss = self.trainer.callback_metrics.get('val/contrastive_loss', None)
 
             epoch_metrics = {
-                'epoch': self.current_epoch,
+                'epoch':
+                self.current_epoch,
                 # Training metrics (from callback_metrics)
                 'train_loss': (
                     self._to_python_scalar(train_loss) if train_loss is not None else None
                 ),
                 'train_contrastive_loss': (
                     self._to_python_scalar(train_contrastive_loss)
-                    if train_contrastive_loss is not None
-                    else None
+                    if train_contrastive_loss is not None else None
                 ),
                 # Validation metrics
-                'val_loss': self._to_python_scalar(val_loss) if val_loss is not None else None,
+                'val_loss':
+                self._to_python_scalar(val_loss) if val_loss is not None else None,
                 # Hyperbolic metrics
-                'hyperbolic_radius_mean': self._to_python_scalar(diagnostics['radius_mean']),
-                'hyperbolic_radius_std': self._to_python_scalar(diagnostics['radius_std']),
-                'lorentz_norm_mean': self._to_python_scalar(diagnostics['lorentz_norm_mean']),
-                'lorentz_norm_std': self._to_python_scalar(diagnostics['lorentz_norm_std']),
-                'lorentz_norm_violation_max': self._to_python_scalar(diagnostics['violation_max']),
-                'manifold_valid': bool(is_valid),
+                'hyperbolic_radius_mean':
+                self._to_python_scalar(diagnostics['radius_mean']),
+                'hyperbolic_radius_std':
+                self._to_python_scalar(diagnostics['radius_std']),
+                'lorentz_norm_mean':
+                self._to_python_scalar(diagnostics['lorentz_norm_mean']),
+                'lorentz_norm_std':
+                self._to_python_scalar(diagnostics['lorentz_norm_std']),
+                'lorentz_norm_violation_max':
+                self._to_python_scalar(diagnostics['violation_max']),
+                'manifold_valid':
+                bool(is_valid),
                 # Embedding statistics
-                'mean_norm': self._to_python_scalar(stats['mean_norm']),
-                'std_norm': self._to_python_scalar(stats['std_norm']),
-                'mean_pairwise_distance': self._to_python_scalar(stats['mean_pairwise_distance']),
-                'std_pairwise_distance': self._to_python_scalar(stats['std_pairwise_distance']),
+                'mean_norm':
+                self._to_python_scalar(stats['mean_norm']),
+                'std_norm':
+                self._to_python_scalar(stats['std_norm']),
+                'mean_pairwise_distance':
+                self._to_python_scalar(stats['mean_pairwise_distance']),
+                'std_pairwise_distance':
+                self._to_python_scalar(stats['std_pairwise_distance']),
                 # Collapse detection
-                'norm_cv': self._to_python_scalar(collapse['norm_cv']),
-                'distance_cv': self._to_python_scalar(collapse['distance_cv']),
-                'collapse_detected': bool(collapse['any_collapse']),
+                'norm_cv':
+                self._to_python_scalar(collapse['norm_cv']),
+                'distance_cv':
+                self._to_python_scalar(collapse['distance_cv']),
+                'collapse_detected':
+                bool(collapse['any_collapse']),
                 # Hierarchy preservation
-                'cophenetic_correlation': self._to_python_scalar(cophenetic_result['correlation']),
-                'cophenetic_n_pairs': int(cophenetic_result['n_pairs']),
-                'spearman_correlation': self._to_python_scalar(spearman_result['correlation']),
-                'spearman_n_pairs': int(spearman_result['n_pairs']),
+                'cophenetic_correlation':
+                self._to_python_scalar(cophenetic_result['correlation']),
+                'cophenetic_n_pairs':
+                int(cophenetic_result['n_pairs']),
+                'spearman_correlation':
+                self._to_python_scalar(spearman_result['correlation']),
+                'spearman_n_pairs':
+                int(spearman_result['n_pairs']),
                 # Ranking metrics
-                'ndcg@5': self._to_python_scalar(ndcg_result['ndcg@5']),
-                'ndcg@10': self._to_python_scalar(ndcg_result['ndcg@10']),
-                'ndcg@20': self._to_python_scalar(ndcg_result['ndcg@20']),
-                'ndcg@5_n_queries': int(ndcg_result['ndcg@5_n_queries']),
-                'ndcg@10_n_queries': int(ndcg_result['ndcg@10_n_queries']),
-                'ndcg@20_n_queries': int(ndcg_result['ndcg@20_n_queries']),
+                'ndcg@5':
+                self._to_python_scalar(ndcg_result['ndcg@5']),
+                'ndcg@10':
+                self._to_python_scalar(ndcg_result['ndcg@10']),
+                'ndcg@20':
+                self._to_python_scalar(ndcg_result['ndcg@20']),
+                'ndcg@5_n_queries':
+                int(ndcg_result['ndcg@5_n_queries']),
+                'ndcg@10_n_queries':
+                int(ndcg_result['ndcg@10_n_queries']),
+                'ndcg@20_n_queries':
+                int(ndcg_result['ndcg@20_n_queries']),
                 # Distortion metrics
-                'mean_distortion': self._to_python_scalar(distortion['mean_distortion']),
-                'std_distortion': self._to_python_scalar(distortion['std_distortion']),
-                'median_distortion': self._to_python_scalar(distortion['median_distortion']),
+                'mean_distortion':
+                self._to_python_scalar(distortion['mean_distortion']),
+                'std_distortion':
+                self._to_python_scalar(distortion['std_distortion']),
+                'median_distortion':
+                self._to_python_scalar(distortion['median_distortion']),
                 # Sample size
-                'num_samples': int(num_samples),
+                'num_samples':
+                int(num_samples),
             }
 
             # Add to history
@@ -1868,16 +1883,20 @@ class NAICSContrastiveModel(pyl.LightningModule):
             # Use ReduceLROnPlateau for validation-based learning rate reduction
             # This helps prevent overfitting by reducing LR when validation loss plateaus
             scheduler = {
-                'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(
+                'scheduler':
+                torch.optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer,
                     mode='min',
                     factor=0.5,  # Reduce LR by 50%
                     patience=3,  # Wait 3 epochs without improvement
                     min_lr=1e-6,
                 ),
-                'monitor': 'val/contrastive_loss',
-                'interval': 'epoch',
-                'frequency': 1,
+                'monitor':
+                'val/contrastive_loss',
+                'interval':
+                'epoch',
+                'frequency':
+                1,
             }
 
             return {'optimizer': optimizer, 'lr_scheduler': scheduler}

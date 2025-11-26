@@ -31,11 +31,9 @@ from naics_embedder.utils.utilities import pick_device, setup_directory
 # Using GraphConfig for type hints
 Config = GraphConfig
 
-
 # -------------------------------------------------------------------------------------------------
 # PyTorch Geometric hyperbolic graph convolution (hgcn)
 # -------------------------------------------------------------------------------------------------
-
 
 class HyperbolicConvolution(MessagePassing):
     '''
@@ -80,13 +78,12 @@ class HyperbolicConvolution(MessagePassing):
         # Messages are neighbor features (already linear-transformed)
         return x_j
 
-
 # -------------------------------------------------------------------------------------------------
 # HGCN model (stack of HyperbolicConvolution)
 # -------------------------------------------------------------------------------------------------
 
-
 class HGCN(nn.Module):
+
     def __init__(
         self,
         tangent_dim: int,
@@ -130,11 +127,9 @@ class HGCN(nn.Module):
         else:
             return torch.tensor(1.0), torch.tensor(1.0), torch.tensor(0.0)
 
-
 # -------------------------------------------------------------------------------------------------
 # Losses
 # -------------------------------------------------------------------------------------------------
-
 
 def triplet_loss_hyp(
     emb: torch.Tensor,
@@ -168,10 +163,9 @@ def triplet_loss_hyp(
 
     return loss.mean()
 
-
 def level_radius_loss(emb: torch.Tensor, idx: torch.Tensor, levels: torch.Tensor) -> torch.Tensor:
     # radial distance on Lorentz model: sqrt(x0^2 - 1)
-    radial = torch.sqrt(emb[idx, 0] ** 2 - 1)
+    radial = torch.sqrt(emb[idx, 0]**2 - 1)
     target = (levels[idx].float() - 2) * 0.5
 
     # Use Huber loss (smooth_l1) instead of MSE
@@ -179,11 +173,9 @@ def level_radius_loss(emb: torch.Tensor, idx: torch.Tensor, levels: torch.Tensor
     # Quadratic for small errors, linear for large errors
     return F.smooth_l1_loss(radial, target)
 
-
 # -------------------------------------------------------------------------------------------------
 # Learning Rate Scheduler with Warmup
 # -------------------------------------------------------------------------------------------------
-
 
 class WarmupCosineScheduler:
     '''
@@ -191,7 +183,11 @@ class WarmupCosineScheduler:
     '''
 
     def __init__(
-        self, optimizer: optim.Optimizer, warmup_epochs: int, total_epochs: int, min_lr: float = 0.0
+        self,
+        optimizer: optim.Optimizer,
+        warmup_epochs: int,
+        total_epochs: int,
+        min_lr: float = 0.0
     ):
         self.optimizer = optimizer
         self.warmup_epochs = warmup_epochs
@@ -220,15 +216,12 @@ class WarmupCosineScheduler:
     def get_last_lr(self):
         return [group['lr'] for group in self.optimizer.param_groups]
 
-
 # -------------------------------------------------------------------------------------------------
 # IO helpers
 # -------------------------------------------------------------------------------------------------
 
-
-def load_embeddings(
-    parquet_path: str, device: torch.device
-) -> Tuple[torch.Tensor, torch.Tensor, pl.DataFrame]:
+def load_embeddings(parquet_path: str,
+                    device: torch.device) -> Tuple[torch.Tensor, torch.Tensor, pl.DataFrame]:
     '''
     Load hyperbolic embeddings from parquet file.
 
@@ -247,7 +240,6 @@ def load_embeddings(
 
     return emb, levels, df
 
-
 def load_edge_index(relations_path: str, device: torch.device) -> torch.Tensor:
     df_rel = pl.read_parquet(relations_path)
 
@@ -257,16 +249,13 @@ def load_edge_index(relations_path: str, device: torch.device) -> torch.Tensor:
         torch.from_numpy(
             # make bidirectional
             np.concatenate([edges.T, edges[:, ::-1].T], axis=1)
-        )
-        .long()
-        .to(device)
+        ).long().to(device)
     )
 
     # Optionally add self loops (often stabilizes message passing)
     edge_index, _ = add_self_loops(edge_index, num_nodes=int(edge_index.max().item()) + 1)
 
     return edge_index
-
 
 def create_contrastive_dataloader(cfg: Config) -> torch.utils.data.DataLoader:
     '''
@@ -310,11 +299,9 @@ def create_contrastive_dataloader(cfg: Config) -> torch.utils.data.DataLoader:
 
     return create_dataloader(loader_cfg)
 
-
 # -------------------------------------------------------------------------------------------------
 # Training loop for a single curriculum stage
 # -------------------------------------------------------------------------------------------------
-
 
 def train_stage(
     stage: int,
@@ -331,8 +318,14 @@ def train_stage(
 
     opt = optim.AdamW(
         [
-            {'params': model.parameters(), 'lr': cfg.lr},
-            {'params': [embeddings], 'lr': cfg.lr * 0.1},
+            {
+                'params': model.parameters(),
+                'lr': cfg.lr
+            },
+            {
+                'params': [embeddings],
+                'lr': cfg.lr * 0.1
+            },
         ],
         weight_decay=cfg.weight_decay,
     )
@@ -495,11 +488,9 @@ def train_stage(
 
     return final_emb, log
 
-
 # -------------------------------------------------------------------------------------------------
 # Curriculum training
 # -------------------------------------------------------------------------------------------------
-
 
 def train_curriculum(
     curriculum_stages: List[str],
@@ -570,8 +561,12 @@ def train_curriculum(
         }
 
         if model.learnable_loss_weights:
-            checkpoint['final_log_var_triplet'] = float(model.log_var_triplet.item())  # type: ignore[attr-defined]
-            checkpoint['final_log_var_level'] = float(model.log_var_level.item())  # type: ignore[attr-defined]
+            checkpoint['final_log_var_triplet'] = float(
+                model.log_var_triplet.item()
+            )  # type: ignore[attr-defined]
+            checkpoint['final_log_var_level'] = float(
+                model.log_var_level.item()
+            )  # type: ignore[attr-defined]
 
         torch.save(checkpoint, f'{outdir}/stage_{stage_idx:02d}_{stage_name}_checkpoint.pt')
         print(f'Saved checkpoint: {outdir}/stage_{stage_idx:02d}_{stage_name}_checkpoint.pt')
@@ -580,11 +575,9 @@ def train_curriculum(
 
     return current_embeddings, all_logs
 
-
 # -------------------------------------------------------------------------------------------------
 # Save results
 # -------------------------------------------------------------------------------------------------
-
 
 def save_outputs(
     outdir: str,
@@ -613,8 +606,12 @@ def save_outputs(
     }
 
     if model.learnable_loss_weights:
-        save_dict['final_log_var_triplet'] = float(model.log_var_triplet.item())  # type: ignore[attr-defined]
-        save_dict['final_log_var_level'] = float(model.log_var_level.item())  # type: ignore[attr-defined]
+        save_dict['final_log_var_triplet'] = float(
+            model.log_var_triplet.item()
+        )  # type: ignore[attr-defined]
+        save_dict['final_log_var_level'] = float(
+            model.log_var_level.item()
+        )  # type: ignore[attr-defined]
 
     torch.save(save_dict, f'{outdir}/hgcn_model_final.pt')
 
@@ -645,11 +642,9 @@ def save_outputs(
 
     return result_df
 
-
 # -------------------------------------------------------------------------------------------------
 # Main
 # -------------------------------------------------------------------------------------------------
-
 
 def main(
     config_file: str = 'conf/config.yaml',
@@ -736,7 +731,6 @@ def main(
 
     # Save final outputs
     save_outputs(str(outdir), final_emb, df, base_cfg, model, full_log)
-
 
 if __name__ == '__main__':
     main()

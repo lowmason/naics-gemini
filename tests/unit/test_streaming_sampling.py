@@ -7,14 +7,23 @@ from naics_embedder.text_model.dataloader.streaming_dataset import (
     _sample_negatives_phase1,
 )
 
-
 def test_excluded_negatives_get_high_weight():
     '''Excluded negatives should be prioritized and flagged.'''
 
     anchor = '111'
     candidates = [
-        {'negative_code': '222', 'negative_idx': 0, 'relation_margin': 0, 'distance_margin': 4},
-        {'negative_code': '333', 'negative_idx': 1, 'relation_margin': 0, 'distance_margin': 6},
+        {
+            'negative_code': '222',
+            'negative_idx': 0,
+            'relation_margin': 0,
+            'distance_margin': 4
+        },
+        {
+            'negative_code': '333',
+            'negative_idx': 1,
+            'relation_margin': 0,
+            'distance_margin': 6
+        },
     ]
     distance_lookup = {
         (anchor, '222'): 4.0,
@@ -37,14 +46,23 @@ def test_excluded_negatives_get_high_weight():
     assert mask.tolist() == [False, True]
     assert weights[1] > weights[0]
 
-
 def test_sample_marks_explicit_exclusions(monkeypatch):
     '''Sampled negatives should carry explicit_exclusion flag.'''
 
     anchor = '111'
     candidates = [
-        {'negative_code': '222', 'negative_idx': 0, 'relation_margin': 0, 'distance_margin': 4},
-        {'negative_code': '333', 'negative_idx': 1, 'relation_margin': 0, 'distance_margin': 6},
+        {
+            'negative_code': '222',
+            'negative_idx': 0,
+            'relation_margin': 0,
+            'distance_margin': 4
+        },
+        {
+            'negative_code': '333',
+            'negative_idx': 1,
+            'relation_margin': 0,
+            'distance_margin': 6
+        },
     ]
     distance_lookup = {
         (anchor, '222'): 4.0,

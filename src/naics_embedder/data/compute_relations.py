@@ -16,23 +16,16 @@ from naics_embedder.utils.utilities import parquet_stats as _parquet_stats
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Relations utilities
 # -------------------------------------------------------------------------------------------------
 
-
 def _sectors(input_parquet: str) -> List[str]:
     return (
-        pl.read_parquet(input_parquet)
-        .filter(pl.col('level').eq(2))
-        .select('code')
-        .sort(pl.col('code').cast(pl.UInt32))
-        .unique(maintain_order=True)
-        .get_column('code')
-        .to_list()
+        pl.read_parquet(input_parquet).filter(pl.col('level').eq(2)).select('code').sort(
+            pl.col('code').cast(pl.UInt32)
+        ).unique(maintain_order=True).get_column('code').to_list()
     )
-
 
 def _sector_codes(sector: str, input_parquet: str) -> List[str]:
     if sector == '31':
@@ -48,15 +41,12 @@ def _sector_codes(sector: str, input_parquet: str) -> List[str]:
         sector_list = [sector]
 
     return (
-        pl.read_parquet(input_parquet)
-        .filter(pl.col('level').eq(6), pl.col('code').str.slice(0, 2).is_in(sector_list))
-        .select('code')
-        .sort(pl.col('code').cast(pl.UInt32))
-        .unique(maintain_order=True)
-        .get_column('code')
-        .to_list()
+        pl.read_parquet(input_parquet).filter(
+            pl.col('level').eq(6),
+            pl.col('code').str.slice(0, 2).is_in(sector_list)
+        ).select('code').sort(pl.col('code').cast(pl.UInt32)).unique(maintain_order=True
+                                                                     ).get_column('code').to_list()
     )
-
 
 def _join_sectors(code: str) -> str:
     if code in ['31', '32', '33']:
@@ -70,7 +60,6 @@ def _join_sectors(code: str) -> str:
 
     else:
         return code
-
 
 def _sector_tree(sector: str, input_parquet: str) -> nx.DiGraph:
     code_6 = _sector_codes(sector, input_parquet)
@@ -94,7 +83,6 @@ def _sector_tree(sector: str, input_parquet: str) -> nx.DiGraph:
 
     return nx.DiGraph(edges)
 
-
 def _compute_tree_metadata(tree: nx.DiGraph, root: str) -> Tuple[Dict, Dict, Dict]:
     depths, ancestors, parents = {}, {}, {}
     queue = [(root, 0, [root])]
@@ -109,7 +97,6 @@ def _compute_tree_metadata(tree: nx.DiGraph, root: str) -> Tuple[Dict, Dict, Dic
 
     return depths, ancestors, parents
 
-
 def _find_common_ancestor(i: str, j: str, ancestors: Dict[str, List[str]]) -> Optional[str]:
     ancestors_i, ancestors_j = set(ancestors[i]), ancestors[j]
     for ancestor in reversed(ancestors_j):
@@ -118,11 +105,9 @@ def _find_common_ancestor(i: str, j: str, ancestors: Dict[str, List[str]]) -> Op
 
     return None
 
-
 # -------------------------------------------------------------------------------------------------
 # 2. Compute relationships
 # -------------------------------------------------------------------------------------------------
-
 
 def _get_relations(i: str, j: str, depths: Dict[str, int], ancestors: Dict[str, List[str]]) -> str:
     depth_i, depth_j = depths[i], depths[j]
@@ -177,11 +162,9 @@ def _get_relations(i: str, j: str, depths: Dict[str, int], ancestors: Dict[str, 
         else:
             return f'{degree_name}_cousin_{removed}_times_removed'
 
-
 # -------------------------------------------------------------------------------------------------
 # Exclusions
 # -------------------------------------------------------------------------------------------------
-
 
 def _get_exclusions(relations_df: pl.DataFrame) -> pl.DataFrame:
     descriptions_df = pl.read_parquet('./data/naics_descriptions.parquet')
@@ -189,41 +172,32 @@ def _get_exclusions(relations_df: pl.DataFrame) -> pl.DataFrame:
     codes = set(descriptions_df.get_column('code').unique().sort().to_list())
 
     exclusions = (
-        descriptions_df.filter(pl.col('excluded').is_not_null())
-        .select(
+        descriptions_df.filter(pl.col('excluded').is_not_null()).select(
             code_i=pl.col('code'),
             code_j=pl.col('excluded_codes'),
-        )
-        .explode('code_j')
-        .filter(pl.col('code_j').is_not_null(), pl.col('code_j').is_in(codes))
-        .join(
-            descriptions_df.select(code_j=pl.col('code')),
-            on='code_j',
-            how='inner',
-        )
-        .join(
-            relations_df.select(pl.col('code_i'), pl.col('code_j')),
-            on=['code_i', 'code_j'],
-            how='inner',
-        )
-        .select(
-            code_i=pl.col('code_i'),
-            code_j=pl.col('code_j'),
-            excluded=pl.lit(True),
-        )
-        .unique()
-        .sort('code_i', 'code_j')
+        ).explode('code_j').filter(pl.col('code_j').is_not_null(),
+                                   pl.col('code_j').is_in(codes)).join(
+                                       descriptions_df.select(code_j=pl.col('code')),
+                                       on='code_j',
+                                       how='inner',
+                                   ).join(
+                                       relations_df.select(pl.col('code_i'), pl.col('code_j')),
+                                       on=['code_i', 'code_j'],
+                                       how='inner',
+                                   ).select(
+                                       code_i=pl.col('code_i'),
+                                       code_j=pl.col('code_j'),
+                                       excluded=pl.lit(True),
+                                   ).unique().sort('code_i', 'code_j')
     )
 
     print(f'Number of exclusions: {exclusions.height: ,}\n')
 
     return exclusions
 
-
 # -------------------------------------------------------------------------------------------------
 # Relation matrix
 # -------------------------------------------------------------------------------------------------
-
 
 def _get_relation_matrix(df: pl.DataFrame) -> pl.DataFrame:
     '''Create relation matrix from relations_df DataFrame.'''
@@ -247,18 +221,15 @@ def _get_relation_matrix(df: pl.DataFrame) -> pl.DataFrame:
 
     return pl.from_numpy(data=rel_matrix, schema=rel_matrix_schema)
 
-
 # -------------------------------------------------------------------------------------------------
 # Distance stats
 # -------------------------------------------------------------------------------------------------
 
-
 def _relation_stats(relations_df: pl.DataFrame):
     stats_df = (
-        relations_df.group_by('relation_id', 'relation')
-        .agg(cnt=pl.len())
-        .with_columns(pct=pl.col('cnt').truediv(pl.col('cnt').sum()).mul(100))
-        .sort('relation_id')
+        relations_df.group_by('relation_id', 'relation').agg(cnt=pl.len()).with_columns(
+            pct=pl.col('cnt').truediv(pl.col('cnt').sum()).mul(100)
+        ).sort('relation_id')
     )
 
     _log_table(
@@ -269,11 +240,9 @@ def _relation_stats(relations_df: pl.DataFrame):
         output='./outputs/relation_stats.pdf',
     )
 
-
 # -------------------------------------------------------------------------------------------------
 # Main Entry Point
 # -------------------------------------------------------------------------------------------------
-
 
 def calculate_pairwise_relations() -> pl.DataFrame:
     # Load configuration from YAML
@@ -298,7 +267,11 @@ def calculate_pairwise_relations() -> pl.DataFrame:
 
         df = pl.DataFrame(
             data=relationships,
-            schema={'code_i': pl.Utf8, 'code_j': pl.Utf8, 'relationship': pl.Utf8},
+            schema={
+                'code_i': pl.Utf8,
+                'code_j': pl.Utf8,
+                'relationship': pl.Utf8
+            },
         )
 
         logger.info(f'Sector {sector}: [{len(depths): ,} nodes, {df.height: ,} pairs]')
@@ -308,9 +281,8 @@ def calculate_pairwise_relations() -> pl.DataFrame:
     pair_relations = pl.concat(df_list).select(
         pl.col('code_i'),
         pl.col('code_j'),
-        relation_id=pl.col('relationship')
-        .replace_strict(cfg.relation_id, default=None)
-        .cast(pl.Int8),
+        relation_id=pl.col('relationship').replace_strict(cfg.relation_id,
+                                                          default=None).cast(pl.Int8),
         relation=pl.col('relationship'),
     )
 
@@ -323,50 +295,43 @@ def calculate_pairwise_relations() -> pl.DataFrame:
     )
 
     relations_df = (
-        naics_i.join(naics_j, how='cross')
-        .with_columns(
+        naics_i.join(naics_j, how='cross').with_columns(
             sector_i=pl.col('code_i').str.slice(0, 2), sector_j=pl.col('code_j').str.slice(0, 2)
-        )
-        .with_columns(
+        ).with_columns(
             keep=(
                 (pl.col('lvl_i') <= pl.col('lvl_j'))
                 & (pl.col('sector_i') == pl.col('sector_j'))
                 & (pl.col('code_i').cast(pl.UInt32) < pl.col('code_j').cast(pl.UInt32))
             )
             | ((pl.col('lvl_i') <= pl.col('lvl_j')) & (pl.col('sector_i') != pl.col('sector_j')))
-        )
-        .filter(pl.col('keep'))
-        .collect()
-        .join(pair_relations, how='left', on=['code_i', 'code_j'])
-        .select(
-            idx_i=pl.col('idx_i'),
-            idx_j=pl.col('idx_j'),
-            code_i=pl.col('code_i'),
-            code_j=pl.col('code_j'),
-            relation_id=pl.col('relation_id').fill_null(99),
-            relation=pl.col('relation').fill_null('unrelated'),
-        )
-        .sort('idx_i', 'idx_j')
+        ).filter(pl.col('keep')
+                 ).collect().join(pair_relations, how='left', on=['code_i', 'code_j']).select(
+                     idx_i=pl.col('idx_i'),
+                     idx_j=pl.col('idx_j'),
+                     code_i=pl.col('code_i'),
+                     code_j=pl.col('code_j'),
+                     relation_id=pl.col('relation_id').fill_null(99),
+                     relation=pl.col('relation').fill_null('unrelated'),
+                 ).sort('idx_i', 'idx_j')
     )
 
     exclusions = _get_exclusions(relations_df)
 
     relations_df = (
-        relations_df.join(exclusions, on=['code_i', 'code_j'], how='left')
-        .with_columns(excluded=pl.col('excluded').fill_null(False))
-        .select(
+        relations_df.join(exclusions, on=['code_i', 'code_j'], how='left').with_columns(
+            excluded=pl.col('excluded').fill_null(False)
+        ).select(
             pl.col('idx_i'),
             pl.col('idx_j'),
             pl.col('code_i'),
             pl.col('code_j'),
-            relation_id=pl.when(pl.col('excluded'))
-            .then(pl.lit(0))
-            .otherwise(pl.col('relation_id')),
-            relation=pl.when(pl.col('excluded'))
-            .then(pl.lit('excluded'))
-            .otherwise(pl.col('relation')),
-        )
-        .sort('idx_i', 'idx_j')
+            relation_id=pl.when(pl.col('excluded')).then(pl.lit(0)).otherwise(
+                pl.col('relation_id')
+            ),
+            relation=pl.when(pl.col('excluded')).then(pl.lit('excluded')).otherwise(
+                pl.col('relation')
+            ),
+        ).sort('idx_i', 'idx_j')
     )
 
     (relations_df.write_parquet(cfg.output_parquet))
@@ -392,7 +357,6 @@ def calculate_pairwise_relations() -> pl.DataFrame:
     )
 
     return relations_df
-
 
 # -------------------------------------------------------------------------------------------------
 # Main Entry Point

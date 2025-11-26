@@ -1,7 +1,6 @@
 # -------------------------------------------------------------------------------------------------
 # Data and Configuration Validation
 # -------------------------------------------------------------------------------------------------
-
 '''
 Pre-flight validation utilities for NAICS Embedder.
 
@@ -29,11 +28,9 @@ from naics_embedder.utils.config import Config, TokenizationConfig
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Custom Exceptions
 # -------------------------------------------------------------------------------------------------
-
 
 class ValidationError(Exception):
     '''
@@ -65,11 +62,9 @@ class ValidationError(Exception):
                 parts.append(f'  {i}. {step}')
         return '\n'.join(parts)
 
-
 # -------------------------------------------------------------------------------------------------
 # Validation Result
 # -------------------------------------------------------------------------------------------------
-
 
 @dataclass
 class ValidationResult:
@@ -113,11 +108,9 @@ class ValidationResult:
             self.valid = False
         return self
 
-
 # -------------------------------------------------------------------------------------------------
 # Data Path Validation
 # -------------------------------------------------------------------------------------------------
-
 
 def validate_data_paths(cfg: Config) -> ValidationResult:
     '''
@@ -171,11 +164,9 @@ def validate_data_paths(cfg: Config) -> ValidationResult:
 
     return result
 
-
 # -------------------------------------------------------------------------------------------------
 # Parquet Schema Validation
 # -------------------------------------------------------------------------------------------------
-
 
 def validate_parquet_schema(
     path: str, required_columns: Set[str], file_description: str = 'parquet file'
@@ -224,7 +215,6 @@ def validate_parquet_schema(
 
     return result
 
-
 def validate_descriptions_schema(cfg: Config) -> ValidationResult:
     '''
     Validate the descriptions parquet has required columns.
@@ -240,7 +230,6 @@ def validate_descriptions_schema(cfg: Config) -> ValidationResult:
         {'index', 'code', 'level', 'title', 'description'},
         'descriptions parquet',
     )
-
 
 def validate_distances_schema(cfg: Config) -> ValidationResult:
     '''
@@ -258,11 +247,9 @@ def validate_distances_schema(cfg: Config) -> ValidationResult:
         'distances parquet',
     )
 
-
 # -------------------------------------------------------------------------------------------------
 # Tokenization Cache Validation
 # -------------------------------------------------------------------------------------------------
-
 
 def validate_tokenization_cache(
     cfg: Config, tokenization_cfg: Optional[TokenizationConfig] = None
@@ -338,11 +325,9 @@ def validate_tokenization_cache(
 
     return result
 
-
 # -------------------------------------------------------------------------------------------------
 # Comprehensive Training Validation
 # -------------------------------------------------------------------------------------------------
-
 
 def validate_training_config(cfg: Config) -> ValidationResult:
     '''
@@ -400,7 +385,6 @@ def validate_training_config(cfg: Config) -> ValidationResult:
             logger.warning(warning)
 
     return result
-
 
 def require_valid_config(cfg: Config) -> None:
     '''

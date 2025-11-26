@@ -20,11 +20,9 @@ logger = logging.getLogger(__name__)
 # Disable tokenizer parallelism to avoid fork issues with multiprocessing
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-
 # -------------------------------------------------------------------------------------------------
 # Tokenization functions
 # -------------------------------------------------------------------------------------------------
-
 
 def _tokenize_text(
     dict: Dict[str, str],
@@ -56,10 +54,8 @@ def _tokenize_text(
 
     return encoding, counter
 
-
-def _build_tokenization_cache(
-    descriptions_path: str, tokenizer_name: str, max_length: int
-) -> Dict[int, Dict[str, torch.Tensor]]:
+def _build_tokenization_cache(descriptions_path: str, tokenizer_name: str,
+                              max_length: int) -> Dict[int, Dict[str, torch.Tensor]]:
     '''Build tokenization cache from descriptions file.'''
 
     logger.info('Building tokenization cache...')
@@ -95,7 +91,6 @@ def _build_tokenization_cache(
 
     return cache
 
-
 def _save_tokenization_cache(cache: Dict[int, Dict[str, torch.Tensor]], cache_path: str) -> Path:
     '''Save tokenization cache to disk.'''
 
@@ -108,10 +103,8 @@ def _save_tokenization_cache(cache: Dict[int, Dict[str, torch.Tensor]], cache_pa
 
     return cache_file
 
-
-def _load_tokenization_cache(
-    cache_path: str, verbose: bool = True
-) -> Optional[Dict[int, Dict[str, torch.Tensor]]]:
+def _load_tokenization_cache(cache_path: str,
+                             verbose: bool = True) -> Optional[Dict[int, Dict[str, torch.Tensor]]]:
     '''Load tokenization cache from disk if it exists.'''
 
     cache_file = Path(cache_path)
@@ -140,11 +133,9 @@ def _load_tokenization_cache(
 
     return None
 
-
 # -------------------------------------------------------------------------------------------------
 # File locking utilities for multi-worker safety
 # -------------------------------------------------------------------------------------------------
-
 
 def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[TextIO]:
     '''
@@ -179,7 +170,6 @@ def _acquire_lock(lock_path: Path, timeout: int = 300) -> Optional[TextIO]:
         logger.warning(f'Error acquiring lock: {e}')
         return None
 
-
 def _release_lock(lock_file: Optional[TextIO]) -> None:
     '''Release the lock and close the file.'''
     if lock_file is None:
@@ -191,15 +181,12 @@ def _release_lock(lock_file: Optional[TextIO]) -> None:
     except Exception as e:
         logger.debug(f'Error releasing lock: {e}')
 
-
 # -------------------------------------------------------------------------------------------------
 # Main tokenization functions
 # -------------------------------------------------------------------------------------------------
 
-
-def tokenization_cache(
-    cfg: TokenizationConfig = TokenizationConfig(), use_locking: bool = True
-) -> Dict[int, Dict[str, torch.Tensor]]:
+def tokenization_cache(cfg: TokenizationConfig = TokenizationConfig(),
+                       use_locking: bool = True) -> Dict[int, Dict[str, torch.Tensor]]:
     '''
     Get tokenization cache, loading from disk or building if necessary.
 
@@ -291,10 +278,8 @@ def tokenization_cache(
         except Exception:
             pass  # Ignore cleanup errors
 
-
-def get_tokens(
-    idx_code: Union[int, str], cache: Dict[int, Dict[str, torch.Tensor]]
-) -> Dict[int, Dict[str, torch.Tensor]]:
+def get_tokens(idx_code: Union[int, str],
+               cache: Dict[int, Dict[str, torch.Tensor]]) -> Dict[int, Dict[str, torch.Tensor]]:
     '''Get tokens for a specific NAICS index or code from cache.'''
 
     if isinstance(idx_code, int):

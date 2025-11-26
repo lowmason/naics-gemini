@@ -15,49 +15,37 @@ from naics_embedder.utils.utilities import get_indices_codes
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Utility functions
 # -------------------------------------------------------------------------------------------------
 
-
 def _taxonomy(codes_parquet: str) -> pl.DataFrame:
     return (
-        pl.read_parquet(codes_parquet)
-        .filter(pl.col('level').eq(6))
-        .select('code')
-        .sort(pl.col('code').cast(pl.UInt32))
-        .unique(maintain_order=True)
-        .select(
+        pl.read_parquet(codes_parquet).filter(pl.col('level').eq(6)).select('code').sort(
+            pl.col('code').cast(pl.UInt32)
+        ).unique(maintain_order=True).select(
             code_2=pl.col('code').str.slice(0, 2),
             code_3=pl.col('code').str.slice(0, 3),
             code_4=pl.col('code').str.slice(0, 4),
             code_5=pl.col('code').str.slice(0, 5),
             code_6=pl.col('code').str.slice(0, 6),
-        )
-        .with_columns(
-            code_2=pl.when(pl.col('code_2').is_in(['31', '32', '33']))
-            .then(pl.lit('31'))
-            .when(pl.col('code_2').is_in(['44', '45']))
-            .then(pl.lit('44'))
-            .when(pl.col('code_2').is_in(['48', '49']))
-            .then(pl.lit('48'))
-            .otherwise(pl.col('code_2'))
-        )
-        .with_columns(
+        ).with_columns(
+            code_2=pl.when(pl.col('code_2').is_in(['31', '32', '33'])).then(pl.lit('31')).when(
+                pl.col('code_2').is_in(['44', '45'])
+            ).then(pl.lit('44')).when(pl.col('code_2').is_in(['48', '49'])
+                                      ).then(pl.lit('48')).otherwise(pl.col('code_2'))
+        ).with_columns(
             code=pl.concat_str(pl.col('code_2'), pl.col('code_6').str.slice(2, 4), separator='')
         )
     )
 
-
 def _anchors(triplets_parquet: str) -> pl.DataFrame:
     return (
-        pl.read_parquet(triplets_parquet)
-        .select(level=pl.col('anchor_level'), anchor=pl.col('anchor_code'))
-        .unique()
-        .sort(pl.col('level'), pl.col('anchor').cast(pl.UInt32))
+        pl.read_parquet(triplets_parquet).select(
+            level=pl.col('anchor_level'), anchor=pl.col('anchor_code')
+        ).unique().sort(pl.col('level'),
+                        pl.col('anchor').cast(pl.UInt32))
     )
-
 
 def _linear_skip(anchor: str, taxonomy: pl.DataFrame) -> List[str]:
     lvl = len(anchor)
@@ -76,11 +64,9 @@ def _linear_skip(anchor: str, taxonomy: pl.DataFrame) -> List[str]:
 
     return taxonomy.filter(pl.col(anchor_code).eq(anchor)).get_column('code_6').unique().to_list()
 
-
 # -------------------------------------------------------------------------------------------------
 # Descendants
 # -------------------------------------------------------------------------------------------------
-
 
 def _descendants(anchors: pl.DataFrame, taxonomy: pl.DataFrame) -> pl.DataFrame:
     parent_anchors = (
@@ -92,50 +78,46 @@ def _descendants(anchors: pl.DataFrame, taxonomy: pl.DataFrame) -> pl.DataFrame:
         parent_stratum.append({'anchor': anchor, 'stratum': _linear_skip(anchor, taxonomy)})
 
     return (
-        pl.DataFrame(data=parent_stratum, schema={'anchor': pl.Utf8, 'stratum': pl.List(pl.Utf8)})
-        .filter(pl.col('stratum').is_not_null())
-        .select(
+        pl.DataFrame(data=parent_stratum, schema={
+            'anchor': pl.Utf8,
+            'stratum': pl.List(pl.Utf8)
+        }).filter(pl.col('stratum').is_not_null()).select(
             level=pl.col('anchor').str.len_chars(),
             anchor=pl.col('anchor'),
             positive=pl.col('stratum'),
         )
     )
 
-
 # -------------------------------------------------------------------------------------------------
 # Ancestors
 # -------------------------------------------------------------------------------------------------
-
 
 def _ancestors(
     anchors: pl.DataFrame,
     taxonomy: pl.DataFrame,
 ) -> pl.DataFrame:
     return (
-        anchors.filter(pl.col('level').eq(6))
-        .join(taxonomy, left_on='anchor', right_on='code_6', how='inner')
-        .select(
+        anchors.filter(pl.col('level').eq(6)).join(
+            taxonomy, left_on='anchor', right_on='code_6', how='inner'
+        ).select(
             level=pl.col('level'),
             anchor=pl.col('anchor'),
             code_5=pl.col('code_5'),
             code_4=pl.col('code_4'),
             code_3=pl.col('code_3'),
             code_2=pl.col('code_2'),
-        )
-        .unpivot(
+        ).unpivot(
             ['code_5', 'code_4', 'code_3', 'code_2'],
             index=['level', 'anchor'],
             variable_name='ancestor_level',
             value_name='ancestor',
-        )
-        .with_columns(
+        ).with_columns(
             ancestor_level=pl.col('ancestor_level').str.slice(5, 1).cast(pl.Int8).add(-6).mul(-1)
-        )
-        .sort('level', 'anchor', 'ancestor_level')
-        .group_by('level', 'anchor', maintain_order=True)
-        .agg(positive=pl.col('ancestor'))
+        ).sort('level', 'anchor',
+               'ancestor_level').group_by('level', 'anchor', maintain_order=True).agg(
+                   positive=pl.col('ancestor')
+               )
     )
-
 
 def sample_positives(
     descriptions_path: str = './data/naics_descriptions.parquet',
@@ -148,24 +130,19 @@ def sample_positives(
     ancestors = _ancestors(anchors, taxonomy)
 
     return (
-        pl.concat([descendants, ancestors])
-        .explode('positive')
-        .select(
+        pl.concat([descendants, ancestors]).explode('positive').select(
             anchor_idx=pl.col('anchor').replace(code_to_idx).cast(pl.UInt32),
             positive_idx=pl.col('positive').replace(code_to_idx).cast(pl.UInt32),
             anchor_code=pl.col('anchor'),
             positive_code=pl.col('positive'),
             anchor_level=pl.col('level'),
             positive_level=pl.col('positive').str.len_chars(),
-        )
-        .sort('anchor_idx', 'positive_idx')
+        ).sort('anchor_idx', 'positive_idx')
     )
-
 
 # -------------------------------------------------------------------------------------------------
 # Phase 1 Sampling Utilities
 # -------------------------------------------------------------------------------------------------
-
 
 def _load_relation_matrix(
     relation_matrix_path: str, code_to_idx: Dict[str, int], idx_to_code: Dict[int, str]
@@ -233,7 +210,6 @@ def _load_relation_matrix(
     logger.info(f'Loaded {len(relation_lookup):,} distance entries')
     return relation_lookup
 
-
 def _load_distance_matrix(
     distance_matrix_path: str, code_to_idx: Dict[str, int], idx_to_code: Dict[int, str]
 ) -> Dict[Tuple[str, str], float]:
@@ -300,10 +276,8 @@ def _load_distance_matrix(
     logger.info(f'Loaded {len(distance_lookup):,} distance entries')
     return distance_lookup
 
-
-def _load_excluded_codes(
-    descriptions_path: str, code_to_idx: Optional[Dict[str, int]] = None
-) -> Dict[str, Set[str]]:
+def _load_excluded_codes(descriptions_path: str,
+                         code_to_idx: Optional[Dict[str, int]] = None) -> Dict[str, Set[str]]:
     '''
     Load excluded codes from descriptions parquet.
 
@@ -316,9 +290,9 @@ def _load_excluded_codes(
     logger.info('Loading excluded codes for Phase 1 sampling...')
 
     df = (
-        pl.read_parquet(descriptions_path)
-        .select('code', 'excluded_codes')
-        .filter(pl.col('excluded_codes').is_not_null())
+        pl.read_parquet(descriptions_path).select('code', 'excluded_codes').filter(
+            pl.col('excluded_codes').is_not_null()
+        )
     )
 
     excluded_map = {}
@@ -341,7 +315,6 @@ def _load_excluded_codes(
     if unknown_codes:
         logger.warning(f'{unknown_codes:,} excluded codes not in taxonomy were ignored')
     return excluded_map
-
 
 def _compute_phase1_weights(
     anchor_code: str,
@@ -403,7 +376,6 @@ def _compute_phase1_weights(
             weights[i] = 0.0
 
     return weights, excluded_mask
-
 
 def _sample_negatives_phase1(
     anchor_code: str,
@@ -483,11 +455,9 @@ def _sample_negatives_phase1(
 
     return sampled
 
-
 # -------------------------------------------------------------------------------------------------
 # Cache utilities
 # -------------------------------------------------------------------------------------------------
-
 
 def _get_final_cache_path(cfg: StreamingConfig) -> Path:
     '''Get the cache file path for streaming query cache.'''
@@ -518,11 +488,9 @@ def _get_final_cache_path(cfg: StreamingConfig) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / f'streaming_final_{cache_key}.pkl'
 
-
 # -------------------------------------------------------------------------------------------------
 # Triplet batch generator
 # -------------------------------------------------------------------------------------------------
-
 
 def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]:
     '''Create a generator that yields triplets for training.'''
@@ -620,9 +588,9 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
             'negative_code',
             'relation_margin',
             'distance_margin',
-        )
-        .group_by('anchor_idx', 'anchor_code', 'positive_idx', 'positive_code', maintain_order=True)
-        .agg(
+        ).group_by(
+            'anchor_idx', 'anchor_code', 'positive_idx', 'positive_code', maintain_order=True
+        ).agg(
             negatives=pl.struct(
                 [
                     pl.col('negative_idx'),
@@ -631,20 +599,15 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
                     pl.col('distance_margin'),
                 ]
             )
-        )
-        .with_columns(positives_count=pl.col('negatives').list.len())
-        .filter(pl.col('positives_count').gt(0))
-        .with_columns(
+        ).with_columns(positives_count=pl.col('negatives').list.len()).filter(
+            pl.col('positives_count').gt(0)
+        ).with_columns(
             positives_count=pl.min_horizontal(pl.col('positives_count'), pl.lit(cfg.n_positives))
-        )
-        .with_columns(
+        ).with_columns(
             negatives=pl.col('negatives').list.sample(
                 pl.col('positives_count'), shuffle=True, seed=cfg.seed
             )
-        )
-        .drop('positives_count')
-        .explode('negatives')
-        .unnest('negatives')
+        ).drop('positives_count').explode('negatives').unnest('negatives')
     )
 
     # Execute query
@@ -707,15 +670,12 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
             'negatives': sampled_negatives,
         }
 
-
 # -------------------------------------------------------------------------------------------------
 # Streaming dataset generator
 # -------------------------------------------------------------------------------------------------
 
-
-def create_streaming_dataset(
-    token_cache: Dict[int, Dict[str, Any]], cfg: StreamingConfig
-) -> Iterator[Dict[str, Any]]:
+def create_streaming_dataset(token_cache: Dict[int, Dict[str, Any]],
+                             cfg: StreamingConfig) -> Iterator[Dict[str, Any]]:
     '''Create streaming dataset that yields triplets with tokenized embeddings.
 
     For multi-level supervision (Issue #18):
@@ -781,8 +741,7 @@ def create_streaming_dataset(
                                 ancestor_idx_int = ancestor_idx
                             positive_embedding = {
                                 k: v
-                                for k, v in token_cache[ancestor_idx_int].items()
-                                if k != 'code'
+                                for k, v in token_cache[ancestor_idx_int].items() if k != 'code'
                             }
                             positives_list.append(
                                 {
@@ -806,7 +765,8 @@ def create_streaming_dataset(
                 else:
                     positive_idx_int = positive_idx
                 positive_embedding = {
-                    k: v for k, v in token_cache[positive_idx_int].items() if k != 'code'
+                    k: v
+                    for k, v in token_cache[positive_idx_int].items() if k != 'code'
                 }
                 positives_list.append(
                     {
@@ -825,7 +785,8 @@ def create_streaming_dataset(
                 negative_idx = negative['negative_idx']
                 negative_code = negative['negative_code']
                 negative_embedding = {
-                    k: v for k, v in token_cache[negative_idx].items() if k != 'code'
+                    k: v
+                    for k, v in token_cache[negative_idx].items() if k != 'code'
                 }
 
                 negatives.append(

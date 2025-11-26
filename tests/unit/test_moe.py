@@ -13,7 +13,6 @@ from naics_embedder.text_model.moe import MixtureOfExperts, create_moe_layer
 # MixtureOfExperts Tests
 # -------------------------------------------------------------------------------------------------
 
-
 @pytest.mark.unit
 class TestMixtureOfExperts:
     '''Test suite for Mixture of Experts layer.'''
@@ -166,7 +165,7 @@ class TestMixtureOfExperts:
             # Individual processing
             individual_outputs = []
             for i in range(4):
-                single_input = inputs[i : i + 1]
+                single_input = inputs[i:i + 1]
                 single_output, _, _ = moe_layer(single_input)
                 individual_outputs.append(single_output)
 
@@ -192,11 +191,9 @@ class TestMixtureOfExperts:
         # Should use more than 1 expert across the batch
         assert len(unique_experts) > 1
 
-
 # -------------------------------------------------------------------------------------------------
 # Factory Function Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestCreateMoELayer:
@@ -224,11 +221,9 @@ class TestCreateMoELayer:
         assert moe.num_experts == 4  # Default
         assert moe.top_k == 2  # Default
 
-
 # -------------------------------------------------------------------------------------------------
 # Expert Routing Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestExpertRouting:
@@ -275,11 +270,9 @@ class TestExpertRouting:
         # Output should be influenced by selected experts
         assert output.shape == input_tensor.shape
 
-
 # -------------------------------------------------------------------------------------------------
 # Edge Cases and Stress Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestMoEEdgeCases:
@@ -352,11 +345,9 @@ class TestMoEEdgeCases:
         # This is probabilistic but very likely
         assert len(unique_experts) == moe.num_experts
 
-
 # -------------------------------------------------------------------------------------------------
 # Performance and Optimization Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestMoEPerformance:

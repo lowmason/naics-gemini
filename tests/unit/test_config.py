@@ -19,7 +19,6 @@ from naics_embedder.utils.config import (
 # DirConfig Tests
 # -------------------------------------------------------------------------------------------------
 
-
 @pytest.mark.unit
 class TestDirConfig:
     '''Test suite for directory configuration.'''
@@ -59,11 +58,9 @@ class TestDirConfig:
         assert 'checkpoint_dir' in config_dict
         assert 'data_dir' in config_dict
 
-
 # -------------------------------------------------------------------------------------------------
 # DownloadConfig Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestDownloadConfig:
@@ -96,11 +93,9 @@ class TestDownloadConfig:
         with pytest.raises(ValidationError):
             DownloadConfig(output_parquet='./data/output.csv')
 
-
 # -------------------------------------------------------------------------------------------------
 # DistancesConfig Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestDistancesConfig:
@@ -128,11 +123,9 @@ class TestDistancesConfig:
         assert config.distances_parquet == './data/naics_distances.parquet'
         assert config.distance_matrix_parquet == './data/naics_distance_matrix.parquet'
 
-
 # -------------------------------------------------------------------------------------------------
 # Config Loading Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestLoadConfig:
@@ -241,11 +234,9 @@ class TestLoadConfig:
 
         assert config.checkpoint_dir == '/custom/path'
 
-
 # -------------------------------------------------------------------------------------------------
 # Validation Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestConfigValidation:
@@ -277,11 +268,9 @@ class TestConfigValidation:
         # Should accept the value (may strip whitespace depending on validators)
         assert isinstance(config.checkpoint_dir, str)
 
-
 # -------------------------------------------------------------------------------------------------
 # Integration Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestConfigIntegration:
@@ -338,11 +327,9 @@ class TestConfigIntegration:
         assert '/test' in json_str
         assert 'checkpoint_dir' in json_str
 
-
 # -------------------------------------------------------------------------------------------------
 # Error Handling Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestConfigErrorHandling:

@@ -1,7 +1,6 @@
 # -------------------------------------------------------------------------------------------------
 # Data Generation Commands
 # -------------------------------------------------------------------------------------------------
-
 '''
 CLI commands for NAICS data generation and preprocessing.
 
@@ -41,11 +40,9 @@ app = typer.Typer(
     help='Data generation and preprocessing commands for NAICS taxonomy.', no_args_is_help=True
 )
 
-
 # -------------------------------------------------------------------------------------------------
 # Download and preprocess data
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('preprocess')
 def preprocess():
@@ -75,11 +72,9 @@ def preprocess():
 
     console.print('\n[bold]Preprocessing complete.[/bold]\n')
 
-
 # -------------------------------------------------------------------------------------------------
 # Compute pairwise graph relationships
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('relations')
 def relations():
@@ -111,11 +106,9 @@ def relations():
 
     console.print('\n[bold]Relation computation complete.[/bold]\n')
 
-
 # -------------------------------------------------------------------------------------------------
 # Compute pairwise graph distances
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('distances')
 def distances():
@@ -147,11 +140,9 @@ def distances():
 
     console.print('\n[bold]Distance computation complete.[/bold]\n')
 
-
 # -------------------------------------------------------------------------------------------------
 # Generate training triplets
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('triplets')
 def triplets():
@@ -187,11 +178,9 @@ def triplets():
 
     console.print('\n[bold]Triplet generation complete.[/bold]\n')
 
-
 # -------------------------------------------------------------------------------------------------
 # Run full data generation pipeline
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('all')
 def all_data():

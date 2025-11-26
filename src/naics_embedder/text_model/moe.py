@@ -11,11 +11,9 @@ import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Mixture of Experts (MoE) Layer
 # -------------------------------------------------------------------------------------------------
-
 
 class MixtureOfExperts(nn.Module):
     '''
@@ -57,8 +55,7 @@ class MixtureOfExperts(nn.Module):
                     nn.ReLU(),
                     nn.Dropout(0.1),
                     nn.Linear(hidden_dim, input_dim),
-                )
-                for _ in range(num_experts)
+                ) for _ in range(num_experts)
             ]
         )
 
@@ -109,10 +106,9 @@ class MixtureOfExperts(nn.Module):
 
         # Create batch indices for scatter operations
         batch_indices = (
-            torch.arange(batch_size, device=x.device)
-            .unsqueeze(1)
-            .expand(-1, self.top_k)
-            .reshape(-1)
+            torch.arange(batch_size, device=x.device).unsqueeze(1).expand(-1, self.top_k).reshape(
+                -1
+            )
         )  # (batch_size * top_k,)
 
         # Group inputs by expert for efficient batched processing
@@ -163,11 +159,9 @@ class MixtureOfExperts(nn.Module):
         # Return materials for global loss calculation
         return output, gate_probs, top_k_indices
 
-
 # -------------------------------------------------------------------------------------------------
 # Helper function for creating MoE
 # -------------------------------------------------------------------------------------------------
-
 
 def create_moe_layer(
     input_dim: int, hidden_dim: int = 1024, num_experts: int = 4, top_k: int = 2

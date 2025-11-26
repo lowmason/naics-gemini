@@ -1,7 +1,6 @@
 # -------------------------------------------------------------------------------------------------
 # Tools Commands
 # -------------------------------------------------------------------------------------------------
-
 '''
 CLI utility commands for configuration, GPU optimization, and metrics analysis.
 
@@ -35,11 +34,9 @@ app = typer.Typer(
     help='Utility tools for configuration, metrics analysis, and debugging.', no_args_is_help=True
 )
 
-
 # -------------------------------------------------------------------------------------------------
 # View configuration
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('config')
 def config(
@@ -76,11 +73,9 @@ def config(
 
     show_current_config(config_file)
 
-
 # -------------------------------------------------------------------------------------------------
 # Visualize metrics
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('visualize')
 def visualize(
@@ -153,11 +148,9 @@ def visualize(
         console.print(f'[bold red]Error:[/bold red] {e}')
         raise typer.Exit(code=1)
 
-
 # -------------------------------------------------------------------------------------------------
 # Investigate hierarchy preservation metrics
 # -------------------------------------------------------------------------------------------------
-
 
 @app.command('investigate')
 def investigate(

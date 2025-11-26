@@ -22,7 +22,6 @@ from naics_embedder.data.compute_distances import (
 # Sector Utilities Tests
 # -------------------------------------------------------------------------------------------------
 
-
 @pytest.mark.unit
 class TestSectorUtilities:
     '''Test suite for sector utility functions.'''
@@ -74,11 +73,9 @@ class TestSectorUtilities:
         assert all(len(code) == 6 for code in codes)
         assert all(code.startswith(('31', '32', '33')) for code in codes)
 
-
 # -------------------------------------------------------------------------------------------------
 # Tree Construction Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestTreeConstruction:
@@ -118,11 +115,9 @@ class TestTreeConstruction:
         # A tree should be acyclic
         assert nx.is_directed_acyclic_graph(tree)
 
-
 # -------------------------------------------------------------------------------------------------
 # Tree Metadata Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestTreeMetadata:
@@ -188,11 +183,9 @@ class TestTreeMetadata:
             if parent is not None:
                 assert parent in ancestors[node]
 
-
 # -------------------------------------------------------------------------------------------------
 # Common Ancestor Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestCommonAncestor:
@@ -237,11 +230,9 @@ class TestCommonAncestor:
                 assert common == parent
                 break
 
-
 # -------------------------------------------------------------------------------------------------
 # Distance Computation Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestDistanceComputation:
@@ -342,11 +333,9 @@ class TestDistanceComputation:
                 distance = _get_distance(nodes[i], nodes[j], depths, ancestors)
                 assert distance >= 0.0
 
-
 # -------------------------------------------------------------------------------------------------
 # Integration Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestDistanceIntegration:
@@ -407,11 +396,9 @@ class TestDistanceIntegration:
                 # Allow small tolerance for lineal adjustments
                 assert d_ac <= d_ab + d_bc + 1.0
 
-
 # -------------------------------------------------------------------------------------------------
 # Edge Cases
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.mark.unit
 class TestDistanceEdgeCases:

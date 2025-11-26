@@ -16,7 +16,6 @@ from rich.logging import RichHandler
 # Configure logging
 # -------------------------------------------------------------------------------------------------
 
-
 class ConsoleFormatter(logging.Formatter):
     '''Formatter that prints time only if more than `time_interval` seconds have elapsed.'''
 
@@ -42,7 +41,6 @@ class ConsoleFormatter(logging.Formatter):
             return f'{time_str}\n{message}'
         else:
             return message
-
 
 def configure_logging(log_file: str, log_dir: str = './logs', level: str = 'INFO'):
     # Create log directory if it doesn't exist
@@ -80,11 +78,9 @@ def configure_logging(log_file: str, log_dir: str = './logs', level: str = 'INFO
     # Explicitly re-enable your own package
     logging.getLogger('naics_embedder').setLevel(level)
 
-
 # -------------------------------------------------------------------------------------------------
 # Print styled table
 # -------------------------------------------------------------------------------------------------
-
 
 def log_table(
     df: pl.DataFrame,
@@ -119,19 +115,15 @@ def log_table(
 
     if span_label is not None and span_cols is not None:
         table = (
-            df.style.tab_header(title=title)
-            .cols_label(cols_labels_dict)  # type: ignore
-            .tab_spanner(span_label, cs.by_name(span_cols))
-            .fmt_integer('cnt')
-            .fmt_number('pct', decimals=4)
+            df.style.tab_header(title=title).cols_label(cols_labels_dict)  # type: ignore
+            .tab_spanner(span_label,
+                         cs.by_name(span_cols)).fmt_integer('cnt').fmt_number('pct', decimals=4)
         )
 
     else:
         table = (
-            df.style.tab_header(title=title)
-            .cols_label(cols_labels_dict)  # type: ignore
-            .fmt_integer('cnt')
-            .fmt_number('pct', decimals=4)
+            df.style.tab_header(title=title).cols_label(cols_labels_dict)  # type: ignore
+            .fmt_integer('cnt').fmt_number('pct', decimals=4)
         )
 
     with pl.Config() as cfg:

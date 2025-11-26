@@ -1,7 +1,6 @@
 # -------------------------------------------------------------------------------------------------
 # Centralized Warning Configuration
 # -------------------------------------------------------------------------------------------------
-
 '''
 Centralized warning suppression for NAICS Embedder.
 
@@ -84,11 +83,9 @@ _WARNING_FILTERS: List[Tuple[str, type, str, str]] = [
     ),
 ]
 
-
 # -------------------------------------------------------------------------------------------------
 # Configuration Function
 # -------------------------------------------------------------------------------------------------
-
 
 def configure_warnings(
     additional_filters: Optional[List[Tuple[str, type, str]]] = None, verbose: bool = False
@@ -130,7 +127,6 @@ def configure_warnings(
             if verbose:
                 logger.debug(f'Suppressed additional warning: {message[:50]}...')
 
-
 def get_warning_rationale(pattern: str) -> Optional[str]:
     '''
     Get the rationale for a specific warning suppression.
@@ -150,7 +146,6 @@ def get_warning_rationale(pattern: str) -> Optional[str]:
         if pattern in message or message in pattern:
             return rationale
     return None
-
 
 def list_suppressed_warnings() -> List[Tuple[str, str]]:
     '''

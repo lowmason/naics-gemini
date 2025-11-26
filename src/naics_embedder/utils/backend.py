@@ -11,11 +11,9 @@ import torch
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Backend GPU availability tests
 # -------------------------------------------------------------------------------------------------
-
 
 def get_device(log_info: bool = False) -> Tuple[str, str, int]:
     cuda_ok = torch.cuda.is_available()
@@ -44,7 +42,6 @@ def get_device(log_info: bool = False) -> Tuple[str, str, int]:
         logger.info(f'{gpu}\n')
 
     return device, precision, num_gpus
-
 
 if __name__ == '__main__':
     device, precision, num_gpus = get_device()

@@ -15,20 +15,17 @@ import torch
 # Test Configuration
 # -------------------------------------------------------------------------------------------------
 
-
 @pytest.fixture(scope='session')
 def test_device():
     '''Get device for testing (CPU for CI compatibility).'''
 
     return torch.device('cpu')
 
-
 @pytest.fixture(scope='session')
 def random_seed():
     '''Fixed random seed for reproducibility.'''
 
     return 42
-
 
 @pytest.fixture(autouse=True)
 def set_random_seeds(random_seed):
@@ -38,11 +35,9 @@ def set_random_seeds(random_seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(random_seed)
 
-
 # -------------------------------------------------------------------------------------------------
 # Hyperbolic Geometry Fixtures
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.fixture
 def sample_tangent_vectors(test_device, random_seed):
@@ -61,7 +56,6 @@ def sample_tangent_vectors(test_device, random_seed):
     # Scale to have reasonable norms for numerical stability
     tangent = tangent / (torch.norm(tangent, dim=1, keepdim=True) + 1e-8) * 2.0
     return tangent
-
 
 @pytest.fixture
 def sample_lorentz_embeddings(test_device, random_seed):
@@ -82,7 +76,6 @@ def sample_lorentz_embeddings(test_device, random_seed):
     tangent = tangent / (torch.norm(tangent, dim=1, keepdim=True) + 1e-8) * 2.0
     return LorentzOps.exp_map_zero(tangent, c=1.0)
 
-
 @pytest.fixture
 def sample_euclidean_embeddings(test_device, random_seed):
     '''Generate sample Euclidean embeddings.'''
@@ -92,25 +85,23 @@ def sample_euclidean_embeddings(test_device, random_seed):
     dim = 384
     return torch.randn(batch_size, dim, device=test_device)
 
-
 @pytest.fixture(params=[0.1, 0.5, 1.0, 5.0, 10.0])
 def curvature_values(request):
     '''Parametrize tests across different curvature values.'''
 
     return request.param
 
-
 # -------------------------------------------------------------------------------------------------
 # Data Processing Fixtures
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.fixture
 def sample_naics_data(tmp_path):
     '''Create minimal NAICS data for testing.'''
 
     data = {
-        'index': list(range(15)),
+        'index':
+        list(range(15)),
         'code': [
             '31',
             '311',
@@ -154,7 +145,6 @@ def sample_naics_data(tmp_path):
 
     return str(parquet_path)
 
-
 @pytest.fixture
 def sample_naics_relations(tmp_path, sample_naics_data):
     '''Create sample NAICS relationship data.'''
@@ -184,7 +174,6 @@ def sample_naics_relations(tmp_path, sample_naics_data):
 
     return str(parquet_path)
 
-
 @pytest.fixture
 def sample_naics_distances(tmp_path):
     '''Create sample NAICS distance data.'''
@@ -203,11 +192,9 @@ def sample_naics_distances(tmp_path):
 
     return str(parquet_path)
 
-
 # -------------------------------------------------------------------------------------------------
 # Model Component Fixtures
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.fixture
 def batch_size():
@@ -215,20 +202,17 @@ def batch_size():
 
     return 16
 
-
 @pytest.fixture
 def embedding_dim():
     '''Standard embedding dimension for testing.'''
 
     return 384
 
-
 @pytest.fixture
 def num_channels():
     '''Number of text channels (title, description, examples, exclusions).'''
 
     return 4
-
 
 @pytest.fixture
 def sample_batch(batch_size, num_channels, test_device, random_seed):
@@ -242,11 +226,9 @@ def sample_batch(batch_size, num_channels, test_device, random_seed):
         'exclusions': torch.randn(batch_size, 384, device=test_device),
     }
 
-
 # -------------------------------------------------------------------------------------------------
 # Logging Configuration for Tests
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.fixture(scope='session', autouse=True)
 def configure_logging():
@@ -261,11 +243,9 @@ def configure_logging():
     logging.getLogger('matplotlib').setLevel(logging.ERROR)
     logging.getLogger('PIL').setLevel(logging.ERROR)
 
-
 # -------------------------------------------------------------------------------------------------
 # Temporary Directory Helpers
 # -------------------------------------------------------------------------------------------------
-
 
 @pytest.fixture
 def temp_checkpoint_dir(tmp_path):
@@ -275,7 +255,6 @@ def temp_checkpoint_dir(tmp_path):
     checkpoint_dir.mkdir()
     return checkpoint_dir
 
-
 @pytest.fixture
 def temp_data_dir(tmp_path):
     '''Create temporary data directory.'''
@@ -283,7 +262,6 @@ def temp_data_dir(tmp_path):
     data_dir = tmp_path / 'data'
     data_dir.mkdir()
     return data_dir
-
 
 @pytest.fixture
 def temp_config_dir(tmp_path):

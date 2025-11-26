@@ -12,11 +12,9 @@ from naics_embedder.text_model.hyperbolic import LorentzDistance
 
 logger = logging.getLogger(__name__)
 
-
 # -------------------------------------------------------------------------------------------------
 # Lorentzian Hard Negative Mining
 # -------------------------------------------------------------------------------------------------
-
 
 class LorentzianHardNegativeMiner(nn.Module):
     '''
@@ -72,9 +70,8 @@ class LorentzianHardNegativeMiner(nn.Module):
 
         return lorentz_norm
 
-    def check_lorentz_inner_product_safety(
-        self, u: torch.Tensor, v: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def check_lorentz_inner_product_safety(self, u: torch.Tensor,
+                                           v: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
         Safety check: Ensure ⟨u, v⟩_L < -1 to prevent NaN in gradients.
 
@@ -184,11 +181,9 @@ class LorentzianHardNegativeMiner(nn.Module):
         else:
             return hard_negatives, None
 
-
 # -------------------------------------------------------------------------------------------------
 # Router-Guided Negative Mining
 # -------------------------------------------------------------------------------------------------
-
 
 class RouterGuidedNegativeMiner(nn.Module):
     '''
@@ -357,9 +352,8 @@ class RouterGuidedNegativeMiner(nn.Module):
 
         # Gather selected negatives
         batch_indices = (
-            torch.arange(batch_size, device=anchor_gate_probs.device)
-            .unsqueeze(1)
-            .expand(-1, k_actual)
+            torch.arange(batch_size,
+                         device=anchor_gate_probs.device).unsqueeze(1).expand(-1, k_actual)
         )  # (batch_size, k)
 
         router_hard_negatives = candidate_negatives[batch_indices, topk_indices]
@@ -369,11 +363,9 @@ class RouterGuidedNegativeMiner(nn.Module):
         else:
             return router_hard_negatives, None
 
-
 # -------------------------------------------------------------------------------------------------
 # Norm-Adaptive Margin
 # -------------------------------------------------------------------------------------------------
-
 
 class NormAdaptiveMargin(nn.Module):
     '''

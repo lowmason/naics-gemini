@@ -24,7 +24,6 @@ configure_warnings()
 console = Console()
 logger = logging.getLogger(__name__)
 
-
 app = typer.Typer(
     help=Panel.fit(
         '[bold cyan]NAICS Embedder[/bold cyan]\n\nText-enhanced Hyperbolic NAICS Embedding System',

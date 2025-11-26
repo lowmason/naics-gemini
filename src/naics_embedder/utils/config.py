@@ -13,11 +13,9 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar('T', bound=BaseModel)
 
-
 # -------------------------------------------------------------------------------------------------
 # Generic Config Loader
 # -------------------------------------------------------------------------------------------------
-
 
 def load_config(config_class: Type[T], yaml_path: Union[str, Path]) -> T:
     '''
@@ -67,11 +65,9 @@ def load_config(config_class: Type[T], yaml_path: Union[str, Path]) -> T:
 
     return config_class(**data)
 
-
 # -------------------------------------------------------------------------------------------------
 # Directory Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class DirConfig(BaseModel):
     '''File system directory configuration.'''
@@ -85,11 +81,9 @@ class DirConfig(BaseModel):
     log_dir: str = Field(default='./logs', description='Directory for logs')
     output_dir: str = Field(default='./outputs', description='Directory for training outputs')
 
-
 # -------------------------------------------------------------------------------------------------
 # Data Generation Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class DownloadConfig(BaseModel):
     '''Configuration for downloading and preprocessing NAICS data.'''
@@ -139,14 +133,24 @@ class DownloadConfig(BaseModel):
         description='Schema for codes sheet',
     )
     schema_index: Dict[str, str] = Field(
-        default={'NAICS22': 'Utf8', 'INDEX ITEM DESCRIPTION': 'Utf8'},
+        default={
+            'NAICS22': 'Utf8',
+            'INDEX ITEM DESCRIPTION': 'Utf8'
+        },
         description='Schema for index sheet',
     )
     schema_descriptions: Dict[str, str] = Field(
-        default={'Code': 'Utf8', 'Description': 'Utf8'}, description='Schema for descriptions sheet'
+        default={
+            'Code': 'Utf8',
+            'Description': 'Utf8'
+        },
+        description='Schema for descriptions sheet'
     )
     schema_exclusions: Dict[str, str] = Field(
-        default={'Code': 'Utf8', 'Cross-Reference': 'Utf8'},
+        default={
+            'Code': 'Utf8',
+            'Cross-Reference': 'Utf8'
+        },
         description='Schema for exclusions sheet',
     )
 
@@ -160,15 +164,24 @@ class DownloadConfig(BaseModel):
         description='Column renames for codes',
     )
     rename_index: Dict[str, str] = Field(
-        default={'NAICS22': 'code', 'INDEX ITEM DESCRIPTION': 'examples'},
+        default={
+            'NAICS22': 'code',
+            'INDEX ITEM DESCRIPTION': 'examples'
+        },
         description='Column renames for index',
     )
     rename_descriptions: Dict[str, str] = Field(
-        default={'Code': 'code', 'Description': 'description'},
+        default={
+            'Code': 'code',
+            'Description': 'description'
+        },
         description='Column renames for descriptions',
     )
     rename_exclusions: Dict[str, str] = Field(
-        default={'Code': 'code', 'Cross-Reference': 'excluded'},
+        default={
+            'Code': 'code',
+            'Cross-Reference': 'excluded'
+        },
         description='Column renames for exclusions',
     )
 
@@ -196,7 +209,6 @@ class DownloadConfig(BaseModel):
             data = {}
 
         return cls(**data)
-
 
 class RelationsConfig(BaseModel):
     '''Configuration for computing pairwise relations.'''
@@ -249,7 +261,6 @@ class RelationsConfig(BaseModel):
 
         return cls(**data)
 
-
 class DistancesConfig(BaseModel):
     '''Configuration for computing pairwise distances.'''
 
@@ -281,7 +292,6 @@ class DistancesConfig(BaseModel):
 
         return cls(**data)
 
-
 class TripletsConfig(BaseModel):
     '''Configuration for generating training triplets.'''
 
@@ -302,12 +312,10 @@ class TripletsConfig(BaseModel):
     anchor_level: Optional[List[int]] = Field(
         default=None, description='Filter anchor codes by hierarchy level'
     )
-    relation_margin: Optional[List[int]] = Field(
-        default=None, description='Filter by relation margin'
-    )
-    distance_margin: Optional[List[float]] = Field(
-        default=None, description='Filter by distance margin'
-    )
+    relation_margin: Optional[List[int]
+                              ] = Field(default=None, description='Filter by relation margin')
+    distance_margin: Optional[List[float]
+                              ] = Field(default=None, description='Filter by distance margin')
 
     # Margin parameters
     positive_level: Optional[List[int]] = Field(
@@ -354,7 +362,6 @@ class TripletsConfig(BaseModel):
 
         return cls(**data)
 
-
 class DataConfig(BaseModel):
     '''Data generation configuration.'''
 
@@ -371,17 +378,16 @@ class DataConfig(BaseModel):
         default_factory=TripletsConfig, description='Triplets configuration'
     )
 
-
 # -------------------------------------------------------------------------------------------------
 # Data Loader Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class TokenizationConfig(BaseModel):
     '''Configuration for tokenization caching.'''
 
     descriptions_parquet: str = Field(
-        default='./data/naics_descriptions.parquet', description='Path to descriptions parquet file'
+        default='./data/naics_descriptions.parquet',
+        description='Path to descriptions parquet file'
     )
     tokenizer_name: str = Field(
         default='sentence-transformers/all-MiniLM-L6-v2', description='HuggingFace tokenizer name'
@@ -410,12 +416,12 @@ class TokenizationConfig(BaseModel):
 
         return cls(**data)
 
-
 class StreamingConfig(BaseModel):
     '''Configuration for streaming dataset.'''
 
     descriptions_parquet: str = Field(
-        default='./data/naics_descriptions.parquet', description='Path to descriptions parquet file'
+        default='./data/naics_descriptions.parquet',
+        description='Path to descriptions parquet file'
     )
     distances_parquet: str = Field(
         default='./data/naics_distances.parquet', description='Path to distances parquet file'
@@ -440,12 +446,10 @@ class StreamingConfig(BaseModel):
     anchor_level: Optional[List[int]] = Field(
         default=None, description='Filter anchor codes by hierarchy level'
     )
-    relation_margin: Optional[List[int]] = Field(
-        default=None, description='Filter by relation margin'
-    )
-    distance_margin: Optional[List[int]] = Field(
-        default=None, description='Filter by distance margin'
-    )
+    relation_margin: Optional[List[int]
+                              ] = Field(default=None, description='Filter by relation margin')
+    distance_margin: Optional[List[int]
+                              ] = Field(default=None, description='Filter by distance margin')
 
     # Margin parameters
     positive_level: Optional[List[int]] = Field(
@@ -496,7 +500,6 @@ class StreamingConfig(BaseModel):
         description='High constant weight for excluded codes in Phase 1 sampling',
     )
 
-
 class DataLoaderConfig(BaseModel):
     '''Data loading and preprocessing configuration.'''
 
@@ -519,11 +522,9 @@ class DataLoaderConfig(BaseModel):
             logger.warning(f'Large batch_size={v} may cause OOM errors')
         return v
 
-
 # -------------------------------------------------------------------------------------------------
 # Model Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class LoRAConfig(BaseModel):
     '''LoRA (Low-Rank Adaptation) configuration.'''
@@ -531,7 +532,6 @@ class LoRAConfig(BaseModel):
     r: int = Field(default=8, gt=0, le=64, description='LoRA rank (lower = fewer parameters)')
     alpha: int = Field(default=16, gt=0, description='LoRA scaling factor')
     dropout: float = Field(default=0.1, ge=0, le=1, description='LoRA dropout rate')
-
 
 class MoEConfig(BaseModel):
     '''Mixture of Experts configuration.'''
@@ -551,7 +551,6 @@ class MoEConfig(BaseModel):
             raise ValueError(f'top_k ({self.top_k}) cannot exceed num_experts ({self.num_experts})')
         return self
 
-
 class ModelConfig(BaseModel):
     '''Model architecture configuration.'''
 
@@ -567,11 +566,9 @@ class ModelConfig(BaseModel):
     )
     eval_every_n_epochs: int = Field(default=1, gt=0, description='Run evaluation every N epochs')
 
-
 # -------------------------------------------------------------------------------------------------
 # Loss Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class LossConfig(BaseModel):
     '''Loss function configuration.'''
@@ -605,11 +602,9 @@ class LossConfig(BaseModel):
         ),
     )
 
-
 # -------------------------------------------------------------------------------------------------
 # Training Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class TrainerConfig(BaseModel):
     '''PyTorch Lightning Trainer configuration.'''
@@ -652,7 +647,6 @@ class TrainerConfig(BaseModel):
         if v not in valid:
             raise ValueError(f'precision must be one of {valid}')
         return v
-
 
 class CurriculumConfig(BaseModel):
     '''Structure-Aware Dynamic Curriculum (SADC) scheduler configuration.'''
@@ -701,7 +695,6 @@ class CurriculumConfig(BaseModel):
             )
         return self
 
-
 class TrainingConfig(BaseModel):
     '''Optimizer and training configuration.'''
 
@@ -721,11 +714,9 @@ class TrainingConfig(BaseModel):
         default_factory=TrainerConfig, description='PyTorch Lightning Trainer config'
     )
 
-
 # -------------------------------------------------------------------------------------------------
 # Training Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class GraphConfig(BaseModel):
     '''Base configuration for HGCN training.'''
@@ -829,11 +820,9 @@ class GraphConfig(BaseModel):
 
         return cls(**data)
 
-
 # -------------------------------------------------------------------------------------------------
 # Main Configuration
 # -------------------------------------------------------------------------------------------------
-
 
 class Config(BaseModel):
     '''Main configuration for NAICS training.'''
@@ -923,11 +912,9 @@ class Config(BaseModel):
         extra = 'forbid'
         str_strip_whitespace = True
 
-
 # -------------------------------------------------------------------------------------------------
 # Helper Functions
 # -------------------------------------------------------------------------------------------------
-
 
 def parse_override_value(value: str) -> Any:
     '''Parse override value from string to appropriate type.'''
