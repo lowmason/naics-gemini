@@ -1,6 +1,18 @@
 # -------------------------------------------------------------------------------------------------
-# Imports
+# Tools Commands
 # -------------------------------------------------------------------------------------------------
+
+'''
+CLI utility commands for configuration, GPU optimization, and metrics analysis.
+
+This module provides the ``tools`` command group with utilities for inspecting
+configuration, visualizing training metrics, and investigating model behavior.
+
+Commands:
+    config: Display current training configuration.
+    visualize: Generate visualizations from training log files.
+    investigate: Analyze hierarchy preservation metrics.
+'''
 
 from pathlib import Path
 from typing import Optional
@@ -19,7 +31,10 @@ from naics_embedder.utils.console import configure_logging
 
 console = Console()
 
-app = typer.Typer(help='Utility tools for configuration and metrics analysis.')
+app = typer.Typer(
+    help='Utility tools for configuration, metrics analysis, and debugging.',
+    no_args_is_help=True
+)
 
 
 # -------------------------------------------------------------------------------------------------
@@ -36,11 +51,26 @@ def config(
         ),
     ] = 'conf/config.yaml',
 ):
-    """Display the current training and curriculum configuration.
-
+    '''
+    Display the current training and curriculum configuration.
+    
+    Loads the specified configuration file and displays a formatted summary
+    of all settings including data paths, model architecture, training
+    hyperparameters, and loss function weights.
+    
     Args:
-        config_file: Path to the base YAML configuration file.
-    """
+        config_file: Path to the YAML configuration file to display.
+            Defaults to ``conf/config.yaml``.
+    
+    Example:
+        Display default configuration::
+        
+            $ uv run naics-embedder tools config
+        
+        Display custom configuration::
+        
+            $ uv run naics-embedder tools config --config conf/custom.yaml
+    '''
 
     configure_logging('tools_config.log')
 
@@ -75,14 +105,33 @@ def visualize(
         ),
     ] = None,
 ):
-    """Visualize training metrics from log files.
-
+    '''
+    Visualize training metrics from log files.
+    
+    Parses training log files and generates visualizations showing the
+    progression of key metrics including contrastive loss, hierarchy
+    correlation, embedding statistics, and learning rate schedules.
+    
+    Output visualizations are saved as PNG files in the specified output
+    directory.
+    
     Args:
-        stage: Stage identifier used to filter metrics (for example ``02_text``).
-        log_file: Optional path to a training log file. Defaults to the
-            sequential training log when omitted.
-        output_dir: Optional directory where visualization files will be saved.
-    """
+        stage: Stage identifier used to filter metrics. Use this to focus
+            on a specific training stage like ``02_text``.
+        log_file: Path to the training log file to parse. When omitted,
+            defaults to ``logs/train_sequential.log``.
+        output_dir: Directory for saving visualization files. When omitted,
+            defaults to ``outputs/visualizations/``.
+    
+    Example:
+        Visualize metrics from default log::
+        
+            $ uv run naics-embedder tools visualize --stage 02_text
+        
+        Visualize custom log file::
+        
+            $ uv run naics-embedder tools visualize --log-file logs/train.log
+    '''
 
     configure_logging('tools_visualize.log')
 
@@ -128,13 +177,32 @@ def investigate(
         ),
     ] = None,
 ):
-    """Analyze why hierarchy preservation correlations might be low.
-
+    '''
+    Analyze why hierarchy preservation correlations might be low.
+    
+    Investigates potential causes for poor hierarchy preservation metrics
+    by analyzing the ground truth distance matrix, evaluation configuration,
+    and providing diagnostic recommendations.
+    
+    Use this command when training produces unexpectedly low hierarchy
+    correlation metrics to identify configuration or data issues.
+    
     Args:
-        distance_matrix: Optional path to the ground truth distance matrix
-            parquet. When omitted, the default from the configuration is used.
-        config_file: Optional path to an alternative configuration file.
-    """
+        distance_matrix: Path to the ground truth distance matrix parquet.
+            When omitted, uses the path from the configuration file.
+        config_file: Path to the configuration file. When omitted, uses
+            the default ``conf/config.yaml``.
+    
+    Example:
+        Investigate hierarchy metrics::
+        
+            $ uv run naics-embedder tools investigate
+        
+        Use custom distance matrix::
+        
+            $ uv run naics-embedder tools investigate \\
+                --distance-matrix data/custom_distances.parquet
+    '''
 
     configure_logging('tools_investigate.log')
 

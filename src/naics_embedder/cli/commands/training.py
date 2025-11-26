@@ -2,9 +2,20 @@
 # Training Commands
 # -------------------------------------------------------------------------------------------------
 
+'''
+CLI commands for training NAICS embedding models.
+
+This module provides the ``train`` and ``train-seq`` commands that orchestrate
+the text encoder training workflow. Configuration is loaded from YAML files and
+can be overridden via command-line arguments.
+
+Commands:
+    train: Train a single stage with optional checkpoint resumption.
+    train-seq: Run sequential multi-stage training (deprecated, use --legacy).
+'''
+
 import logging
 import time
-import warnings
 from pathlib import Path
 from typing import List, Optional
 
@@ -28,46 +39,22 @@ from naics_embedder.utils.config import (
     parse_override_value,
 )
 from naics_embedder.utils.console import configure_logging
+from naics_embedder.utils.training import (
+    HardwareInfo,
+    TrainingResult,
+    collect_training_result,
+    create_trainer,
+    detect_hardware,
+    parse_config_overrides,
+    resolve_checkpoint,
+    save_training_summary,
+)
 from naics_embedder.utils.utilities import pick_device
+from naics_embedder.utils.validation import validate_training_config
+from naics_embedder.utils.warnings import configure_warnings
 
-# -------------------------------------------------------------------------------------------------
-# Suppress warnings
-# -------------------------------------------------------------------------------------------------
-
-warnings.filterwarnings(
-    'ignore',
-    message='.*Precision.*is not supported by the model summary.*',
-    category=UserWarning,
-    module='pytorch_lightning.utilities.model_summary.model_summary'
-)
-
-warnings.filterwarnings(
-    'ignore',
-    message='.*Found .* module.*in eval mode.*',
-    category=UserWarning,
-    module='pytorch_lightning'
-)
-
-warnings.filterwarnings(
-    'ignore',
-    message='.*does not have many workers.*',
-    category=UserWarning,
-    module='pytorch_lightning'
-)
-
-warnings.filterwarnings(
-    'ignore',
-    message='.*Checkpoint directory.*exists and is not empty.*',
-    category=UserWarning,
-    module='pytorch_lightning'
-)
-
-warnings.filterwarnings(
-    'ignore',
-    message='.*Trying to infer the.*batch_size.*',
-    category=UserWarning,
-    module='pytorch_lightning'
-)
+# Apply centralized warning configuration
+configure_warnings()
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -265,6 +252,13 @@ def train(
             help='Path to checkpoint file to resume from, or "last" to auto-detect last checkpoint',
         ),
     ] = None,
+    skip_validation: Annotated[
+        bool,
+        typer.Option(
+            '--skip-validation',
+            help='Skip pre-flight validation of data files and cache',
+        ),
+    ] = False,
     overrides: Annotated[
         Optional[List[str]],
         typer.Argument(
@@ -272,17 +266,34 @@ def train(
         ),
     ] = None,
 ):
-    """Train the text encoder with optional overrides and checkpoint resumption.
-
+    '''
+    Train the NAICS text encoder with contrastive learning.
+    
+    Orchestrates the complete training workflow including configuration loading,
+    hardware detection, checkpoint management, and training execution with
+    PyTorch Lightning. Supports resumption from checkpoints and runtime
+    configuration overrides.
+    
     Args:
         config_file: Path to the base YAML configuration file that describes
-            data, model, and training settings.
+            data, model, and training settings. Defaults to ``conf/config.yaml``.
         ckpt_path: Optional checkpoint path to resume training. Use ``last`` to
             automatically pick up the latest checkpoint for the configured
-            experiment.
-        overrides: Optional list of key-value override strings such as
-            ``training.learning_rate=1e-4``.
-    """
+            experiment. Specify a full path for cross-experiment resumption.
+        skip_validation: Skip pre-flight validation checks for data files and
+            tokenization cache. Useful when you know files are valid.
+        overrides: Optional list of key-value override strings. Use dot notation
+            to specify nested config values like ``training.learning_rate=1e-4``.
+    
+    Example:
+        Train with default configuration::
+        
+            $ uv run naics-embedder train
+        
+        Resume from last checkpoint with custom learning rate::
+        
+            $ uv run naics-embedder train --ckpt-path last training.learning_rate=1e-5
+    '''
 
     configure_logging('train.log')
 
@@ -290,61 +301,47 @@ def train(
     
     try:
 
-        # Check device
+        # Detect hardware using centralized utility
         logger.info('Determining infrastructure...')
-        accelerator, precision, num_devices = get_device(log_info=True)
+        hardware = detect_hardware(log_info=True)
         
-        # Check GPU memory status if CUDA is available
-        gpu_memory_info = None
-        if accelerator in ['cuda', 'gpu']:
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    device = torch.cuda.current_device()
-                    total_memory = torch.cuda.get_device_properties(device).total_memory / (1024 ** 3)  # GB
-                    reserved_memory = torch.cuda.memory_reserved(device) / (1024 ** 3)  # GB
-                    allocated_memory = torch.cuda.memory_allocated(device) / (1024 ** 3)  # GB
-                    free_memory = total_memory - reserved_memory
-                    
-                    gpu_memory_info = {
-                        'total_gb': total_memory,
-                        'reserved_gb': reserved_memory,
-                        'allocated_gb': allocated_memory,
-                        'free_gb': free_memory,
-                        'utilization_pct': (reserved_memory / total_memory) * 100 if total_memory > 0 else 0
-                    }
-                    
-                    logger.info(
-                        f'GPU Memory: {reserved_memory:.1f} GB used / {total_memory:.1f} GB total '
-                        f'({gpu_memory_info["utilization_pct"]:.1f}% utilization, '
-                        f'{free_memory:.1f} GB free)'
-                    )
-            except Exception as e:
-                logger.debug(f'Could not get GPU memory info: {e}')
+        # Log GPU memory if available
+        if hardware.gpu_memory:
+            logger.info(
+                f'GPU Memory: {hardware.gpu_memory["reserved_gb"]:.1f} GB used / '
+                f'{hardware.gpu_memory["total_gb"]:.1f} GB total '
+                f'({hardware.gpu_memory["utilization_pct"]:.1f}% utilization, '
+                f'{hardware.gpu_memory["free_gb"]:.1f} GB free)'
+            )
 
         # Load configuration
         logger.info('Loading configuration...')
         cfg = Config.from_yaml(config_file)
         
-        # Apply command-line overrides
+        # Apply command-line overrides using centralized parsing
         if overrides:
-            override_dict = {}
             logger.info('Applying command-line overrides:')
-            for override in overrides:
-                if '=' not in override:
-                    console.print(
-                        f'[yellow]Warning:[/yellow] Skipping invalid override: {override}'
-                    )
-                    continue
-                
-                key, value_str = override.split('=', 1)
-                value = parse_override_value(value_str)
-                override_dict[key] = value
-                logger.info(f'  • {key} = {value} ({type(value).__name__})')
-
-            logger.info('')
+            override_dict, invalid_overrides = parse_config_overrides(overrides)
             
-            cfg = cfg.override(override_dict)
+            for invalid in invalid_overrides:
+                console.print(f'[yellow]Warning:[/yellow] Skipping invalid override: {invalid}')
+            
+            if override_dict:
+                logger.info('')
+                cfg = cfg.override(override_dict)
+        
+        # Run pre-flight validation
+        if not skip_validation:
+            validation_result = validate_training_config(cfg)
+            if not validation_result.valid:
+                console.print('\n[bold red]Pre-flight validation failed:[/bold red]')
+                for error in validation_result.errors:
+                    console.print(f'  [red]✗[/red] {error}')
+                console.print('\n[dim]Use --skip-validation to bypass these checks[/dim]')
+                raise typer.Exit(code=1)
+            
+            for warning in validation_result.warnings:
+                console.print(f'[yellow]⚠[/yellow] {warning}')
         
         # Display configuration summary
         summary_list_1 = [
@@ -364,24 +361,24 @@ def train(
             '[cyan]Training:[/cyan]',
             f'  • Learning rate: {cfg.training.learning_rate}',
             f'  • Max epochs: {cfg.training.trainer.max_epochs}',
-            f'  • Accelerator: {accelerator}',
-            f'  • Precision: {precision}'
+            f'  • Accelerator: {hardware.accelerator}',
+            f'  • Precision: {hardware.precision}'
         ]
         
         # Add GPU memory info and batch size suggestions
         summary_list_4 = []
-        if gpu_memory_info:
+        if hardware.gpu_memory:
             summary_list_4.append('\n[cyan]GPU Memory:[/cyan]')
             summary_list_4.append(
-                f'  • Used: {gpu_memory_info["reserved_gb"]:.1f} GB / '
-                f'{gpu_memory_info["total_gb"]:.1f} GB '
-                f'({gpu_memory_info["utilization_pct"]:.1f}% utilization)'
+                f'  • Used: {hardware.gpu_memory["reserved_gb"]:.1f} GB / '
+                f'{hardware.gpu_memory["total_gb"]:.1f} GB '
+                f'({hardware.gpu_memory["utilization_pct"]:.1f}% utilization)'
             )
-            summary_list_4.append(f'  • Free: {gpu_memory_info["free_gb"]:.1f} GB')
+            summary_list_4.append(f'  • Free: {hardware.gpu_memory["free_gb"]:.1f} GB')
             
             # Conservative batch size suggestion
             current_batch_size = cfg.data_loader.batch_size
-            if gpu_memory_info['free_gb'] > 8.0 and current_batch_size < 12:
+            if hardware.gpu_memory['free_gb'] > 8.0 and current_batch_size < 12:
                 # Suggest 2x-3x current batch size conservatively
                 suggested_batch = min(12, current_batch_size * 2)
                 if suggested_batch > current_batch_size:
@@ -432,32 +429,16 @@ def train(
             seed=cfg.seed
         )
         
-        # Handle checkpoint resumption
-        checkpoint_path = None
-        if ckpt_path:
-            # Check if user wants to auto-detect last checkpoint (supports both 'last' and 'last.ckpt')
-            ckpt_path_lower = ckpt_path.lower()
-            if ckpt_path_lower == 'last' or ckpt_path_lower == 'last.ckpt':
-                # Auto-detect last checkpoint
-                checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
-                last_ckpt = checkpoint_dir / 'last.ckpt'
-                if last_ckpt.exists():
-                    checkpoint_path = str(last_ckpt)
-                    logger.info(f'Auto-detected last checkpoint: {checkpoint_path}')
-                    console.print(f'[green]✓[/green] Resuming from last checkpoint: [cyan]{checkpoint_path}[/cyan]\n')
-                else:
-                    console.print(f'[yellow]Warning:[/yellow] Last checkpoint not found at {last_ckpt}')
-                    console.print('Starting training from scratch.\n')
-            else:
-                # Use provided checkpoint path
-                checkpoint_path_obj = Path(ckpt_path)
-                if checkpoint_path_obj.exists():
-                    checkpoint_path = str(checkpoint_path_obj.resolve())
-                    logger.info(f'Using checkpoint: {checkpoint_path}')
-                    console.print(f'[green]✓[/green] Resuming from checkpoint: [cyan]{checkpoint_path}[/cyan]\n')
-                else:
-                    console.print(f'[yellow]Warning:[/yellow] Checkpoint not found at {ckpt_path}')
-                    console.print('Starting training from scratch.\n')
+        # Handle checkpoint resumption using centralized utility
+        checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
+        checkpoint_info = resolve_checkpoint(ckpt_path, Path(cfg.dirs.checkpoint_dir), cfg.experiment_name)
+        checkpoint_path = checkpoint_info.path
+        
+        if checkpoint_info.exists:
+            console.print(f'[green]✓[/green] Resuming from checkpoint: [cyan]{checkpoint_path}[/cyan]\n')
+        elif ckpt_path:
+            console.print(f'[yellow]Warning:[/yellow] Checkpoint not found at {ckpt_path}')
+            console.print('Starting training from scratch.\n')
         
         # Initialize Model
         logger.info('Initializing Model with evaluation metrics...\n')
@@ -498,23 +479,11 @@ def train(
         
         # Setup callbacks
         logger.info('Setting up callbacks and checkpointing...\n')
-        checkpoint_dir = Path(cfg.dirs.checkpoint_dir) / cfg.experiment_name
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
         # Check if checkpoint is from the same stage (for resuming) or different stage (for loading weights)
-        resuming_same_stage = False
+        resuming_same_stage = checkpoint_info.is_same_stage
         if checkpoint_path:
-            checkpoint_path_obj = Path(checkpoint_path)
-            # Check if checkpoint is in the same checkpoint directory (same stage)
-            try:
-                checkpoint_abs = checkpoint_path_obj.resolve()
-                current_dir_abs = checkpoint_dir.resolve()
-                # Check if checkpoint's parent directory matches the current stage's checkpoint directory
-                resuming_same_stage = checkpoint_abs.parent == current_dir_abs
-            except Exception:
-                # If we can't determine, assume it's a different stage (safer)
-                resuming_same_stage = False
-            
             if resuming_same_stage:
                 logger.info('Checkpoint is from same stage - will resume training from checkpoint')
                 console.print('[cyan]Resuming training from checkpoint (will continue from saved epoch)[/cyan]\n')
@@ -563,16 +532,16 @@ def train(
         
         # If using multiple devices, need to handle unused parameters in DDP
         strategy = 'auto'
-        if devices_to_use > 1 and accelerator in ['cuda', 'gpu']:
+        if devices_to_use > 1 and hardware.accelerator in ['cuda', 'gpu']:
             from pytorch_lightning.strategies import DDPStrategy
             strategy = DDPStrategy(find_unused_parameters=True)
         
         trainer = pyl.Trainer(
             max_epochs=cfg.training.trainer.max_epochs,
-            accelerator=accelerator,
+            accelerator=hardware.accelerator,
             devices=devices_to_use,
             strategy=strategy,
-            precision=precision, # type: ignore
+            precision=hardware.precision, # type: ignore
             gradient_clip_val=cfg.training.trainer.gradient_clip_val,
             accumulate_grad_batches=cfg.training.trainer.accumulate_grad_batches,
             log_every_n_steps=cfg.training.trainer.log_every_n_steps,
@@ -632,6 +601,25 @@ def train(
         cfg.to_yaml(str(config_output_path))
         console.print(f'Config saved: [cyan]{config_output_path}[/cyan]\n')
         
+        # Save training summary artifacts for downstream evaluation and documentation
+        training_result = TrainingResult(
+            best_checkpoint_path=checkpoint_callback.best_model_path,
+            last_checkpoint_path=str(checkpoint_dir / 'last.ckpt'),
+            config_path=str(config_output_path),
+            best_loss=float(best_loss) if best_loss is not None else None,
+            stopped_epoch=early_stopping.stopped_epoch if early_stop_triggered else -1,
+            early_stopped=early_stop_triggered,
+            metrics={'best_val_loss': float(best_loss) if best_loss is not None else None}
+        )
+        
+        summary_paths = save_training_summary(
+            result=training_result,
+            config=cfg,
+            hardware=hardware,
+            output_dir=checkpoint_dir
+        )
+        console.print(f'Training summary saved: [cyan]{summary_paths.get("yaml", summary_paths.get("json"))}[/cyan]\n')
+        
         # Prompt to generate embeddings for HGCN training
         console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
         generate_embeddings = typer.confirm(
@@ -681,6 +669,13 @@ def train_sequential(
             help='Resume from last checkpoint if available',
         ),
     ] = False,
+    legacy: Annotated[
+        bool,
+        typer.Option(
+            '--legacy',
+            help='Acknowledge use of deprecated sequential training workflow',
+        ),
+    ] = False,
     overrides: Annotated[
         Optional[List[str]],
         typer.Argument(
@@ -688,25 +683,55 @@ def train_sequential(
         ),
     ] = None,
 ):
-    """Run sequential training with automatic checkpoint handoff.
-
-    The routine iterates over curriculum stages, loading the best checkpoint
-    from each stage as initialization for the next. This sequential flow is
-    preserved for backwards compatibility but is considered deprecated.
-
+    '''
+    Run sequential multi-stage training with automatic checkpoint handoff.
+    
+    .. deprecated::
+        Sequential training is deprecated. Use the standard ``train`` command
+        with dynamic curriculum learning instead. Pass ``--legacy`` to
+        acknowledge and continue using this deprecated workflow.
+    
+    This routine iterates over curriculum stages, loading the best checkpoint
+    from each stage as initialization for the next. Each stage can have
+    different hyperparameters and training objectives.
+    
     Args:
         num_stages: Number of training stages to run in sequence.
         config_file: Path to the base configuration file used for all stages.
         resume_from_checkpoint: Whether to resume from the last checkpoint of
             the previous run when available.
+        legacy: Flag to acknowledge using the deprecated sequential training
+            workflow. Required to proceed with sequential training.
         overrides: Optional list of key-value override strings applied to every
             stage configuration.
-    """
+    
+    Example:
+        Run 3-stage sequential training (deprecated)::
+        
+            $ uv run naics-embedder train-seq --legacy --num-stages 3
+    
+    See Also:
+        Use ``train`` for the recommended single-stage training with dynamic
+        curriculum learning.
+    '''
 
     configure_logging('train_sequential.log')
 
-    console.rule('[bold cyan]Starting Sequential Training[/bold cyan]')
-    console.print('[yellow]Warning: Sequential training is deprecated. Consider using dynamic curriculum training instead.[/yellow]\n')
+    # Require --legacy flag to acknowledge deprecation
+    if not legacy:
+        console.print('\n[bold red]Sequential training is deprecated.[/bold red]')
+        console.print('\nThe sequential training workflow is maintained for backwards')
+        console.print('compatibility but is no longer recommended.')
+        console.print('\n[bold]Recommended:[/bold] Use the standard training command instead:')
+        console.print('  [cyan]uv run naics-embedder train[/cyan]')
+        console.print('\n[bold]To continue with deprecated sequential training:[/bold]')
+        console.print('  [cyan]uv run naics-embedder train-seq --legacy[/cyan]')
+        console.print('\nFor migration guidance, see: [link]https://lowmason.github.io/naics-embedder/text_training[/link]\n')
+        raise typer.Exit(code=1)
+
+    console.rule('[bold cyan]Starting Sequential Training (Legacy)[/bold cyan]')
+    console.print('[yellow]⚠ Warning: Using deprecated sequential training workflow.[/yellow]')
+    console.print('[dim]Consider migrating to dynamic curriculum training.[/dim]\n')
 
     console.print(f'[bold]Total stages:[/bold] {num_stages}\n')
 

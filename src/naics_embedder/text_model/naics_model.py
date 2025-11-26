@@ -307,13 +307,13 @@ class NAICSContrastiveModel(pyl.LightningModule):
         anchor_emb: torch.Tensor,
         positive_emb: torch.Tensor,
         negative_emb: torch.Tensor,
-        anchor_gate_probs: Optional[torch.Tensor] = None,
-        negative_gate_probs: Optional[torch.Tensor] = None,
         batch_size: int,
         k_negatives: int,
         batch: Dict,
         batch_indices: List[int],
         batch_idx: int,
+        anchor_gate_probs: Optional[torch.Tensor] = None,
+        negative_gate_probs: Optional[torch.Tensor] = None,
         false_negative_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         '''
