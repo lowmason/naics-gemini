@@ -151,46 +151,47 @@ uv run naics-embedder tools investigate
 
 ### `train`
 
-Train the text encoder with the dynamic SADC scheduler defined in `conf/config.yaml`.
+Train the contrastive encoder with the Structure-Aware Dynamic Curriculum (SADC). The scheduler
+drives phase transitions automatically—no curriculum files or chain configs are needed.
 
 ```bash
-uv run naics-embedder train
+uv run naics-embedder train --config conf/config.yaml
 ```
 
 **Options:**
 - `--config PATH` - Path to base config YAML file (default: `conf/config.yaml`)
-- `--ckpt-path PATH` - Path to checkpoint file to resume from, or `"last"` to auto-detect the most recent checkpoint
-- `--skip-validation` - Skip pre-flight validation of data files and tokenization cache
-- `OVERRIDES...` - Config overrides (e.g., `training.learning_rate=1e-4 data_loader.batch_size=64 curriculum.phase2_end=0.65`)
+- `--ckpt-path PATH` - Path to checkpoint file to resume from, or `"last"` to auto-detect the latest checkpoint in the experiment directory
+- `--skip-validation` - Skip pre-flight validation of data files and caches
+- `OVERRIDES...` - Config overrides (e.g., `training.learning_rate=1e-4 data.batch_size=64`)
 
 **Examples:**
 
 ```bash
-# Train with defaults
+# Standard run with SADC
 uv run naics-embedder train
 
-# Train with config overrides
-uv run naics-embedder train training.learning_rate=1e-4 data_loader.batch_size=32
-
-# Resume from last checkpoint
+# Resume from last checkpoint in the experiment
 uv run naics-embedder train --ckpt-path last
 
-# Adjust the SADC schedule without editing YAML
-uv run naics-embedder train curriculum.phase1_end=0.25 curriculum.phase2_end=0.6
+# Apply overrides for learning rate and epochs
+uv run naics-embedder train --config conf/config.yaml \
+  training.learning_rate=1e-4 training.trainer.max_epochs=20
 ```
 
 ### `train-seq`
 
-Legacy sequential training retained for backward compatibility. The dynamic SADC scheduler replaces stage-based YAMLs; use this command only if you must reproduce an older multi-stage workflow.
+Deprecated sequential training workflow retained for legacy stage-chain jobs. Use SADC via
+`train` for new runs; `train-seq` now requires `--legacy` to acknowledge deprecation.
 
 ```bash
 uv run naics-embedder train-seq --legacy --num-stages 3
 ```
 
 **Options:**
-- `--legacy` - Required acknowledgement to run the deprecated workflow
-- `--num-stages INT` - Number of sequential stages to execute
+- `--num-stages, -n INT` - Number of sequential stages to run (default: 3)
 - `--config PATH` - Path to base config YAML file (default: `conf/config.yaml`)
+- `--resume` - Resume from last checkpoint if available
+- `--legacy` - Required to continue using the deprecated workflow
 - `OVERRIDES...` - Config overrides applied to every stage
 
 **Examples:**
@@ -214,15 +215,15 @@ uv run naics-embedder data all
 ### Standard Training
 
 ```bash
-# Train with the default dynamic curriculum
+# Train with the dynamic SADC scheduler
 uv run naics-embedder train
 ```
 
 ### Dynamic SADC Training
 
 ```bash
-# Train with the dynamic curriculum defined in conf/config.yaml
-uv run naics-embedder train
+# Legacy sequential flow (deprecated)
+uv run naics-embedder train-seq --legacy --num-stages 3
 ```
 
 ### View Configuration
