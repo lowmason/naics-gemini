@@ -30,7 +30,7 @@ def show_current_config(config_path: str = './conf/config.yaml'):
     
     # Load configurations
     config = load_config(config_path)
-    
+
     batch_size = config['data_loader']['batch_size']
     accumulate = config['training']['trainer']['accumulate_grad_batches']
     num_workers = config['data_loader']['num_workers']
@@ -39,7 +39,8 @@ def show_current_config(config_path: str = './conf/config.yaml'):
     warmup_steps = config['training']['warmup_steps']
     precision = config['training']['trainer']['precision']
     max_epochs = config['training']['trainer']['max_epochs']
-    
+    curriculum = config.get('curriculum', {})
+
     current_config = [
         '\n[blue]Main Configuration (conf/config.yaml):[/blue]\n',
         f'[cyan]Effective batch size:[/cyan] {batch_size * accumulate}',
@@ -53,7 +54,16 @@ def show_current_config(config_path: str = './conf/config.yaml'):
         f'  • [bold]warmup_steps:[/bold] {warmup_steps}',
         f'  • [bold]precision:[/bold] {precision}',
         f'  • [bold]max_epochs:[/bold] {max_epochs}\n',
-    ]    
+        '[cyan]Structure-Aware Dynamic Curriculum:[/cyan]',
+        f'  • [bold]phase1_end:[/bold] {curriculum.get("phase1_end", "-")} (Structural)',
+        f'  • [bold]phase2_end:[/bold] {curriculum.get("phase2_end", "-")} (Geometric)',
+        f'  • [bold]phase3_end:[/bold] {curriculum.get("phase3_end", "-")} (False Negatives)',
+        f'  • [bold]tree_distance_alpha:[/bold] {curriculum.get("tree_distance_alpha", "-")}',
+        f'  • [bold]sibling_distance_threshold:[/bold] {curriculum.get("sibling_distance_threshold", "-")}',
+        f'  • [bold]fn_curriculum_start_epoch:[/bold] {curriculum.get("fn_curriculum_start_epoch", "-")}',
+        f'  • [bold]fn_cluster_every_n_epochs:[/bold] {curriculum.get("fn_cluster_every_n_epochs", "-")}',
+        f'  • [bold]fn_num_clusters:[/bold] {curriculum.get("fn_num_clusters", "-")}\n',
+    ]
     
     console.print(
         Panel(

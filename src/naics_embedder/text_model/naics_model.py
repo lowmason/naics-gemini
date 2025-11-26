@@ -158,7 +158,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
         eval_every_n_epochs: int = 1,
         eval_sample_size: int = 500,
         tree_distance_alpha: float = 1.5,
-        base_margin: float = 0.5
+        base_margin: float = 0.5,
+        curriculum_phase1_end: float = 0.3,
+        curriculum_phase2_end: float = 0.7,
+        curriculum_phase3_end: float = 1.0,
+        sibling_distance_threshold: float = 2.0
     ):
         super().__init__()
         
@@ -1944,8 +1948,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
             max_epochs = getattr(self.trainer, 'max_epochs', 15)
             self.curriculum_scheduler = CurriculumScheduler(
                 max_epochs=max_epochs,
+                phase1_end=getattr(self.hparams, 'curriculum_phase1_end', 0.3),
+                phase2_end=getattr(self.hparams, 'curriculum_phase2_end', 0.7),
+                phase3_end=getattr(self.hparams, 'curriculum_phase3_end', 1.0),
                 tree_distance_alpha=getattr(self.hparams, 'tree_distance_alpha', 1.5),
-                sibling_distance_threshold=2.0
+                sibling_distance_threshold=getattr(self.hparams, 'sibling_distance_threshold', 2.0)
             )
             logger.info('Curriculum scheduler initialized')
         

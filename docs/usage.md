@@ -82,7 +82,7 @@ uv run naics-embedder data all
 
 ### `tools config`
 
-Display current training and curriculum configuration.
+Display current training configuration, including the Structure-Aware Dynamic Curriculum (SADC) schedule.
 
 ```bash
 uv run naics-embedder tools config
@@ -151,68 +151,53 @@ uv run naics-embedder tools investigate
 
 ### `train`
 
-Train a single curriculum stage.
+Train the text encoder with the dynamic SADC scheduler defined in `conf/config.yaml`.
 
 ```bash
-uv run naics-embedder train --curriculum 01_text
+uv run naics-embedder train
 ```
 
 **Options:**
-- `--curriculum, -c STR` - Curriculum config name (e.g., `01_text`, `02_text`, `01_graph`, `02_graph`, default: `default`)
-- `--curriculum-type STR` - Curriculum type: `text` or `graph` (default: `text`)
 - `--config PATH` - Path to base config YAML file (default: `conf/config.yaml`)
-- `--list-curricula` - List available curricula and exit
-- `--ckpt-path PATH` - Path to checkpoint file to resume from, or `"last"` to auto-detect last checkpoint
-- `OVERRIDES...` - Config overrides (e.g., `training.learning_rate=1e-4 data.batch_size=64`)
+- `--ckpt-path PATH` - Path to checkpoint file to resume from, or `"last"` to auto-detect the most recent checkpoint
+- `--skip-validation` - Skip pre-flight validation of data files and tokenization cache
+- `OVERRIDES...` - Config overrides (e.g., `training.learning_rate=1e-4 data_loader.batch_size=64 curriculum.phase2_end=0.65`)
 
 **Examples:**
 
 ```bash
-# List available curricula
-uv run naics-embedder train --list-curricula
-
-# Train with a specific curriculum
-uv run naics-embedder train --curriculum 01_text
+# Train with defaults
+uv run naics-embedder train
 
 # Train with config overrides
-uv run naics-embedder train --curriculum 01_text training.learning_rate=1e-4 data.batch_size=32
+uv run naics-embedder train training.learning_rate=1e-4 data_loader.batch_size=32
 
 # Resume from last checkpoint
-uv run naics-embedder train --curriculum 01_text --ckpt-path last
+uv run naics-embedder train --ckpt-path last
 
-# Train graph curriculum
-uv run naics-embedder train --curriculum 01_graph --curriculum-type graph
+# Adjust the SADC schedule without editing YAML
+uv run naics-embedder train curriculum.phase1_end=0.25 curriculum.phase2_end=0.6
 ```
 
 ### `train-seq`
 
-Run sequential curriculum training with automatic checkpoint handoff. Trains through multiple curriculum stages, automatically loading the best checkpoint from each stage as the initialization for the next stage.
+Legacy sequential training retained for backward compatibility. The dynamic SADC scheduler replaces stage-based YAMLs; use this command only if you must reproduce an older multi-stage workflow.
 
 ```bash
-uv run naics-embedder train-seq --curricula 01_text 02_text 03_text
+uv run naics-embedder train-seq --legacy --num-stages 3
 ```
 
 **Options:**
-- `--curricula, -c LIST` - List of curriculum stages to run sequentially (e.g., `01_text 02_text 03_text`)
-- `--curriculum-type STR` - Curriculum type: `text` or `graph` (default: `text`)
+- `--legacy` - Required acknowledgement to run the deprecated workflow
+- `--num-stages INT` - Number of sequential stages to execute
 - `--config PATH` - Path to base config YAML file (default: `conf/config.yaml`)
-- `--resume` - Resume from last checkpoint if available
-- `OVERRIDES...` - Config overrides (e.g., `training.learning_rate=1e-4`)
+- `OVERRIDES...` - Config overrides applied to every stage
 
 **Examples:**
 
 ```bash
-# Train default sequence (01_text, 02_text, 03_text)
-uv run naics-embedder train-seq
-
-# Train custom sequence
-uv run naics-embedder train-seq --curricula 01_text 02_text 03_text 04_text 05_text
-
-# Train with overrides applied to all stages
-uv run naics-embedder train-seq --curricula 01_text 02_text training.learning_rate=1e-4
-
-# Resume from last checkpoint
-uv run naics-embedder train-seq --resume
+# Reproduce a historical 3-stage run
+uv run naics-embedder train-seq --legacy --num-stages 3
 ```
 
 ---
@@ -226,18 +211,18 @@ uv run naics-embedder train-seq --resume
 uv run naics-embedder data all
 ```
 
-### Single Stage Training
+### Standard Training
 
 ```bash
-# Train a single curriculum stage
-uv run naics-embedder train --curriculum 01_text
+# Train with the default dynamic curriculum
+uv run naics-embedder train
 ```
 
-### Sequential Multi-Stage Training
+### Dynamic SADC Training
 
 ```bash
-# Train multiple stages sequentially
-uv run naics-embedder train-seq --curricula 01_text 02_text 03_text 04_text 05_text
+# Train with the dynamic curriculum defined in conf/config.yaml
+uv run naics-embedder train
 ```
 
 ### View Configuration
@@ -274,12 +259,10 @@ uv run naics-embedder train --help
 
 ## Configuration Files
 
-The CLI uses configuration files located in the `conf/` directory:
+The CLI reads a single configuration in `conf/config.yaml`:
 
-- **Base Config:** `conf/config.yaml` - Main training configuration
-- **Text Curricula:** `conf/text_curriculum/*.yaml` - Text training curriculum stages
-- **Graph Curricula:** `conf/graph_curriculum/*.yaml` - Graph training curriculum stages
-- **Chain Configs:** `conf/text_curriculum/chain_text.yaml` - Sequential training chains
+- **Base Config:** Paths, model hyperparameters, and trainer settings
+- **Curriculum:** `curriculum.*` fields configure SADC phase boundaries and false-negative elimination cadence
 
 See the [Configuration Documentation](api/config.md) for details on configuration structure.
 
