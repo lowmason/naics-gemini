@@ -37,4 +37,4 @@ app.add_typer(data.app, name='data')
 app.add_typer(tools.app, name='tools')
 
 app.command('train')(training.train)
-app.command('train-seq')(training.train_sequential)
+app.command('train-seq', hidden=True)(training.train_sequential)

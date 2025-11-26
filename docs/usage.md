@@ -8,7 +8,7 @@ The NAICS Embedder CLI is organized into three main command groups:
 
 - **`data`** - Data generation and preprocessing commands
 - **`tools`** - Utility tools for configuration, GPU optimization, and metrics
-- **`train`** / **`train-seq`** - Model training commands
+- **`train`** - Model training with the dynamic SADC curriculum
 
 ## Installation
 
