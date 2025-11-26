@@ -261,19 +261,25 @@ project modules.
 
 ### 8.2 Training the Contrastive Model
 
-1. Manual curriculum training:
+The text encoder now uses the Structure-Aware Dynamic Curriculum (SADC) scheduler by default. It
+progresses through three phases in a single run—structural initialization, geometric refinement,
+and false-negative mitigation—activating the appropriate sampling flags automatically.
 
-   ```bash
-   uv run naics-embedder train --curriculum 01_text
-   uv run naics-embedder train --curriculum 02_text --ckpt-path ./checkpoints/01_text 
-   uv run naics-embedder train --curriculum 03_text --ckpt-path ./checkpoints/02_text
-   ```
+Run training with your base config and optional overrides:
 
-   Or with one command:
+```bash
+uv run naics-embedder train --config conf/config.yaml \
+  training.learning_rate=1e-4 training.trainer.max_epochs=15
+```
 
-   ```bash
-   uv run naics-embedder train-curriculum --chain chain_text
-   ```
+Key flags managed by SADC during training:
+- Tree-distance weighting and sibling masking during structural initialization
+- Router-guided and hard-negative mining during geometric refinement
+- Clustering-driven false-negative elimination in the final phase
+
+**Migrating from legacy stage files:** The old multi-file curriculum chains are retired. Use the
+single `train` command with overrides instead of stage-by-stage invocations. The deprecated
+`train-seq --legacy` remains for backward compatibility but is no longer required for SADC.
 
 ### 8.3 Running HGCN Refinement
 

@@ -151,68 +151,57 @@ uv run naics-embedder tools investigate
 
 ### `train`
 
-Train a single curriculum stage.
+Train the contrastive encoder with the Structure-Aware Dynamic Curriculum (SADC). The scheduler
+drives phase transitions automatically—no curriculum files or chain configs are needed.
 
 ```bash
-uv run naics-embedder train --curriculum 01_text
+uv run naics-embedder train --config conf/config.yaml
 ```
 
 **Options:**
-- `--curriculum, -c STR` - Curriculum config name (e.g., `01_text`, `02_text`, `01_graph`, `02_graph`, default: `default`)
-- `--curriculum-type STR` - Curriculum type: `text` or `graph` (default: `text`)
 - `--config PATH` - Path to base config YAML file (default: `conf/config.yaml`)
-- `--list-curricula` - List available curricula and exit
-- `--ckpt-path PATH` - Path to checkpoint file to resume from, or `"last"` to auto-detect last checkpoint
+- `--ckpt-path PATH` - Path to checkpoint file to resume from, or `"last"` to auto-detect the latest checkpoint in the experiment directory
+- `--skip-validation` - Skip pre-flight validation of data files and caches
 - `OVERRIDES...` - Config overrides (e.g., `training.learning_rate=1e-4 data.batch_size=64`)
 
 **Examples:**
 
 ```bash
-# List available curricula
-uv run naics-embedder train --list-curricula
+# Standard run with SADC
+uv run naics-embedder train
 
-# Train with a specific curriculum
-uv run naics-embedder train --curriculum 01_text
+# Resume from last checkpoint in the experiment
+uv run naics-embedder train --ckpt-path last
 
-# Train with config overrides
-uv run naics-embedder train --curriculum 01_text training.learning_rate=1e-4 data.batch_size=32
-
-# Resume from last checkpoint
-uv run naics-embedder train --curriculum 01_text --ckpt-path last
-
-# Train graph curriculum
-uv run naics-embedder train --curriculum 01_graph --curriculum-type graph
+# Apply overrides for learning rate and epochs
+uv run naics-embedder train --config conf/config.yaml \
+  training.learning_rate=1e-4 training.trainer.max_epochs=20
 ```
 
 ### `train-seq`
 
-Run sequential curriculum training with automatic checkpoint handoff. Trains through multiple curriculum stages, automatically loading the best checkpoint from each stage as the initialization for the next stage.
+Deprecated sequential training workflow retained for legacy stage-chain jobs. Use SADC via
+`train` for new runs; `train-seq` now requires `--legacy` to acknowledge deprecation.
 
 ```bash
-uv run naics-embedder train-seq --curricula 01_text 02_text 03_text
+uv run naics-embedder train-seq --legacy --num-stages 3
 ```
 
 **Options:**
-- `--curricula, -c LIST` - List of curriculum stages to run sequentially (e.g., `01_text 02_text 03_text`)
-- `--curriculum-type STR` - Curriculum type: `text` or `graph` (default: `text`)
+- `--num-stages, -n INT` - Number of sequential stages to run (default: 3)
 - `--config PATH` - Path to base config YAML file (default: `conf/config.yaml`)
 - `--resume` - Resume from last checkpoint if available
-- `OVERRIDES...` - Config overrides (e.g., `training.learning_rate=1e-4`)
+- `--legacy` - Required to continue using the deprecated workflow
+- `OVERRIDES...` - Config overrides applied to every stage
 
 **Examples:**
 
 ```bash
-# Train default sequence (01_text, 02_text, 03_text)
-uv run naics-embedder train-seq
+# Acknowledge legacy workflow and run three stages
+uv run naics-embedder train-seq --legacy --num-stages 3
 
-# Train custom sequence
-uv run naics-embedder train-seq --curricula 01_text 02_text 03_text 04_text 05_text
-
-# Train with overrides applied to all stages
-uv run naics-embedder train-seq --curricula 01_text 02_text training.learning_rate=1e-4
-
-# Resume from last checkpoint
-uv run naics-embedder train-seq --resume
+# Resume a legacy chain from the last checkpoint
+uv run naics-embedder train-seq --legacy --resume
 ```
 
 ---
@@ -229,15 +218,15 @@ uv run naics-embedder data all
 ### Single Stage Training
 
 ```bash
-# Train a single curriculum stage
-uv run naics-embedder train --curriculum 01_text
+# Train with the dynamic SADC scheduler
+uv run naics-embedder train
 ```
 
 ### Sequential Multi-Stage Training
 
 ```bash
-# Train multiple stages sequentially
-uv run naics-embedder train-seq --curricula 01_text 02_text 03_text 04_text 05_text
+# Legacy sequential flow (deprecated)
+uv run naics-embedder train-seq --legacy --num-stages 3
 ```
 
 ### View Configuration
