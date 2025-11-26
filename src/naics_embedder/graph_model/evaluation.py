@@ -25,30 +25,22 @@ def compute_validation_metrics(
     *,
     as_tensors: bool = False,
 ) -> Dict[str, float]:
-    '''
-    Compute validation metrics for hyperbolic embeddings.
+    '''Compute validation metrics for hyperbolic embeddings.
 
     Args:
-        emb: Embeddings tensor of shape (N, embedding_dim+1)
-        anchors: Anchor indices, shape (batch_size,)
-        positives: Positive indices, shape (batch_size,)
-        negatives: Negative indices, shape (batch_size, k_negatives)
-        c: Curvature parameter (default: 1.0)
-        top_k: Number of top negatives to consider for auxiliary accuracy
-        as_tensors: Return torch scalars instead of Python floats (for Lightning logging)
+        emb: Embeddings tensor of shape ``(N, embedding_dim+1)``.
+        anchors: Anchor indices, shape ``(batch_size,)``.
+        positives: Positive indices, shape ``(batch_size,)``.
+        negatives: Negative indices, shape ``(batch_size, k_negatives)``.
+        c: Curvature parameter (default: 1.0).
+        top_k: Number of top negatives to consider for auxiliary accuracy.
+        as_tensors: Return torch scalars instead of Python floats (for Lightning logging).
 
     Returns:
-        Dictionary with validation metrics:
-        - avg_positive_dist: Average distance to positive samples
-        - avg_negative_dist: Average distance to negative samples
-        - distance_spread: Coefficient of variation across all sampled distances
-        - relation_accuracy: Accuracy of positive being closer than all negatives
-        - top_k_relation_accuracy: Accuracy vs. closest top_k negatives
-        - mean_positive_rank: Mean rank of positive sample among negatives
+        Mapping of metric names to values (either tensors or floats).
     '''
-    batch_size = anchors.size(0)
-    k_negatives = negatives.size(1)
-    top_k = max(1, min(top_k, k_negatives))
+    batch_size, k_negatives = negatives.shape
+    effective_top_k = max(1, min(top_k, k_negatives))
 
     anchor_emb = emb[anchors]
     positive_emb = emb[positives]
@@ -67,14 +59,14 @@ def compute_validation_metrics(
     avg_negative_dist = negative_dist.mean()
 
     all_distances = torch.cat([positive_dist, negative_dist.reshape(-1)], dim=0)
-    distance_spread = all_distances.std() / (all_distances.mean() + 1e-8)
+    distance_spread = torch.div(all_distances.std(), all_distances.mean().clamp_min(1e-8))
 
-    comp_matrix = positive_dist.unsqueeze(1) < negative_dist
-    relation_accuracy = comp_matrix.all(dim=1).float().mean()
+    relation_accuracy = (positive_dist.unsqueeze(1) < negative_dist).all(dim=1).float().mean()
 
-    closest_negatives = torch.topk(negative_dist, k=top_k, dim=1, largest=False).values
-    top_k_relation_accuracy = (positive_dist.unsqueeze(1)
-                               < closest_negatives).all(dim=1).float().mean()
+    closest_negatives = torch.topk(negative_dist, k=effective_top_k, dim=1, largest=False).values
+    top_k_relation_accuracy = (
+        positive_dist.unsqueeze(1) < closest_negatives
+    ).all(dim=1).float().mean()
 
     all_dists_per_anchor = torch.cat([positive_dist.unsqueeze(1), negative_dist], dim=1)
     order = torch.argsort(all_dists_per_anchor, dim=1)

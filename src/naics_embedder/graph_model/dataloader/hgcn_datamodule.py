@@ -139,7 +139,9 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
     positive_idx = torch.tensor([item['positive_idx'] for item in batch], dtype=torch.long)
 
     # Pad negative indices to same length
-    max_negatives = max(len(item['negative_indices']) for item in batch)
+    max_negatives = max((len(item['negative_indices']) for item in batch), default=0)
+    if max_negatives == 0:
+        raise ValueError('Batch contains no negative indices; check triplet generation logic.')
     negative_indices = []
     for item in batch:
         negs = item['negative_indices']
@@ -196,12 +198,13 @@ class HGCNDataModule(pl.LightningDataModule):
             graph_cfg, descriptions_override=descriptions_parquet
         )
         self._streaming_cfg = _streaming_cfg_from_loader(self.loader_cfg)
+        self._materialized_triplets: Optional[List[Dict[str, Any]]] = None
         self._train_dataset: Optional[TripletDataset] = None
         self._val_dataset: Optional[TripletDataset] = None
 
     def prepare_data(self) -> None:
         # Ensure the expensive Polars query runs once on rank 0.
-        load_streaming_triplets(self._streaming_cfg)
+        self._materialized_triplets = load_streaming_triplets(self._streaming_cfg)
 
     def setup(self, stage: Optional[str] = None) -> None:
         if self._train_dataset is not None and (
@@ -209,7 +212,7 @@ class HGCNDataModule(pl.LightningDataModule):
         ):
             return
 
-        data = load_streaming_triplets(self._streaming_cfg)
+        data = self._materialized_triplets or load_streaming_triplets(self._streaming_cfg)
         if self.val_split <= 0 or len(data) < 2:
             train_data = data
             val_data: Optional[List[Dict[str, Any]]] = None

@@ -166,7 +166,7 @@ def triplet_loss_hyp(
 
 def level_radius_loss(emb: torch.Tensor, idx: torch.Tensor, levels: torch.Tensor) -> torch.Tensor:
     # radial distance on Lorentz model: sqrt(x0^2 - 1)
-    radial = torch.sqrt(emb[idx, 0]**2 - 1)
+    radial = torch.sqrt(torch.clamp(emb[idx, 0].pow(2) - 1, min=1e-8))
     target = (levels[idx].float() - 2) * 0.5
 
     # Use Huber loss (smooth_l1) instead of MSE
@@ -391,10 +391,15 @@ def load_embeddings(parquet_path: str,
     '''
     df = pl.read_parquet(parquet_path)
 
-    # Find embedding columns (hyp_e* pattern)
+    # Find embedding columns (hyp_e* pattern) and enforce a deterministic order
     embedding_cols = [col for col in df.columns if col.startswith('hyp_e')]
     if not embedding_cols:
         raise ValueError(f'No embedding columns found (expected hyp_e* pattern) in {parquet_path}')
+
+    embedding_cols = sorted(
+        embedding_cols,
+        key=lambda name: int(name.replace('hyp_e', '')) if name.replace('hyp_e', '').isdigit() else name,
+    )
 
     emb = df.select(embedding_cols).to_torch(dtype=pl.Float32).to(device)
 
