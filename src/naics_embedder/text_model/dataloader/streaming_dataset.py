@@ -53,9 +53,8 @@ def _linear_skip(anchor: str, taxonomy: pl.DataFrame) -> List[str]:
     codes = [f'code_{i}' for i in range(lvl + 1, 7)]
 
     for code in codes:
-        candidate = (
-            taxonomy.filter(pl.col(anchor_code).eq(anchor)).get_column(code).unique().to_list()
-        )
+        candidate = taxonomy.filter(pl.col(anchor_code).eq(anchor)
+                                    ).get_column(code).unique().to_list()
 
         if lvl == 5:
             return candidate
@@ -69,9 +68,8 @@ def _linear_skip(anchor: str, taxonomy: pl.DataFrame) -> List[str]:
 # -------------------------------------------------------------------------------------------------
 
 def _descendants(anchors: pl.DataFrame, taxonomy: pl.DataFrame) -> pl.DataFrame:
-    parent_anchors = (
-        anchors.filter(pl.col('level').lt(6)).get_column('anchor').unique().sort().to_list()
-    )
+    parent_anchors = anchors.filter(pl.col('level').lt(6)
+                                    ).get_column('anchor').unique().sort().to_list()
 
     parent_stratum = []
     for anchor in parent_anchors:

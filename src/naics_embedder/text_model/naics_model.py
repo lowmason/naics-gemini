@@ -702,13 +702,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 # Embedding-based hard negative mining (Issue #15)
                 if enable_hard_negative_mining:
                     # Mine top-k hardest negatives for each anchor based on Lorentzian distance
-                    hard_negatives, hard_neg_distances = (
-                        self.hard_negative_miner.mine_hard_negatives(
-                            anchor_emb=anchor_emb,
-                            candidate_negatives=candidate_negatives,
-                            k=k_negatives,
-                            return_distances=True,
-                        )
+                    hard_negatives, hard_neg_distances = self.hard_negative_miner.mine_hard_negatives(
+                        anchor_emb=anchor_emb,
+                        candidate_negatives=candidate_negatives,
+                        k=k_negatives,
+                        return_distances=True,
                     )
 
             # Router-guided negative mining (Issue #16)
@@ -1118,10 +1116,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
 
         # Add LambdaRank loss for global ranking (1 positive + k negatives per anchor)
         lambdarank_loss = torch.tensor(0.0, device=self.device)
-        if (
-            self.lambdarank_loss_fn is not None and 'anchor_code' in batch
-            and 'positive_code' in batch
-        ):
+        if self.lambdarank_loss_fn is not None and 'anchor_code' in batch and 'positive_code' in batch:
             try:
                 # Get codes from batch
                 anchor_codes = batch['anchor_code']

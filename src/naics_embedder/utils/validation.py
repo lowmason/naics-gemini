@@ -144,8 +144,7 @@ def validate_data_paths(cfg: Config) -> ValidationResult:
         path = Path(path_str)
         if not path.exists():
             result.add_error(
-                f'{name.capitalize()} file not found: {path_str}\n'
-                f'  Run: uv run naics-embedder data all'
+                f'{name.capitalize()} file not found: {path_str}\n  Run: uv run naics-embedder data all'
             )
 
     # Check triplets directory
@@ -299,8 +298,7 @@ def validate_tokenization_cache(
 
         if not cache or len(cache) == 0:
             result.add_error(
-                f'Tokenization cache is empty: {cache_path}\n'
-                f'  Delete and regenerate: rm {cache_path}'
+                f'Tokenization cache is empty: {cache_path}\n  Delete and regenerate: rm {cache_path}'
             )
             return result
 

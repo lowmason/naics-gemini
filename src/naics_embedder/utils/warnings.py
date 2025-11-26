@@ -106,9 +106,7 @@ def configure_warnings(
         >>> configure_warnings()  # Apply standard filters
 
         >>> # Add custom filter
-        >>> configure_warnings(
-        ...     additional_filters=[('.*my custom warning.*', UserWarning, 'my_module')]
-        ... )
+        >>> configure_warnings(additional_filters=[('.*my custom warning.*', UserWarning, 'my_module')])
     '''
     import logging
 

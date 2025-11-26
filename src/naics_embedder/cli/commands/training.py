@@ -202,8 +202,7 @@ def generate_embeddings_from_checkpoint(
 
             if (batch_idx + 1) % 10 == 0 or batch_idx == num_batches - 1:
                 logger.info(
-                    f'  Processed {end_idx:,} / {df.height:,} '
-                    f'codes ({(end_idx / df.height) * 100:.1f}%)'
+                    f'  Processed {end_idx:,} / {df.height:,} codes ({(end_idx / df.height) * 100:.1f}%)'
                 )
 
     # Concatenate all embeddings
@@ -496,13 +495,11 @@ def train(
             if resuming_same_stage:
                 logger.info('Checkpoint is from same stage - will resume training from checkpoint')
                 console.print(
-                    '[cyan]Resuming training from checkpoint '
-                    '(will continue from saved epoch)[/cyan]\n'
+                    '[cyan]Resuming training from checkpoint (will continue from saved epoch)[/cyan]\n'
                 )
             else:
                 logger.info(
-                    'Checkpoint is from different stage - will '
-                    'load weights only, start fresh training'
+                    'Checkpoint is from different stage - will load weights only, start fresh training'
                 )
                 console.print(
                     '[cyan]Loading weights from previous stage checkpoint, '
@@ -539,9 +536,9 @@ def train(
         logger.info('Initializing PyTorch Lightning Trainer...\n')
 
         # Use only 1 device as specified in config, even if multiple GPUs are available
-        devices_to_use = (
-            cfg.training.trainer.devices if hasattr(cfg.training.trainer, 'devices') else 1
-        )
+        devices_to_use = cfg.training.trainer.devices if hasattr(
+            cfg.training.trainer, 'devices'
+        ) else 1
 
         # If using multiple devices, need to handle unused parameters in DDP
         strategy = 'auto'
@@ -884,8 +881,7 @@ def train_sequential(
     if last_checkpoint:
         console.print('\n[bold cyan]Generate embeddings for HGCN training?[/bold cyan]')
         generate_embeddings = typer.confirm(
-            'Generate embeddings parquet file from final checkpoint '
-            f'({Path(last_checkpoint).name})?',
+            f'Generate embeddings parquet file from final checkpoint ({Path(last_checkpoint).name})?',
             default=False,
         )
 
