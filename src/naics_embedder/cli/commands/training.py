@@ -474,7 +474,15 @@ def train(
                 distance_matrix_path=cfg.data_loader.streaming.distance_matrix_parquet,
                 eval_every_n_epochs=cfg.model.eval_every_n_epochs,
                 eval_sample_size=cfg.model.eval_sample_size,
-                base_margin=cfg.loss.base_margin
+                base_margin=cfg.loss.base_margin,
+                tree_distance_alpha=cfg.curriculum.tree_distance_alpha,
+                curriculum_phase1_end=cfg.curriculum.phase1_end,
+                curriculum_phase2_end=cfg.curriculum.phase2_end,
+                curriculum_phase3_end=cfg.curriculum.phase3_end,
+                sibling_distance_threshold=cfg.curriculum.sibling_distance_threshold,
+                fn_curriculum_start_epoch=cfg.curriculum.fn_curriculum_start_epoch,
+                fn_cluster_every_n_epochs=cfg.curriculum.fn_cluster_every_n_epochs,
+                fn_num_clusters=cfg.curriculum.fn_num_clusters
             )
         
         # Setup callbacks

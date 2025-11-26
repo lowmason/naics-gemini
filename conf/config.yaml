@@ -1,10 +1,19 @@
-defaults:
-  - _self_
-  - curriculum: default
+# Base training configuration for the NAICS SADC pipeline
 
 # Experiment identification
-experiment_name: ${curriculum.name}
+experiment_name: sadc_default
 seed: 42
+
+# Curriculum scheduler configuration (Structure-Aware Dynamic Curriculum)
+curriculum:
+  phase1_end: 0.3  # Structural initialization cutoff (fraction of epochs)
+  phase2_end: 0.7  # Geometric refinement cutoff (fraction of epochs)
+  phase3_end: 1.0  # False negative mitigation cutoff (fraction of epochs)
+  tree_distance_alpha: 1.5  # Inverse-distance weighting exponent for negatives
+  sibling_distance_threshold: 2.0  # Distance threshold for sibling masking
+  fn_curriculum_start_epoch: 10  # Epoch to begin false-negative elimination
+  fn_cluster_every_n_epochs: 5  # How often to refresh clustering during Phase 3
+  fn_num_clusters: 500  # Number of clusters used for false-negative elimination
 
 # Paths
 dirs:
@@ -20,13 +29,13 @@ data_loader:
   batch_size: 12
   num_workers: 4
   val_split: 0.05
-  
+
   tokenization:
     tokenizer_name: sentence-transformers/all-MiniLM-L6-v2
     max_length: 512
     padding: max_length
     truncation: true
-  
+
   streaming:
     descriptions_parquet: ./data/naics_descriptions.parquet
     triplets_parquet: ./data/naics_training_pairs
@@ -41,19 +50,19 @@ data_loader:
 # Model configuration
 model:
   base_model_name: sentence-transformers/all-MiniLM-L6-v2
-  
+
   lora:
     r: 8
     alpha: 16
     dropout: 0.1
-  
+
   moe:
     num_experts: 4
     top_k: 2
     hidden_dim: 768
     load_balancing_coef: 0.01
-  
-  eval_sample_size: 300  
+
+  eval_sample_size: 300
   eval_every_n_epochs: 1
 
 # Loss configuration
@@ -71,7 +80,7 @@ training:
   weight_decay: 0.01
   warmup_steps: 500
   use_warmup_cosine: false  # Set to true for large training jobs with many epochs
-  
+
   trainer:
     max_epochs: 15  # Reduced to prevent unnecessary training
     accelerator: auto
