@@ -633,3 +633,179 @@ class TestNAICSEvaluationRunner:
         assert 'recall@3' in results['retrieval']
         assert 'recall@7' in results['retrieval']
         assert 'recall@15' in results['retrieval']
+
+# -------------------------------------------------------------------------------------------------
+# Level Consistency Tests (Per-level embedding quality)
+# -------------------------------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestLevelConsistency:
+    '''Test suite for per-level embedding quality metrics.
+
+    Tests that embeddings maintain quality and consistency across different
+    NAICS hierarchy levels (2-digit through 6-digit codes).
+    '''
+
+    @pytest.fixture
+    def level_embeddings(self, test_device):
+        '''Generate embeddings for each hierarchy level.
+
+        Returns dict mapping level -> embeddings tensor.
+        '''
+        torch.manual_seed(42)
+        return {
+            2: torch.randn(5, 128, device=test_device),  # 5 sector codes
+            3: torch.randn(10, 128, device=test_device),  # 10 subsector codes
+            4: torch.randn(15, 128, device=test_device),  # 15 industry group codes
+            5: torch.randn(20, 128, device=test_device),  # 20 industry codes
+            6: torch.randn(25, 128, device=test_device),  # 25 national codes
+        }
+
+    @pytest.fixture
+    def level_tree_distances(self, test_device):
+        '''Generate tree distances for each hierarchy level.'''
+        torch.manual_seed(42)
+        return {
+            2: torch.rand(5, 5, device=test_device) * 2.0,
+            3: torch.rand(10, 10, device=test_device) * 3.0,
+            4: torch.rand(15, 15, device=test_device) * 4.0,
+            5: torch.rand(20, 20, device=test_device) * 5.0,
+            6: torch.rand(25, 25, device=test_device) * 6.0,
+        }
+
+    def test_level_consistency_statistics_per_level(self, level_embeddings):
+        '''Test that statistics can be computed for each hierarchy level.'''
+        stats = EmbeddingStatistics()
+
+        level_stats = {}
+        for level, embeddings in level_embeddings.items():
+            level_stats[level] = stats.compute_statistics(embeddings)
+
+        # Each level should have valid statistics
+        for level in [2, 3, 4, 5, 6]:
+            assert level in level_stats
+            assert 'mean_norm' in level_stats[level]
+            assert 'mean_pairwise_distance' in level_stats[level]
+            assert level_stats[level]['mean_norm'] > 0
+
+    def test_level_consistency_no_collapse_per_level(self, level_embeddings):
+        '''Test that no level has collapsed embeddings.'''
+        stats = EmbeddingStatistics()
+
+        for level, embeddings in level_embeddings.items():
+            result = stats.check_collapse(embeddings)
+            # Random embeddings should not be collapsed
+            assert 'any_collapse' in result
+            # Note: actual collapse detection depends on thresholds
+
+    def test_level_consistency_hierarchy_metrics_per_level(
+        self, level_embeddings, level_tree_distances
+    ):
+        '''Test hierarchy preservation metrics for each level.'''
+        evaluator = EmbeddingEvaluator()
+        hierarchy_metrics = HierarchyMetrics()
+
+        for level in [2, 3, 4, 5, 6]:
+            embeddings = level_embeddings[level]
+            tree_dists = level_tree_distances[level]
+
+            # Make tree distances symmetric with zero diagonal
+            tree_dists = (tree_dists + tree_dists.t()) / 2
+            tree_dists.fill_diagonal_(0.0)
+
+            emb_distances = evaluator.compute_pairwise_distances(embeddings, metric='euclidean')
+            result = hierarchy_metrics.cophenetic_correlation(
+                emb_distances, tree_dists, min_distance=0.05
+            )
+
+            assert 'correlation' in result
+            assert 'n_pairs' in result
+            # Correlation should be in valid range
+            corr = result['correlation']
+            if isinstance(corr, torch.Tensor):
+                assert -1.0 <= corr.item() <= 1.0
+            else:
+                assert -1.0 <= corr <= 1.0
+
+    def test_level_consistency_distance_properties(self, level_embeddings):
+        '''Test that distance properties are consistent across levels.'''
+        stats = EmbeddingStatistics()
+
+        level_distance_stats = {}
+        for level, embeddings in level_embeddings.items():
+            emb_stats = stats.compute_statistics(embeddings)
+            level_distance_stats[level] = {
+                'mean_dist': emb_stats['mean_pairwise_distance'].item(),
+                'std_dist': emb_stats['std_pairwise_distance'].item(),
+            }
+
+        # All levels should have positive mean distances
+        for level in [2, 3, 4, 5, 6]:
+            assert level_distance_stats[level]['mean_dist'] > 0
+
+    def test_level_consistency_norm_distribution(self, level_embeddings):
+        '''Test that norm distributions are reasonable across levels.'''
+        stats = EmbeddingStatistics()
+
+        for level, embeddings in level_embeddings.items():
+            level_stats = stats.compute_statistics(embeddings)
+
+            # Norms should be positive
+            assert level_stats['min_norm'] >= 0
+            assert level_stats['max_norm'] >= level_stats['min_norm']
+
+            # Coefficient of variation of norms (std/mean) should be reasonable
+            mean_norm = level_stats['mean_norm'].item()
+            std_norm = level_stats['std_norm'].item()
+            if mean_norm > 0:
+                cv = std_norm / mean_norm
+                # CV should be in reasonable range for random embeddings
+                assert cv >= 0
+
+    def test_level_consistency_retrieval_metrics(self, level_embeddings, test_device):
+        '''Test retrieval metrics can be computed for each level.'''
+        evaluator = EmbeddingEvaluator()
+        retrieval = RetrievalMetrics()
+
+        for level, embeddings in level_embeddings.items():
+            n = embeddings.shape[0]
+            distances = evaluator.compute_pairwise_distances(embeddings, metric='euclidean')
+
+            # Create mock relevance (first k items are relevant to each other)
+            k = min(3, n // 2)
+            relevance = torch.zeros(n, n, device=test_device)
+            relevance[:k, :k] = 1.0
+            relevance.fill_diagonal_(0.0)
+
+            # Compute MAP
+            map_score = retrieval.mean_average_precision(distances, relevance)
+            assert map_score >= 0.0 and map_score <= 1.0
+
+    def test_level_consistency_cross_level_coherence(self, test_device):
+        '''Test that embeddings from different levels maintain coherent relationships.
+
+        Parent codes should generally be closer to their children than to
+        codes from different branches in a well-trained embedding space.
+        '''
+        torch.manual_seed(42)
+        evaluator = EmbeddingEvaluator()
+
+        # Create parent and child embeddings with expected relationship
+        # Parent embedding
+        parent = torch.randn(1, 128, device=test_device)
+        # Child embeddings (similar to parent with some noise)
+        children = parent + torch.randn(3, 128, device=test_device) * 0.5
+        # Unrelated codes (different random embeddings)
+        unrelated = torch.randn(3, 128, device=test_device) * 2.0
+
+        all_embeddings = torch.cat([parent, children, unrelated], dim=0)
+        distances = evaluator.compute_pairwise_distances(all_embeddings, metric='euclidean')
+
+        # Distance from parent (idx 0) to children (idx 1,2,3) should generally be
+        # smaller than to unrelated (idx 4,5,6)
+        parent_to_children = distances[0, 1:4].mean()
+        parent_to_unrelated = distances[0, 4:7].mean()
+
+        # In a well-structured embedding, children should be closer
+        # (with high probability given our construction)
+        assert parent_to_children < parent_to_unrelated

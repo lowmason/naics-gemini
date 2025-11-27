@@ -599,3 +599,306 @@ def test_collate_large_batch(make_batch_item):
 
     assert result['batch_size'] == 64
     assert result['anchor']['title']['input_ids'].shape == (64, 128)
+
+# -------------------------------------------------------------------------------------------------
+# NAICSDataModule Setup Tests
+# -------------------------------------------------------------------------------------------------
+
+class TestNAICSDataModuleSetup:
+    '''Test suite for NAICSDataModule initialization and setup.'''
+
+    @pytest.fixture
+    def mock_descriptions_parquet(self, tmp_path):
+        '''Create mock descriptions parquet file.'''
+        import polars as pl
+
+        data = {
+            'index': [0, 1, 2],
+            'code': ['311111', '311112', '321111'],
+            'level': [6, 6, 6],
+            'title': ['Dog Food', 'Cat Food', 'Sawmills'],
+            'description': ['Make dog food', 'Make cat food', 'Cut wood'],
+            'excluded': ['', '', ''],
+            'examples': ['', '', ''],
+            'excluded_codes': [None, None, None],
+        }
+        df = pl.DataFrame(data)
+        path = tmp_path / 'descriptions.parquet'
+        df.write_parquet(path)
+        return str(path)
+
+    @pytest.fixture
+    def mock_triplets_dir(self, tmp_path):
+        '''Create mock triplets directory with parquet files.'''
+        import polars as pl
+
+        triplets_dir = tmp_path / 'triplets'
+        triplets_dir.mkdir()
+
+        # Create anchor subdirectory
+        anchor_dir = triplets_dir / 'anchor=0'
+        anchor_dir.mkdir()
+
+        data = {
+            'anchor_idx': [0, 0],
+            'anchor_code': ['311111', '311111'],
+            'anchor_level': [6, 6],
+            'positive_idx': [1, 1],
+            'positive_code': ['311112', '311112'],
+            'positive_level': [6, 6],
+            'negative_idx': [2, 2],
+            'negative_code': ['321111', '321111'],
+            'negative_level': [6, 6],
+            'relation_margin': [0, 0],
+            'distance_margin': [4, 4],
+            'positive_relation': [1, 1],
+            'positive_distance': [2, 2],
+            'negative_relation': [3, 3],
+            'negative_distance': [8, 8],
+        }
+        df = pl.DataFrame(data)
+        path = anchor_dir / 'part0.parquet'
+        df.write_parquet(path)
+        return str(triplets_dir)
+
+    def test_datamodule_init_default_params(self, mock_descriptions_parquet, mock_triplets_dir):
+        '''Test NAICSDataModule initializes with default parameters.'''
+        from naics_embedder.text_model.dataloader.datamodule import NAICSDataModule
+
+        datamodule = NAICSDataModule(
+            descriptions_path=mock_descriptions_parquet,
+            triplets_path=mock_triplets_dir,
+            batch_size=4,
+            num_workers=0,
+        )
+
+        assert datamodule.batch_size == 4
+        assert datamodule.num_workers == 0
+        assert datamodule.descriptions_path == mock_descriptions_parquet
+        assert datamodule.triplets_path == mock_triplets_dir
+
+    def test_datamodule_init_custom_streaming_config(
+        self, mock_descriptions_parquet, mock_triplets_dir
+    ):
+        '''Test NAICSDataModule initializes with custom streaming config.'''
+        from naics_embedder.text_model.dataloader.datamodule import NAICSDataModule
+
+        streaming_config = {
+            'n_positives': 2,
+            'n_negatives': 8,
+            'seed': 123,
+        }
+
+        datamodule = NAICSDataModule(
+            descriptions_path=mock_descriptions_parquet,
+            triplets_path=mock_triplets_dir,
+            streaming_config=streaming_config,
+            batch_size=8,
+            num_workers=0,
+            seed=100,  # Explicit seed for validation config
+        )
+
+        assert datamodule.train_streaming_cfg.n_positives == 2
+        assert datamodule.train_streaming_cfg.n_negatives == 8
+        assert datamodule.train_streaming_cfg.seed == 123
+        # Validation config uses (seed + 1) from NAICSDataModule.__init__ seed param
+        assert datamodule.val_streaming_cfg.seed == 101  # 100 + 1
+
+    def test_datamodule_init_custom_sampling_config(
+        self, mock_descriptions_parquet, mock_triplets_dir
+    ):
+        '''Test NAICSDataModule initializes with custom sampling config.'''
+        from naics_embedder.text_model.dataloader.datamodule import NAICSDataModule
+
+        sampling_config = {'strategy': 'sans_static'}
+
+        datamodule = NAICSDataModule(
+            descriptions_path=mock_descriptions_parquet,
+            triplets_path=mock_triplets_dir,
+            sampling_config=sampling_config,
+            batch_size=4,
+            num_workers=0,
+        )
+
+        assert datamodule.sampling_cfg.strategy == 'sans_static'
+
+    def test_datamodule_creates_train_dataset(self, mock_descriptions_parquet, mock_triplets_dir):
+        '''Test that train_dataset is created during initialization.'''
+        from naics_embedder.text_model.dataloader.datamodule import (
+            GeneratorDataset,
+            NAICSDataModule,
+        )
+
+        datamodule = NAICSDataModule(
+            descriptions_path=mock_descriptions_parquet,
+            triplets_path=mock_triplets_dir,
+            batch_size=4,
+            num_workers=0,
+        )
+
+        assert datamodule.train_dataset is not None
+        assert isinstance(datamodule.train_dataset, GeneratorDataset)
+
+    def test_datamodule_creates_val_dataset(self, mock_descriptions_parquet, mock_triplets_dir):
+        '''Test that val_dataset is created during initialization.'''
+        from naics_embedder.text_model.dataloader.datamodule import (
+            GeneratorDataset,
+            NAICSDataModule,
+        )
+
+        datamodule = NAICSDataModule(
+            descriptions_path=mock_descriptions_parquet,
+            triplets_path=mock_triplets_dir,
+            batch_size=4,
+            num_workers=0,
+        )
+
+        assert datamodule.val_dataset is not None
+        assert isinstance(datamodule.val_dataset, GeneratorDataset)
+
+    def test_datamodule_tokenization_config(self, mock_descriptions_parquet, mock_triplets_dir):
+        '''Test that tokenization config is set correctly.'''
+        from naics_embedder.text_model.dataloader.datamodule import NAICSDataModule
+
+        datamodule = NAICSDataModule(
+            descriptions_path=mock_descriptions_parquet,
+            triplets_path=mock_triplets_dir,
+            tokenizer_name='sentence-transformers/all-MiniLM-L6-v2',
+            batch_size=4,
+            num_workers=0,
+        )
+
+        assert datamodule.tokenization_cfg.descriptions_parquet == mock_descriptions_parquet
+        assert datamodule.tokenization_cfg.tokenizer_name == 'sentence-transformers/all-MiniLM-L6-v2'
+
+# -------------------------------------------------------------------------------------------------
+# Train/Val DataLoader Creation Tests
+# -------------------------------------------------------------------------------------------------
+
+class TestDataLoaderCreation:
+    '''Test suite for train and validation dataloader creation.'''
+
+    @pytest.fixture
+    def mock_datamodule(self, tmp_path):
+        '''Create a mock NAICSDataModule for testing.'''
+        import polars as pl
+
+        from naics_embedder.text_model.dataloader.datamodule import NAICSDataModule
+
+        # Create descriptions
+        desc_data = {
+            'index': [0, 1, 2],
+            'code': ['311111', '311112', '321111'],
+            'level': [6, 6, 6],
+            'title': ['Dog Food', 'Cat Food', 'Sawmills'],
+            'description': ['Make dog food', 'Make cat food', 'Cut wood'],
+            'excluded': ['', '', ''],
+            'examples': ['', '', ''],
+            'excluded_codes': [None, None, None],
+        }
+        desc_df = pl.DataFrame(desc_data)
+        desc_path = tmp_path / 'descriptions.parquet'
+        desc_df.write_parquet(desc_path)
+
+        # Create triplets
+        triplets_dir = tmp_path / 'triplets'
+        triplets_dir.mkdir()
+        anchor_dir = triplets_dir / 'anchor=0'
+        anchor_dir.mkdir()
+
+        triplet_data = {
+            'anchor_idx': [0],
+            'anchor_code': ['311111'],
+            'anchor_level': [6],
+            'positive_idx': [1],
+            'positive_code': ['311112'],
+            'positive_level': [6],
+            'negative_idx': [2],
+            'negative_code': ['321111'],
+            'negative_level': [6],
+            'relation_margin': [0],
+            'distance_margin': [4],
+            'positive_relation': [1],
+            'positive_distance': [2],
+            'negative_relation': [3],
+            'negative_distance': [8],
+        }
+        triplet_df = pl.DataFrame(triplet_data)
+        triplet_path = anchor_dir / 'part0.parquet'
+        triplet_df.write_parquet(triplet_path)
+
+        return NAICSDataModule(
+            descriptions_path=str(desc_path),
+            triplets_path=str(triplets_dir),
+            batch_size=2,
+            num_workers=0,
+        )
+
+    def test_train_dataloader_returns_dataloader(self, mock_datamodule):
+        '''Test that train_dataloader returns a DataLoader instance.'''
+        from torch.utils.data import DataLoader
+
+        train_loader = mock_datamodule.train_dataloader()
+
+        assert isinstance(train_loader, DataLoader)
+
+    def test_train_dataloader_batch_size(self, mock_datamodule):
+        '''Test that train_dataloader uses correct batch size.'''
+        train_loader = mock_datamodule.train_dataloader()
+
+        assert train_loader.batch_size == 2
+
+    def test_train_dataloader_num_workers(self, mock_datamodule):
+        '''Test that train_dataloader uses correct num_workers.'''
+        train_loader = mock_datamodule.train_dataloader()
+
+        assert train_loader.num_workers == 0
+
+    def test_train_dataloader_collate_fn(self, mock_datamodule):
+        '''Test that train_dataloader uses custom collate function.'''
+        train_loader = mock_datamodule.train_dataloader()
+
+        assert train_loader.collate_fn == collate_fn
+
+    def test_val_dataloader_returns_dataloader(self, mock_datamodule):
+        '''Test that val_dataloader returns a DataLoader instance.'''
+        from torch.utils.data import DataLoader
+
+        val_loader = mock_datamodule.val_dataloader()
+
+        assert isinstance(val_loader, DataLoader)
+
+    def test_val_dataloader_batch_size(self, mock_datamodule):
+        '''Test that val_dataloader uses correct batch size.'''
+        val_loader = mock_datamodule.val_dataloader()
+
+        assert val_loader.batch_size == 2
+
+    def test_val_dataloader_num_workers(self, mock_datamodule):
+        '''Test that val_dataloader uses correct num_workers.'''
+        val_loader = mock_datamodule.val_dataloader()
+
+        assert val_loader.num_workers == 0
+
+    def test_val_dataloader_collate_fn(self, mock_datamodule):
+        '''Test that val_dataloader uses custom collate function.'''
+        val_loader = mock_datamodule.val_dataloader()
+
+        assert val_loader.collate_fn == collate_fn
+
+    def test_train_val_dataloaders_are_different(self, mock_datamodule):
+        '''Test that train and val dataloaders are distinct.'''
+        train_loader = mock_datamodule.train_dataloader()
+        val_loader = mock_datamodule.val_dataloader()
+
+        # They should be different objects
+        assert train_loader is not val_loader
+        # They should use different datasets
+        assert train_loader.dataset is not val_loader.dataset
+
+    def test_persistent_workers_disabled_when_zero_workers(self, mock_datamodule):
+        '''Test persistent_workers is False when num_workers=0.'''
+        train_loader = mock_datamodule.train_dataloader()
+
+        # persistent_workers should be False since num_workers=0
+        assert train_loader.persistent_workers is False

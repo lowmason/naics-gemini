@@ -402,3 +402,233 @@ class TestGetTokens:
         # Should raise KeyError when code not found
         with pytest.raises(KeyError):
             get_tokens('999999', sample_tokenization_cache)
+
+# -------------------------------------------------------------------------------------------------
+# Cache Invalidation Tests
+# -------------------------------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestCacheInvalidation:
+    '''Test suite for cache invalidation scenarios.
+
+    Tests that the cache is properly rebuilt when underlying data changes.
+    '''
+
+    def test_cache_invalidation_when_data_changes(self, tmp_path):
+        '''Test that rebuilding cache with changed data produces different results.'''
+        # Create initial descriptions
+        data_v1 = {
+            'index': [0, 1],
+            'code': ['311111', '311112'],
+            'title': ['Dog Food Manufacturing', 'Cat Food Manufacturing'],
+            'description': ['Manufacture dog food', 'Manufacture cat food'],
+            'excluded': ['', ''],
+            'examples': ['', ''],
+        }
+        df_v1 = pl.DataFrame(data_v1)
+        desc_path = tmp_path / 'descriptions.parquet'
+        df_v1.write_parquet(desc_path)
+
+        # Build initial cache
+        cache_v1 = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 128
+        )
+
+        # Verify initial cache
+        assert len(cache_v1) == 2
+        assert cache_v1[0]['code'] == '311111'
+        title_dict_v1 = cache_v1[0]['title']  # type: ignore
+        v1_title_tokens = title_dict_v1['input_ids'].clone()  # type: ignore
+
+        # Update descriptions with different content
+        data_v2 = {
+            'index': [0, 1, 2],  # Added new item
+            'code': ['311111', '311112', '321111'],
+            'title': [
+                'Pet Food Manufacturing',  # Changed title
+                'Cat Food Manufacturing',
+                'Sawmills',  # New item
+            ],
+            'description': [
+                'Manufacture pet food',  # Changed
+                'Manufacture cat food',
+                'Saw logs',  # New
+            ],
+            'excluded': ['', '', ''],
+            'examples': ['', '', ''],
+        }
+        df_v2 = pl.DataFrame(data_v2)
+        df_v2.write_parquet(desc_path)
+
+        # Build new cache
+        cache_v2 = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 128
+        )
+
+        # Verify cache reflects changes
+        assert len(cache_v2) == 3  # New item added
+        # Title tokens should be different after content change
+        title_dict_v2 = cache_v2[0]['title']  # type: ignore
+        v2_title_tokens = title_dict_v2['input_ids']  # type: ignore
+        assert not torch.equal(v1_title_tokens, v2_title_tokens)
+        # New item should exist
+        assert 2 in cache_v2
+        assert cache_v2[2]['code'] == '321111'
+
+    def test_cache_invalidation_max_length_change(self, tmp_path):
+        '''Test that cache is invalid when max_length changes.'''
+        # Create descriptions
+        data = {
+            'index': [0],
+            'code': ['311111'],
+            'title': ['Dog Food'],
+            'description': ['A ' * 200],  # Long description
+            'excluded': [''],
+            'examples': [''],
+        }
+        df = pl.DataFrame(data)
+        desc_path = tmp_path / 'descriptions.parquet'
+        df.write_parquet(desc_path)
+
+        # Build cache with max_length=128
+        cache_128 = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 128
+        )
+
+        # Build cache with max_length=64
+        cache_64 = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 64
+        )
+
+        # Tokens should have different shapes
+        desc_dict_128 = cache_128[0]['description']  # type: ignore
+        desc_dict_64 = cache_64[0]['description']  # type: ignore
+        assert desc_dict_128['input_ids'].shape == (128, )  # type: ignore
+        assert desc_dict_64['input_ids'].shape == (64, )  # type: ignore
+
+    def test_cache_file_update_after_invalidation(self, tmp_path):
+        '''Test that saved cache file is updated when data changes.'''
+        # Create initial descriptions
+        data_v1 = {
+            'index': [0],
+            'code': ['311111'],
+            'title': ['Dog Food'],
+            'description': ['Make dog food'],
+            'excluded': [''],
+            'examples': [''],
+        }
+        df_v1 = pl.DataFrame(data_v1)
+        desc_path = tmp_path / 'descriptions.parquet'
+        df_v1.write_parquet(desc_path)
+
+        cache_path = tmp_path / 'cache.pt'
+
+        # Build and save initial cache
+        cache_v1 = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 128
+        )
+        _save_tokenization_cache(cache_v1, str(cache_path))
+
+        # Record modification time
+        import os
+        import time
+
+        mtime_v1 = os.path.getmtime(cache_path)
+        time.sleep(0.1)  # Ensure time difference
+
+        # Update data
+        data_v2 = {
+            'index': [0, 1],
+            'code': ['311111', '311112'],
+            'title': ['Dog Food', 'Cat Food'],
+            'description': ['Make dog food', 'Make cat food'],
+            'excluded': ['', ''],
+            'examples': ['', ''],
+        }
+        df_v2 = pl.DataFrame(data_v2)
+        df_v2.write_parquet(desc_path)
+
+        # Build and save new cache
+        cache_v2 = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 128
+        )
+        _save_tokenization_cache(cache_v2, str(cache_path))
+
+        # Verify file was updated
+        mtime_v2 = os.path.getmtime(cache_path)
+        assert mtime_v2 > mtime_v1
+
+        # Verify loaded cache has new data
+        loaded = _load_tokenization_cache(str(cache_path))
+        assert loaded is not None
+        assert len(loaded) == 2
+
+    def test_tokenization_cache_function_rebuilds_on_missing(self, tmp_path):
+        '''Test tokenization_cache() rebuilds when cache file is deleted.'''
+        # Create descriptions
+        data = {
+            'index': [0, 1],
+            'code': ['311111', '311112'],
+            'title': ['Dog Food', 'Cat Food'],
+            'description': ['Make dog food', 'Make cat food'],
+            'excluded': ['', ''],
+            'examples': ['', ''],
+        }
+        df = pl.DataFrame(data)
+        desc_path = tmp_path / 'descriptions.parquet'
+        df.write_parquet(desc_path)
+
+        cache_path = tmp_path / 'token_cache.pt'
+        cfg = TokenizationConfig(
+            descriptions_parquet=str(desc_path),
+            tokenizer_name='sentence-transformers/all-MiniLM-L6-v2',
+            max_length=128,
+            output_path=str(cache_path),
+        )
+
+        # Build initial cache
+        cache_v1 = tokenization_cache(cfg, use_locking=True)
+        assert cache_path.exists()
+        assert len(cache_v1) == 2
+
+        # Delete cache file (simulating invalidation)
+        cache_path.unlink()
+        assert not cache_path.exists()
+
+        # Should rebuild cache
+        cache_v2 = tokenization_cache(cfg, use_locking=True)
+        assert cache_path.exists()
+        assert cache_v2 is not None
+        assert len(cache_v2) == 2
+
+    def test_cache_invalidation_different_tokenizer(self, tmp_path):
+        '''Test that different tokenizers produce different caches.
+
+        Note: This test uses the same tokenizer with different max_lengths
+        as a proxy for demonstrating that configuration changes affect output.
+        '''
+        # Create descriptions
+        data = {
+            'index': [0],
+            'code': ['311111'],
+            'title': ['Dog Food Manufacturing'],
+            'description': ['Manufacture dog and cat food products'],
+            'excluded': [''],
+            'examples': [''],
+        }
+        df = pl.DataFrame(data)
+        desc_path = tmp_path / 'descriptions.parquet'
+        df.write_parquet(desc_path)
+
+        # Build cache with different configurations
+        cache_a = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 64
+        )
+        cache_b = _build_tokenization_cache(
+            str(desc_path), 'sentence-transformers/all-MiniLM-L6-v2', 128
+        )
+
+        # Same tokenizer but different max_length should produce different results
+        desc_dict_a = cache_a[0]['description']  # type: ignore
+        desc_dict_b = cache_b[0]['description']  # type: ignore
+        assert desc_dict_a['input_ids'].shape != desc_dict_b['input_ids'].shape  # type: ignore

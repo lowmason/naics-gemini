@@ -134,6 +134,8 @@ The Controller is a state machine that accepts a vector of evaluation metrics $M
 
 -   **Loss Function:** **Knowledge Distillation**. Phase 4 model is distilled from the Phase 3 "Teacher" model to smooth the decision boundaries.
 
+-   **Rationale:** "Hard" learning often distorts the global structure. Phase 4 acts as a smoothing step, ensuring the manifold is continuous and robust.
+
 ## 4. Advanced Feature Integration: Mechanisms & Implementation
 
 To fully satisfy the "State of the Art" requirement, we detail the mathematical mechanisms for the Lorentz Hyperboloid.
@@ -175,6 +177,58 @@ We implement Model-Aware Contrastive Learning (MACL). The margin $\gamma_t$ is d
 $$\gamma_t = \gamma_{base} + \alpha \cdot (1 - \text{Confidence}(q, p))$$
 
 Where confidence is derived from the hyperbolic distance in the previous epoch. Harder samples (low confidence) force a larger margin.
+
+### **4.3 Generative Hard Negative Mining**
+
+In Phase 3, instead of just selecting existing nodes as negatives, we employ a **Generator Network** (small MLP) that takes the head embedding *h* and relation *r* and generates a "synthetic" tail embedding $t'_{gen} = G(h, r) + \epsilon$.
+
+-   **Adversarial Game:** The Generator tries to create *t'* that maximizes the Discriminator's (Main Model) score. The Discriminator tries to reject *t'*.
+
+-   **Curriculum Benefit:** This effectively creates an infinite supply of negatives that lie exactly on the decision boundary, providing the strongest possible gradient signal for fine-tuning.
+
+## 5. Implementation Strategy
+
+Implementing this system requires a modular architecture. We move away from monolithic training scripts to a **Component-Based Design**.
+
+### 5.1 System Components
+
+1.  **Metric Logger:** A centralized bus that collects scalars (loss, gradients, gap) and tensors (embeddings).
+
+2.  **Difficulty Scorer:** A pre-processing module that annotates the dataset with scores (Degree, PageRank, Relation Cardinality).
+
+3.  **Curriculum Sampler:** A `DataLoader` wrapper that filters the dataset based on the Controller's current mask.
+
+4.  **The Controller:** A standalone class implementing the state machine logic.
+
+5.  **Manifold Layer:** A `nn.Module` wrapper that handles Euclidean \<-\> Hyperbolic conversions transparently.
+
+### 5.2 Table: Curriculum Phase Summary
+
+|  |  |  |  |  |  |  |
+|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+| **Phase** | **Name** | **Target Topology** | **Relation Types** | **Negative Sampling** | **Geometric Space** | **Loss Margin Strategy** |
+| **1** | **Anchoring** | Hubs (Top 20% Centrality) | 1-to-1, Intra-cluster | Uniform Random | Hyperbolic (High $c$) | Loose, Fixed |
+| **2** | **Expansion** | Tails (Low Centrality) | 1-to-N, N-to-1 | Cluster-based | Hyperbolic (Trainable $c$) | **Adaptive (Degree-based)** |
+| **3** | **Discrimination** | All Nodes | N-to-N, Cycles | **Hard Negative (ANN)** | Product (Hyp $\times$ Euc) | **Adversarial** |
+| **4** | **Stabilization** | Full Graph | All | Uniform + Cached Hard | Product | Self-Distillation |
+
+### 5.3 Table: Metric-Based Switching Logic
+
+|  |  |  |
+|------------------------|------------------------|------------------------|
+| **Metric Signal** | **Interpretation** | **Controller Action** |
+| $\Delta \mathcal{L}_{val} \approx 0$ (Plateau) | Phase Saturation | **Advance** to next Phase (if MRR \> Threshold). |
+| **High Gen. Gap** ($L_{train} \ll L_{val}$) | Overfitting | **Rollback** to previous Phase mix ratio; Increase Weight Decay. |
+| **Low Uniformity** ($U \ll -2$) | Representation Collapse | **Increase Hard Negatives**; Increase Margin $\gamma$. |
+| **High Hyp. Distortion** | Geometric Mismatch | **Increase Curvature** $c$; Slow down tail node introduction. |
+
+## 6. Conclusion and Future Outlook
+
+The transition from static to dynamic curriculum learning in Graph Neural Networks represents a necessary evolution to handle the explosion of complexity in modern graph datasets. By abandoning the "one-size-fits-all" training epoch in favor of a **Metric-Driven Controller**, we align the learning process with the structural reality of the data.
+
+The proposed framework integrates the structural stability of **Centrality-based Pacing**, the representational capacity of **Hyperbolic Geometry**, and the discriminative power of **Adaptive Margins** and **Hard Negative Mining**. This holistic approach addresses the twin challenges of underfitting on tail nodes and overfitting on noisy edges.
+
+Future work should investigate the integration of **Large Language Models (LLMs)** as dynamic scorers. Rather than relying solely on topology (degree), an LLM could evaluate the *semantic* difficulty of a triple (e.g., distinguishing "Chief Scientist" from "Senior Scientist") and feed this "Semantic Difficulty Score" into the Curriculum Controller, creating a truly neuro-symbolic curriculum.
 
 #### Works cited
 
