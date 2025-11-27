@@ -15,8 +15,7 @@ Tests cover:
 '''
 
 import logging
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import polars as pl
 import pytest
@@ -97,9 +96,7 @@ def sample_training_batch(test_device, batch_size=4, k_negatives=8):
         'k_negatives': k_negatives,
         'anchor_code': [f'{i:02d}111' for i in range(batch_size)],
         'positive_code': [f'{i:02d}1111' for i in range(batch_size)],
-        'negative_codes': [
-            [f'{j:02d}999' for j in range(k_negatives)] for _ in range(batch_size)
-        ],
+        'negative_codes': [[f'{j:02d}999' for j in range(k_negatives)] for _ in range(batch_size)],
     }
 
     return batch
@@ -197,9 +194,7 @@ class TestModelInitialization:
 
         assert model.hierarchy_loss_fn is not None
 
-    def test_lambdarank_loss_with_weight(
-        self, model_config, sample_distance_matrix, test_device
-    ):
+    def test_lambdarank_loss_with_weight(self, model_config, sample_distance_matrix, test_device):
         '''Test LambdaRank loss initialization when weight > 0.'''
 
         model_config['distance_matrix_path'] = sample_distance_matrix
@@ -269,9 +264,7 @@ class TestTrainingStep:
         loss.backward()
 
         # Check that some parameters have gradients
-        has_grad = any(
-            p.grad is not None for p in naics_model.parameters() if p.requires_grad
-        )
+        has_grad = any(p.grad is not None for p in naics_model.parameters() if p.requires_grad)
         assert has_grad
 
     def test_training_step_with_curriculum(self, naics_model, sample_training_batch):
@@ -298,7 +291,8 @@ class TestTrainingStep:
 
         # Create pseudo labels for clustering
         naics_model.code_to_pseudo_label = {
-            code: i % 3 for i, code in enumerate(sample_training_batch['anchor_code'])
+            code: i % 3
+            for i, code in enumerate(sample_training_batch['anchor_code'])
         }
 
         naics_model.train()
@@ -332,9 +326,10 @@ class TestTrainingStep:
         naics_model.current_curriculum_flags = {'enable_hard_negative_mining': True}
 
         # Mock distributed.is_initialized() and get_world_size()
-        with patch('torch.distributed.is_initialized', return_value=True), \
-             patch('torch.distributed.get_world_size', return_value=2):
-
+        with (
+            patch('torch.distributed.is_initialized', return_value=True),
+            patch('torch.distributed.get_world_size', return_value=2),
+        ):
             naics_model.train()
             loss = naics_model.training_step(sample_training_batch, batch_idx=0)
 
@@ -481,9 +476,10 @@ class TestDistributedUtilities:
 
         embeddings = torch.randn(16, 385, device=test_device)
 
-        with patch('torch.distributed.is_initialized', return_value=True), \
-             patch('torch.distributed.get_world_size', return_value=1):
-
+        with (
+            patch('torch.distributed.is_initialized', return_value=True),
+            patch('torch.distributed.get_world_size', return_value=1),
+        ):
             gathered = gather_embeddings_global(embeddings)
 
             assert gathered is embeddings
@@ -503,9 +499,10 @@ class TestDistributedUtilities:
 
         mock_all_gather.side_effect = mock_gather_fn
 
-        with patch('torch.distributed.is_initialized', return_value=True), \
-             patch('torch.distributed.get_world_size', return_value=world_size):
-
+        with (
+            patch('torch.distributed.is_initialized', return_value=True),
+            patch('torch.distributed.get_world_size', return_value=world_size),
+        ):
             gathered = gather_embeddings_global(local_embeddings)
 
             # Should concatenate world_size copies of local embeddings
