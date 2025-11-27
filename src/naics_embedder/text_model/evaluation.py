@@ -161,6 +161,7 @@ class RetrievalMetrics:
         ground_truth = ground_truth.to(self.device)
 
         N = distances.shape[0]
+        k = min(k, N - 1)  # Cap k at N-1 since we exclude self
 
         # Get top-k nearest neighbors (excluding self)
         _, top_k_indices = torch.topk(distances, k + 1, dim=1, largest=False)
@@ -194,6 +195,7 @@ class RetrievalMetrics:
         ground_truth = ground_truth.to(self.device)
 
         N = distances.shape[0]
+        k = min(k, N - 1)  # Cap k at N-1 since we exclude self
 
         # Get top-k nearest neighbors (excluding self)
         _, top_k_indices = torch.topk(distances, k + 1, dim=1, largest=False)
@@ -231,7 +233,8 @@ class RetrievalMetrics:
         ground_truth = ground_truth.to(self.device)
 
         N = distances.shape[0]
-        k = k or N
+        k = k or (N - 1)  # Cap at N-1 since we exclude self
+        k = min(k, N - 1)  # Ensure k doesn't exceed available items
 
         # Sort by distance (ascending)
         sorted_indices = torch.argsort(distances, dim=1)[:, 1:k + 1]  # Exclude self
@@ -276,6 +279,7 @@ class RetrievalMetrics:
         relevance_scores = relevance_scores.to(self.device)
 
         N = distances.shape[0]
+        k = min(k, N - 1)  # Cap k at N-1 since we exclude self
 
         # Get top-k by distance
         _, top_k_indices = torch.topk(distances, k + 1, dim=1, largest=False)

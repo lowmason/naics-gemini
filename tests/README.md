@@ -6,6 +6,11 @@ This directory contains comprehensive unit and integration tests for the NAICS H
 System. The test suite covers critical mathematical operations, loss functions, model components,
 and data processing pipelines.
 
+**Recent additions:**
+
+- ✅ **test_evaluation.py** - Comprehensive evaluation metrics testing (Issue #49)
+- ✅ **test_tokenization_cache.py** - Data loading and caching modules testing (Issue #50)
+
 ## Test Structure
 
 ```
@@ -15,7 +20,12 @@ tests/
 │   ├── test_loss.py          # Loss functions
 │   ├── test_moe.py           # Mixture of Experts
 │   ├── test_data_distances.py # Distance computation
-│   └── test_config.py        # Configuration management
+│   ├── test_config.py        # Configuration management
+│   ├── test_evaluation.py    # Text model evaluation metrics
+│   ├── test_tokenization_cache.py # Tokenization caching and data loading
+│   ├── test_datamodule.py    # Data module and collation
+│   ├── test_streaming_dataset.py # Streaming dataset utilities
+│   └── ...                   # Additional component tests
 ├── integration/              # Integration tests (future)
 ├── fixtures/                 # Test data and fixtures
 └── conftest.py              # Shared pytest fixtures
@@ -96,12 +106,38 @@ uv run pytest tests/ -n auto
    - YAML loading
    - Validation
 
-### Phase 3: Integration & ML Components (Future)
+### Phase 3: ML Components & Data Processing (✅ Partially Implemented)
 
-6. **test_hgcn.py** - Graph model operations (TODO)
-7. **test_dataloader.py** - Streaming and caching (TODO)
-8. **test_training_loop.py** - Training validation (TODO)
-9. **test_cli.py** - CLI commands (TODO)
+6. **test_evaluation.py** - Text model evaluation metrics
+   - EmbeddingEvaluator (distance/similarity computation)
+   - RetrievalMetrics (precision@k, recall@k, MAP, NDCG)
+   - HierarchyMetrics (cophenetic/Spearman correlation, distortion)
+   - EmbeddingStatistics (statistics, collapse detection)
+   - NAICSEvaluationRunner (full evaluation pipeline)
+
+7. **test_tokenization_cache.py** - Tokenization caching and data loading
+   - Cache building from descriptions
+   - Cache save/load operations
+   - File locking for multi-worker safety
+   - Atomic cache operations
+   - get_tokens utility function
+
+8. **test_datamodule.py** - Data module and collation
+   - collate_fn batching logic
+   - Multi-level supervision expansion
+   - GeneratorDataset worker sharding
+
+9. **test_streaming_dataset.py** - Streaming dataset utilities
+   - Taxonomy utilities
+   - Ancestor/descendant generation
+   - Matrix loading
+   - Sampling weight computation
+
+### Phase 4: Integration & End-to-End (Future)
+
+10. **test_hgcn.py** - Graph model operations (TODO)
+11. **test_training_loop.py** - Training validation (TODO)
+12. **test_cli.py** - CLI commands (TODO)
 
 ## Known Issues
 
@@ -139,6 +175,8 @@ See `.github/workflows/tests.yml` for CI configuration.
 - **Overall**: >70% coverage
 - **Critical modules** (hyperbolic.py, loss.py): >80% coverage
 - **Data processing**: >60% coverage
+- **Evaluation modules**: >75% coverage
+- **Caching modules**: >70% coverage
 
 ## Adding New Tests
 

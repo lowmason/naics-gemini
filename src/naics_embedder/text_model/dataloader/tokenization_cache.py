@@ -284,13 +284,14 @@ def get_tokens(idx_code: Union[int, str],
 
     if isinstance(idx_code, int):
         key = idx_code
-
     elif isinstance(idx_code, str):
+        key = None
         for k, v in cache.items():
             if v['code'] == idx_code:
                 key = k
                 break
-
+        if key is None:
+            raise KeyError(f'Code {idx_code} not found in cache')
     else:
         raise ValueError('idx_code must be an int or str')
 
