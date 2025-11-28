@@ -313,6 +313,33 @@ class TestTrainingStep:
         assert isinstance(loss, torch.Tensor)
         assert loss.item() > 0
 
+    def test_combine_loss_terms_scales_load_balancing(self, naics_model):
+        '''Ensure load balancing term is scaled before contributing to total loss.'''
+
+        naics_model.load_balancing_coef = 0.25
+
+        contrastive_loss = torch.tensor(1.0)
+        load_balancing_loss = torch.tensor(2.0)
+        hierarchy_loss = torch.tensor(0.3)
+        lambdarank_loss = torch.tensor(0.2)
+        radius_reg_loss = torch.tensor(0.1)
+
+        total_loss, scaled_load_balancing = naics_model._combine_loss_terms(
+            contrastive_loss,
+            load_balancing_loss,
+            hierarchy_loss,
+            lambdarank_loss,
+            radius_reg_loss,
+        )
+
+        expected_scaled = load_balancing_loss * naics_model.load_balancing_coef
+        expected_total = (
+            contrastive_loss + expected_scaled + hierarchy_loss + lambdarank_loss + radius_reg_loss
+        )
+
+        assert torch.isclose(scaled_load_balancing, expected_scaled)
+        assert torch.isclose(total_loss, expected_total)
+
     @patch('naics_embedder.text_model.naics_model.gather_embeddings_global')
     @patch('torch.distributed.all_reduce')
     def test_training_step_global_batch_sampling(

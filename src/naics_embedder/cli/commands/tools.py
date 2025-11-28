@@ -22,6 +22,7 @@ from typing_extensions import Annotated
 
 from naics_embedder.tools.config_tools import show_current_config
 from naics_embedder.tools.metrics_tools import investigate_hierarchy, visualize_metrics
+from naics_embedder.tools.stage4_verification import Stage4VerificationConfig, verify_stage4
 from naics_embedder.utils.console import configure_logging
 
 # -------------------------------------------------------------------------------------------------
@@ -210,4 +211,112 @@ def investigate(
 
     except Exception as e:
         console.print(f'[bold red]Error:[/bold red] {e}')
+        raise typer.Exit(code=1)
+
+# -------------------------------------------------------------------------------------------------
+# Verify Stage 4 against Stage 3
+# -------------------------------------------------------------------------------------------------
+
+@app.command('verify-stage4')
+def verify_stage4_command(
+    stage3_parquet: Annotated[
+        str,
+        typer.Option(
+            '--pre',
+            help='Path to Stage 3 (pre-HGCN) embeddings parquet',
+        ),
+    ] = './output/hyperbolic_projection/encodings.parquet',
+    stage4_parquet: Annotated[
+        str,
+        typer.Option(
+            '--post',
+            help='Path to Stage 4 (HGCN) embeddings parquet',
+        ),
+    ] = './output/hgcn/encodings.parquet',
+    distance_matrix: Annotated[
+        str,
+        typer.Option(
+            '--distance-matrix',
+            help='Path to ground truth distance matrix parquet',
+        ),
+    ] = './data/naics_distance_matrix.parquet',
+    relations_parquet: Annotated[
+        str,
+        typer.Option(
+            '--relations',
+            help='Path to relations parquet (used for parent retrieval metric)',
+        ),
+    ] = './data/naics_relations.parquet',
+    max_cophenetic_drop: Annotated[
+        float,
+        typer.Option('--max-cophenetic-drop', help='Allowed drop in cophenetic correlation'),
+    ] = 0.02,
+    max_ndcg_drop: Annotated[
+        float,
+        typer.Option('--max-ndcg-drop', help='Allowed drop in NDCG@10'),
+    ] = 0.01,
+    min_local_improvement: Annotated[
+        float,
+        typer.Option('--min-local-improvement', help='Required parent retrieval improvement'),
+    ] = 0.05,
+    ndcg_k: Annotated[
+        int,
+        typer.Option('--ndcg-k', help='NDCG@K to evaluate'),
+    ] = 10,
+    parent_top_k: Annotated[
+        int,
+        typer.Option('--parent-top-k', help='Top-K used for parent retrieval accuracy'),
+    ] = 1,
+):
+    '''
+    Compare Stage 3 and Stage 4 embeddings to ensure HGCN preserves global structure.
+
+    Computes cophenetic correlation, NDCG@K, and parent retrieval accuracy
+    before/after HGCN refinement and enforces configurable degradation thresholds.
+    '''
+
+    configure_logging('tools_verify_stage4.log')
+
+    cfg = Stage4VerificationConfig(
+        max_cophenetic_degradation=max_cophenetic_drop,
+        max_ndcg_degradation=max_ndcg_drop,
+        min_local_improvement=min_local_improvement,
+        ndcg_k=ndcg_k,
+        parent_top_k=parent_top_k,
+    )
+
+    try:
+        result = verify_stage4(
+            Path(stage3_parquet),
+            Path(stage4_parquet),
+            Path(distance_matrix),
+            Path(relations_parquet),
+            cfg,
+        )
+    except Exception as exc:
+        console.print(f'[bold red]Verification failed:[/bold red] {exc}')
+        raise typer.Exit(code=1)
+
+    console.print('\n[bold cyan]Stage 4 Verification[/bold cyan]\n')
+    console.print('[bold]Pre-HGCN metrics:[/bold]')
+    for key, value in result['pre'].items():
+        console.print(f'  • {key}: {value:.4f}')
+
+    console.print('\n[bold]Post-HGCN metrics:[/bold]')
+    for key, value in result['post'].items():
+        console.print(f'  • {key}: {value:.4f}')
+
+    console.print('\n[bold]Deltas:[/bold]')
+    for key, value in result['delta'].items():
+        console.print(f'  • {key}: {value:+.4f}')
+
+    console.print('\n[bold]Threshold checks:[/bold]')
+    for key, passed in result['checks'].items():
+        status = '[green]PASS[/green]' if passed else '[red]FAIL[/red]'
+        console.print(f'  • {key}: {status}')
+
+    if result['passed']:
+        console.print('\n[bold green]✓ Stage 4 verification passed![/bold green]\n')
+    else:
+        console.print('\n[bold red]✗ Stage 4 verification failed thresholds[/bold red]\n')
         raise typer.Exit(code=1)

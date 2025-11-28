@@ -6,7 +6,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import polars as pl
@@ -14,6 +14,10 @@ import pytorch_lightning as pyl
 import torch
 import torch.distributed as dist
 
+from naics_embedder.metrics.hierarchy_structure import (
+    compute_hierarchy_retrieval_metrics,
+    compute_radius_structure_metrics,
+)
 from naics_embedder.text_model.curriculum import CurriculumScheduler
 from naics_embedder.text_model.encoder import MultiChannelEncoder
 from naics_embedder.text_model.evaluation import (
@@ -34,6 +38,7 @@ from naics_embedder.text_model.hyperbolic import (
 from naics_embedder.text_model.hyperbolic_clustering import HyperbolicKMeans
 from naics_embedder.text_model.loss import HyperbolicInfoNCELoss
 from naics_embedder.utils.config import AnnealConfig, FalseNegativeConfig
+from naics_embedder.utils.naics_hierarchy import NaicsHierarchy, load_naics_hierarchy
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +174,9 @@ class NAICSContrastiveModel(pyl.LightningModule):
         curriculum_phase_mode: str = 'three_phase',
         curriculum_anneal: Optional[Dict[str, float]] = None,
         false_negative_config: Optional[Union[FalseNegativeConfig, Dict[str, Any]]] = None,
+        relations_parquet_path: Optional[str] = None,
+        parent_eval_top_k: int = 1,
+        child_eval_top_k: int = 5,
     ):
         super().__init__()
 
@@ -200,6 +208,18 @@ class NAICSContrastiveModel(pyl.LightningModule):
         )
 
         self.load_balancing_coef = load_balancing_coef
+        self.relations_parquet_path = relations_parquet_path
+        self.parent_eval_top_k = parent_eval_top_k
+        self.child_eval_top_k = child_eval_top_k
+        self.naics_hierarchy: Optional[NaicsHierarchy] = None
+        if relations_parquet_path:
+            try:
+                self.naics_hierarchy = load_naics_hierarchy(relations_parquet_path)
+            except FileNotFoundError:
+                logger.warning(
+                    'NAICS relations parquet not found at %s; hierarchy diagnostics disabled',
+                    relations_parquet_path,
+                )
 
         self.embedding_eval = EmbeddingEvaluator()
         self.embedding_stats = EmbeddingStatistics()
@@ -1032,8 +1052,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
             f = expert_counts_micro / total_tokens
             P = prob_sum / total_tokens
 
-        unscaled_loss = num_experts * torch.sum(f * P)
-        full_load_balancing_loss = self.load_balancing_coef * unscaled_loss
+        load_balancing_loss = num_experts * torch.sum(f * P)
 
         if (
             not torch.distributed.is_initialized() or not hasattr(self.trainer, 'is_global_zero')
@@ -1165,7 +1184,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 prog_bar=True,
             )
 
-        return full_load_balancing_loss
+        return load_balancing_loss
 
     def _compute_hierarchy_loss(
         self,
@@ -1269,10 +1288,31 @@ class NAICSContrastiveModel(pyl.LightningModule):
         self.log('train/max_radius', radius.max(), batch_size=batch_size)
         return radius_reg_loss
 
-    def _log_loss_breakdown(
+    def _combine_loss_terms(
         self,
         contrastive_loss: torch.Tensor,
         load_balancing_loss: torch.Tensor,
+        hierarchy_loss: torch.Tensor,
+        lambdarank_loss: torch.Tensor,
+        radius_reg_loss: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        '''
+        Combine individual loss components into the final optimization target.
+
+        Returns:
+            Tuple containing the total loss and the scaled load balancing term.
+        '''
+        scaled_load_balancing_loss = self.load_balancing_coef * load_balancing_loss
+        total_loss = (
+            contrastive_loss + scaled_load_balancing_loss + hierarchy_loss + lambdarank_loss +
+            radius_reg_loss
+        )
+        return total_loss, scaled_load_balancing_loss
+
+    def _log_loss_breakdown(
+        self,
+        contrastive_loss: torch.Tensor,
+        scaled_load_balancing_loss: torch.Tensor,
         hierarchy_loss: torch.Tensor,
         lambdarank_loss: torch.Tensor,
         radius_reg_loss: torch.Tensor,
@@ -1282,7 +1322,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
         self.log('train/contrastive_loss', contrastive_loss, prog_bar=True, batch_size=batch_size)
         self.log(
             'train/load_balancing_loss',
-            load_balancing_loss,
+            scaled_load_balancing_loss,
             prog_bar=True,
             batch_size=batch_size,
         )
@@ -1297,6 +1337,52 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 'train/radius_reg_loss', radius_reg_loss, prog_bar=False, batch_size=batch_size
             )
         self.log('train/total_loss', total_loss, prog_bar=True, batch_size=batch_size)
+
+    def _log_radius_structure_metrics(
+        self,
+        embeddings: torch.Tensor,
+        codes: Sequence[str],
+        batch_size: int,
+    ) -> Dict[str, float]:
+        if self.naics_hierarchy is None or not codes:
+            return {}
+
+        metrics = compute_radius_structure_metrics(embeddings, codes, self.naics_hierarchy)
+        for name, value in metrics.items():
+            self.log(
+                f'val/{name}',
+                value,
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+        return metrics
+
+    def _log_hierarchy_retrieval_metrics(
+        self,
+        distance_matrix: torch.Tensor,
+        codes: Sequence[str],
+        batch_size: int,
+    ) -> Dict[str, float]:
+        if self.naics_hierarchy is None or distance_matrix.numel() == 0:
+            return {}
+
+        metrics = compute_hierarchy_retrieval_metrics(
+            distance_matrix,
+            codes,
+            self.naics_hierarchy,
+            parent_top_k=self.parent_eval_top_k,
+            child_top_k=self.child_eval_top_k,
+        )
+        for name, value in metrics.items():
+            self.log(
+                f'val/{name}',
+                value,
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+        return metrics
 
     def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
         batch_size = batch['batch_size']
@@ -1349,7 +1435,7 @@ class NAICSContrastiveModel(pyl.LightningModule):
             [anchor_output, positive_output, negative_output]
         )
         self._log_router_diversity(gate_probs_list, batch_size)
-        full_load_balancing_loss = self._compute_load_balancing_loss(
+        raw_load_balancing_loss = self._compute_load_balancing_loss(
             gate_probs_list,
             topk_indices_list,
             batch_size,
@@ -1371,14 +1457,17 @@ class NAICSContrastiveModel(pyl.LightningModule):
             batch_size,
         )
 
-        total_loss = (
-            contrastive_loss + full_load_balancing_loss + hierarchy_loss + lambdarank_loss +
-            radius_reg_loss
+        total_loss, scaled_load_balancing_loss = self._combine_loss_terms(
+            contrastive_loss,
+            raw_load_balancing_loss,
+            hierarchy_loss,
+            lambdarank_loss,
+            radius_reg_loss,
         )
 
         self._log_loss_breakdown(
             contrastive_loss,
-            full_load_balancing_loss,
+            scaled_load_balancing_loss,
             hierarchy_loss,
             lambdarank_loss,
             radius_reg_loss,
@@ -1687,6 +1776,8 @@ class NAICSContrastiveModel(pyl.LightningModule):
             gt_dists = self.ground_truth_distances[code_indices][:, code_indices].to(self.device)
 
             num_samples = len(embeddings)
+            radius_metrics: Dict[str, float] = {}
+            retrieval_metrics: Dict[str, float] = {}
 
             # Check manifold validity and log diagnostics
             curvature = getattr(self.hparams, 'curvature', 1.0)
@@ -1786,6 +1877,13 @@ class NAICSContrastiveModel(pyl.LightningModule):
             curvature = getattr(self.hparams, 'curvature', 1.0)
             emb_dists = self.embedding_eval.compute_pairwise_distances(
                 embeddings, metric='lorentz', curvature=curvature
+            )
+
+            radius_metrics = self._log_radius_structure_metrics(embeddings, codes, num_samples)
+            retrieval_metrics = self._log_hierarchy_retrieval_metrics(
+                emb_dists,
+                codes,
+                num_samples,
             )
 
             cophenetic_result = self.hierarchy_metrics.cophenetic_correlation(emb_dists, gt_dists)
@@ -1956,6 +2054,11 @@ class NAICSContrastiveModel(pyl.LightningModule):
                 'num_samples':
                 int(num_samples),
             }
+
+            if radius_metrics:
+                epoch_metrics.update(radius_metrics)
+            if retrieval_metrics:
+                epoch_metrics.update(retrieval_metrics)
 
             # Add to history
             self.evaluation_metrics_history.append(epoch_metrics)

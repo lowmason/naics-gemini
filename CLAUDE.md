@@ -660,7 +660,7 @@ preprocess_curriculum_data(
 from naics_embedder.graph_model.curriculum import CurriculumAnalyzer
 
 analyzer = CurriculumAnalyzer()
-# ... during training ...
+# .. during training ..
 report = analyzer.generate_report(output_path='reports/curriculum.md')
 ```
 

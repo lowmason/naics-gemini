@@ -1,16 +1,16 @@
 # Hybrid Documentation Strategy: MkDocs + Quarto
 
-**Project:** NAICS Hyperbolic Embedding System  
-**Date:** November 2025  
+**Project:** NAICS Hyperbolic Embedding System\
+**Date:** November 2025\
 **Author:** Documentation Planning
 
----
+------------------------------------------------------------------------
 
 ## Executive Summary
 
 This report outlines a hybrid documentation approach that preserves your existing MkDocs setup for API reference while introducing Quarto for interactive tutorials and notebooks. This strategy minimizes migration risk, leverages the strengths of both tools, and adds significant value through executable documentation.
 
----
+------------------------------------------------------------------------
 
 ## Current State Assessment
 
@@ -18,28 +18,28 @@ This report outlines a hybrid documentation approach that preserves your existin
 
 Your project has a mature documentation setup:
 
-| Component | Status |
-|-----------|--------|
-| MkDocs configuration | `mkdocs.yml` with Material-adjacent theme |
-| API reference pages | ~15+ modules via mkdocstrings |
-| Navigation structure | `.nav.yml` with awesome-nav plugin |
-| CI/CD pipeline | GitHub Actions → GitHub Pages |
-| Extensions | pymdownx suite (arithmatex, superfences, etc.) |
+| Component            | Status                                         |
+|----------------------|------------------------------------------------|
+| MkDocs configuration | `mkdocs.yml` with Material-adjacent theme      |
+| API reference pages  | \~15+ modules via mkdocstrings                 |
+| Navigation structure | `.nav.yml` with awesome-nav plugin             |
+| CI/CD pipeline       | GitHub Actions → GitHub Pages                  |
+| Extensions           | pymdownx suite (arithmatex, superfences, etc.) |
 
 ### Documentation Gaps
 
 The current setup excels at reference documentation but lacks:
 
-- Interactive code examples with live outputs
-- Embedding visualizations (Poincaré disk, hyperboloid plots)
-- Training progression demonstrations
-- Reproducible analysis notebooks
+-   Interactive code examples with live outputs
+-   Embedding visualizations (Poincaré disk, hyperboloid plots)
+-   Training progression demonstrations
+-   Reproducible analysis notebooks
 
----
+------------------------------------------------------------------------
 
 ## Hybrid Architecture
 
-```
+```         
 naics-embedder/
 ├── docs/                          # MkDocs (unchanged)
 │   ├── index.md
@@ -67,14 +67,14 @@ naics-embedder/
 
 ### Deployment Strategy
 
-| Site | URL | Build Tool |
-|------|-----|------------|
-| Main docs | `lowmason.github.io/naics-embedder/` | MkDocs |
-| Tutorials | `lowmason.github.io/naics-embedder/tutorials/` | Quarto |
+| Site      | URL                                            | Build Tool |
+|-----------|------------------------------------------------|------------|
+| Main docs | `lowmason.github.io/naics-embedder/`           | MkDocs     |
+| Tutorials | `lowmason.github.io/naics-embedder/tutorials/` | Quarto     |
 
 Both sites cross-link to each other via navigation headers.
 
----
+------------------------------------------------------------------------
 
 ## Implementation Plan
 
@@ -82,7 +82,7 @@ Both sites cross-link to each other via navigation headers.
 
 **1.1 Install Quarto**
 
-```bash
+``` bash
 # Add to pyproject.toml dev dependencies
 # Note: Quarto itself is installed separately, not via pip
 uv add --dev jupyter nbformat nbclient
@@ -92,13 +92,13 @@ Install Quarto CLI from [quarto.org](https://quarto.org/docs/get-started/).
 
 **1.2 Create tutorials directory structure**
 
-```bash
+``` bash
 mkdir -p tutorials
 ```
 
 **1.3 Create `tutorials/_quarto.yml`**
 
-```yaml
+``` yaml
 project:
   type: website
   output-dir: _site
@@ -159,7 +159,7 @@ execute:
 
 **1.4 Create `tutorials/styles.css`**
 
-```css
+``` css
 /* Match MkDocs Material aesthetic */
 .quarto-title-banner {
   background: linear-gradient(135deg, #009688 0%, #00796b 100%);
@@ -174,7 +174,7 @@ code {
 
 **2.1 `tutorials/index.qmd`**
 
-```markdown
+```` markdown
 ---
 title: 'NAICS Embedder Tutorials'
 subtitle: 'Interactive guides for hyperbolic embedding'
@@ -201,12 +201,11 @@ with executable examples and visualizations.
 uv sync
 uv run naics-embedder data all
 ```
-
-```
+````
 
 **2.2 `tutorials/02-understanding-hyperbolic.qmd`** (example)
 
-```markdown
+```` markdown
 ---
 title: 'Understanding Hyperbolic Space'
 description: 'Visual intuition for the Lorentz model'
@@ -306,13 +305,12 @@ deep_h = to_hyperboloid(deep)
 d = dist_fn(shallow_h, deep_h)
 print(f'Lorentzian distance: {d.item():.4f}')
 ```
-
-```
+````
 
 **2.3 Additional tutorials to create:**
 
 | File | Content Focus |
-|------|---------------|
+|---------------------|---------------------------------------------------|
 | `01-quickstart.qmd` | Minimal training example, loading pretrained embeddings |
 | `03-training-walkthrough.qmd` | SADC curriculum phases, loss curves, checkpointing |
 | `04-embedding-visualization.qmd` | Poincaré projection, t-SNE, hierarchy heatmaps |
@@ -322,7 +320,7 @@ print(f'Lorentzian distance: {d.item():.4f}')
 
 **3.1 Create `.github/workflows/tutorials.yml`**
 
-```yaml
+``` yaml
 name: Deploy Tutorials
 
 on:
@@ -377,7 +375,7 @@ jobs:
 
 Add to `docs/index.md`:
 
-```markdown
+``` markdown
 ## Interactive Tutorials
 
 For hands-on learning with executable code, see the
@@ -386,7 +384,7 @@ For hands-on learning with executable code, see the
 
 Add to `mkdocs.yml` navigation:
 
-```yaml
+``` yaml
 nav:
   - Home: index.md
   - Tutorials: https://lowmason.github.io/naics-embedder/tutorials/
@@ -401,20 +399,20 @@ nav:
 
 Example addition to `docs/api/hyperbolic.md`:
 
-```markdown
+``` markdown
 !!! tip "Interactive Tutorial"
     See [Understanding Hyperbolic Space](/tutorials/02-understanding-hyperbolic.html)
     for visual explanations and executable examples.
 ```
 
----
+------------------------------------------------------------------------
 
 ## Suggested Tutorial Content
 
 ### High-Value Tutorials for Your Project
 
 | Priority | Tutorial | Why Valuable |
-|----------|----------|--------------|
+|---------------------|---------------------|-----------------------------|
 | 🔴 High | Embedding Visualization | Users need to see what hyperbolic embeddings look like |
 | 🔴 High | Training Walkthrough | SADC curriculum is complex; visual loss curves help |
 | 🟡 Medium | Quickstart | Reduces barrier to entry |
@@ -423,7 +421,7 @@ Example addition to `docs/api/hyperbolic.md`:
 
 ### Visualization Ideas
 
-```python
+``` python
 # Poincaré disk projection (high impact visual)
 def lorentz_to_poincare(x):
     '''Project Lorentz point to Poincaré disk.'''
@@ -447,60 +445,60 @@ fig.update_layout(
 )
 ```
 
----
+------------------------------------------------------------------------
 
 ## Cost-Benefit Analysis
 
 ### Benefits of Hybrid Approach
 
-| Benefit | Impact |
-|---------|--------|
-| Zero disruption to existing docs | No migration risk |
-| Executable examples | Users learn faster |
-| Visual embedding explanations | Differentiates from competitors |
-| Incremental adoption | Add tutorials as needed |
-| Separate CI/CD | Failures don't block main docs |
+| Benefit                          | Impact                          |
+|----------------------------------|---------------------------------|
+| Zero disruption to existing docs | No migration risk               |
+| Executable examples              | Users learn faster              |
+| Visual embedding explanations    | Differentiates from competitors |
+| Incremental adoption             | Add tutorials as needed         |
+| Separate CI/CD                   | Failures don't block main docs  |
 
 ### Costs
 
-| Cost | Mitigation |
-|------|------------|
-| Two build systems | Separate workflows, clear boundaries |
-| Quarto learning curve | Minimal—similar to Jupyter + Markdown |
-| CI compute for notebooks | `freeze: auto` caches outputs |
-| Cross-site navigation | Clear "← API Docs" / "Tutorials →" links |
+| Cost                     | Mitigation                               |
+|--------------------------|------------------------------------------|
+| Two build systems        | Separate workflows, clear boundaries     |
+| Quarto learning curve    | Minimal—similar to Jupyter + Markdown    |
+| CI compute for notebooks | `freeze: auto` caches outputs            |
+| Cross-site navigation    | Clear "← API Docs" / "Tutorials →" links |
 
 ### Effort Estimate
 
-| Phase | Effort |
-|-------|--------|
-| Setup & config | 0.5 days |
-| Tutorial content (5 notebooks) | 2-3 days |
-| CI/CD integration | 0.5 days |
-| Testing & polish | 1 day |
-| **Total** | **4-5 days** |
+| Phase                          | Effort       |
+|--------------------------------|--------------|
+| Setup & config                 | 0.5 days     |
+| Tutorial content (5 notebooks) | 2-3 days     |
+| CI/CD integration              | 0.5 days     |
+| Testing & polish               | 1 day        |
+| **Total**                      | **4-5 days** |
 
----
+------------------------------------------------------------------------
 
 ## Recommendations
 
-1. **Start with one high-impact tutorial**: `04-embedding-visualization.qmd` provides immediate value and showcases Quarto's strengths.
+1.  **Start with one high-impact tutorial**: `04-embedding-visualization.qmd` provides immediate value and showcases Quarto's strengths.
 
-2. **Use `freeze: auto`**: Prevents CI from re-running expensive training code on every push.
+2.  **Use `freeze: auto`**: Prevents CI from re-running expensive training code on every push.
 
-3. **Keep notebooks focused**: Each tutorial should take 15-30 minutes; link to API docs for details.
+3.  **Keep notebooks focused**: Each tutorial should take 15-30 minutes; link to API docs for details.
 
-4. **Version pin Quarto**: Specify version in CI to avoid breaking changes.
+4.  **Version pin Quarto**: Specify version in CI to avoid breaking changes.
 
-5. **Consider Quarto for future reports**: The PDF export could generate documentation like your existing `NAICS_Hyperbolic_Embedding_System_Documentation.pdf` from the same source.
+5.  **Consider Quarto for future reports**: The PDF export could generate documentation like your existing `NAICS_Hyperbolic_Embedding_System_Documentation.pdf` from the same source.
 
----
+------------------------------------------------------------------------
 
 ## Appendix: Quick Reference
 
 ### Local Development
 
-```bash
+``` bash
 # MkDocs (existing)
 uv run mkdocs serve  # http://localhost:8000
 
@@ -511,7 +509,7 @@ quarto preview       # http://localhost:4000
 
 ### Build Commands
 
-```bash
+``` bash
 # MkDocs
 uv run mkdocs build  # Output: site/
 
@@ -522,12 +520,12 @@ quarto render        # Output: tutorials/_site/
 
 ### File Extensions
 
-| Extension | Tool | Purpose |
-|-----------|------|---------|
-| `.md` | MkDocs | Static documentation |
-| `.qmd` | Quarto | Executable notebooks |
-| `.ipynb` | Either | Quarto can render Jupyter directly |
+| Extension | Tool   | Purpose                            |
+|-----------|--------|------------------------------------|
+| `.md`     | MkDocs | Static documentation               |
+| `.qmd`    | Quarto | Executable notebooks               |
+| `.ipynb`  | Either | Quarto can render Jupyter directly |
 
----
+------------------------------------------------------------------------
 
 *End of Report*

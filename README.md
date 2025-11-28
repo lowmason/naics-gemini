@@ -143,6 +143,47 @@ Encourages embeddings at the same hierarchical level to maintain similar hyperbo
 
 This aligns global and local geometric structure with the NAICS taxonomy.
 
+### 5.4 Validation Metrics
+
+To ensure graph refinement does not erode the global structure captured by the text model, Stage 4 now
+logs the same hierarchy-aware metrics introduced earlier in the pipeline (per
+[Issue #70](https://github.com/lowmason/naics-embedder/issues/70)):
+
+- Cophenetic correlation + pair counts
+- Spearman correlation
+- NDCG@K (configurable list, default `5/10/20`)
+- Hyperbolic distortion statistics
+
+Metrics require the tree-distance matrix (`data/naics_distance_matrix.parquet`). Configure frequency
+and K-values via the new GraphConfig fields:
+
+| Key | Purpose |
+| --- | --- |
+| `distance_matrix_parquet` | Path to the NAICS tree-distance matrix used for validation. |
+| `full_eval_frequency` | Run the expensive metrics every _N_ optimizer steps (default `1`, i.e., once per validation epoch). |
+| `ndcg_k_values` | List of cutoffs to log for NDCG. |
+
+If the distance matrix is unavailable, HGCN gracefully falls back to the lightweight triplet metrics.
+
+### 5.5 Pre/Post Verification
+
+[Issue #67](https://github.com/lowmason/naics-embedder/issues/67) adds a CI-friendly command that
+compares Stage 3 (pre-HGCN) and Stage 4 embeddings to ensure the refinement step preserves global
+structure while improving local parent retrieval:
+
+```bash
+uv run naics-embedder tools verify-stage4 \
+  --pre ./output/hyperbolic_projection/encodings.parquet \
+  --post ./output/hgcn/encodings.parquet \
+  --distance-matrix ./data/naics_distance_matrix.parquet \
+  --relations ./data/naics_relations.parquet
+```
+
+The verifier reports cophenetic correlation, NDCG@K, and parent-retrieval accuracy deltas and fails
+when degradation exceeds the configurable thresholds (`--max-cophenetic-drop`, `--max-ndcg-drop`,
+`--min-local-improvement`, `--parent-top-k`). Integrate this command into your pipeline to guarantee that Stage 4 only
+ships when it demonstrably preserves the global NAICS hierarchy.
+
 ---
 
 ## 6. Final Output

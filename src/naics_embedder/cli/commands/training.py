@@ -447,6 +447,9 @@ def train(
                 # Override learning rate if needed (checkpoint may have different LR)
                 learning_rate=cfg.training.learning_rate,
                 base_margin=cfg.loss.base_margin,  # pyright: ignore[reportAttributeAccessIssue]
+                relations_parquet_path=cfg.data_loader.streaming.relations_parquet,
+                parent_eval_top_k=cfg.model.parent_eval_top_k,
+                child_eval_top_k=cfg.model.child_eval_top_k,
             )
             logger.info(f'Model loaded from checkpoint: {checkpoint_path}')
         else:
@@ -483,6 +486,9 @@ def train(
                 fn_cluster_every_n_epochs=cfg.curriculum.fn_cluster_every_n_epochs,
                 fn_num_clusters=cfg.curriculum.fn_num_clusters,
                 false_negative_config=cfg.false_negatives.model_dump(),
+                relations_parquet_path=cfg.data_loader.streaming.relations_parquet,
+                parent_eval_top_k=cfg.model.parent_eval_top_k,
+                child_eval_top_k=cfg.model.child_eval_top_k,
             )
 
         # Setup callbacks

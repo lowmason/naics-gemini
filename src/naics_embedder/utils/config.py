@@ -606,6 +606,16 @@ class ModelConfig(BaseModel):
         default=500, gt=0, le=2125, description='Number of codes to sample for evaluation'
     )
     eval_every_n_epochs: int = Field(default=1, gt=0, description='Run evaluation every N epochs')
+    parent_eval_top_k: int = Field(
+        default=1,
+        ge=1,
+        description='Top-k nearest neighbors used for parent retrieval diagnostics',
+    )
+    child_eval_top_k: int = Field(
+        default=5,
+        ge=1,
+        description='Top-k nearest neighbors used for child retrieval diagnostics',
+    )
 
 # -------------------------------------------------------------------------------------------------
 # Loss Configuration
@@ -838,6 +848,10 @@ class GraphConfig(BaseModel):
     output_parquet: str = Field(
         default='./output/hgcn/encodings.parquet', description='Output path for final embeddings'
     )
+    distance_matrix_parquet: Optional[str] = Field(
+        default='./data/naics_distance_matrix.parquet',
+        description='Path to tree-distance matrix used for hierarchy metrics',
+    )
 
     tangent_dim: int = Field(default=31, gt=0, description='Spatial dimensions in tangent space')
     n_hgcn_layers: int = Field(default=2, gt=0, description='Number of HGCN layers')
@@ -845,6 +859,25 @@ class GraphConfig(BaseModel):
     learnable_curvature: bool = Field(default=True, description='Whether curvature is learnable')
     learnable_loss_weights: bool = Field(
         default=True, description='Whether loss weights are learnable'
+    )
+    full_eval_frequency: int = Field(
+        default=1,
+        ge=1,
+        description='Run expensive hierarchy metrics every N optimizer steps during validation',
+    )
+    ndcg_k_values: List[int] = Field(
+        default_factory=lambda: [5, 10, 20],
+        description='NDCG@K values to log when computing ranking metrics',
+    )
+    parent_eval_top_k: int = Field(
+        default=1,
+        ge=1,
+        description='Top-k nearest neighbors used for parent retrieval evaluation',
+    )
+    child_eval_top_k: int = Field(
+        default=5,
+        ge=1,
+        description='Top-k nearest neighbors used for child retrieval evaluation',
     )
 
     # Training parameters

@@ -165,7 +165,8 @@ def sample_naics_relations(tmp_path, sample_naics_data):
             '4411',
             '44111',
         ],
-        'relationship': ['parent'] * 10,
+        'relation': ['child'] * 10,
+        'relation_id': [1] * 10,
     }
 
     df = pl.DataFrame(relations_data)

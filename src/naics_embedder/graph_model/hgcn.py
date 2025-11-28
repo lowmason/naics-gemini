@@ -3,6 +3,7 @@
 # -------------------------------------------------------------------------------------------------
 
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,12 +22,19 @@ from torch_geometric.utils import softmax
 
 from naics_embedder.graph_model.dataloader.hgcn_datamodule import HGCNDataModule
 from naics_embedder.graph_model.evaluation import compute_validation_metrics
+from naics_embedder.metrics.hierarchy_structure import (
+    compute_hierarchy_retrieval_metrics,
+    compute_radius_structure_metrics,
+)
+from naics_embedder.text_model.evaluation import EmbeddingEvaluator, HierarchyMetrics
 from naics_embedder.text_model.hyperbolic import LorentzOps
 from naics_embedder.utils.config import GraphConfig
+from naics_embedder.utils.distance_matrix import load_distance_submatrix
+from naics_embedder.utils.naics_hierarchy import NaicsHierarchy, load_naics_hierarchy
 from naics_embedder.utils.utilities import setup_directory
 
-# -------------------------------------------------------------------------------------------------
-# Config
+logger = logging.getLogger(__name__)
+
 # -------------------------------------------------------------------------------------------------
 
 # Config is now imported from naics_embedder.utils.config as GraphConfig
@@ -278,6 +286,7 @@ class HGCNLightningModule(pyl.LightningModule):
         edge_types: torch.Tensor,
         edge_weights: torch.Tensor,
         edge_metadata: Dict[str, Any],
+        node_metadata: Optional[pl.DataFrame] = None,
     ):
         super().__init__()
         self.cfg = cfg
@@ -308,8 +317,45 @@ class HGCNLightningModule(pyl.LightningModule):
         self.curriculum_enabled = cfg.curriculum_enabled
         self._difficulty_thresholds = self._load_curriculum_thresholds(cfg)
         self.save_hyperparameters(
-            ignore=['embeddings', 'levels', 'edge_index', 'edge_types', 'edge_weights']
+            ignore=[
+                'embeddings',
+                'levels',
+                'edge_index',
+                'edge_types',
+                'edge_weights',
+                'node_metadata',
+            ]
         )
+        self._ndcg_k_values = self._normalize_ndcg_k_values(cfg.ndcg_k_values)
+        self._primary_ndcg = (
+            10 if 10 in self._ndcg_k_values else self._ndcg_k_values[len(self._ndcg_k_values) // 2]
+        )
+        self.node_codes = self._extract_node_codes(node_metadata)
+        distance_tensor = self._load_tree_distance_tensor(self.node_codes)
+        if distance_tensor is not None:
+            self.register_buffer('tree_distances', distance_tensor, persistent=False)
+        else:
+            self.tree_distances = None
+        self.embedding_evaluator: Optional[EmbeddingEvaluator] = (
+            EmbeddingEvaluator() if self.tree_distances is not None else None
+        )
+        self.hierarchy_metrics: Optional[HierarchyMetrics] = (
+            HierarchyMetrics() if self.tree_distances is not None else None
+        )
+        self.parent_eval_top_k: int = getattr(cfg, 'parent_eval_top_k', 1)
+        self.child_eval_top_k: int = getattr(cfg, 'child_eval_top_k', 5)
+        self.naics_hierarchy: Optional[NaicsHierarchy] = None
+        relations_path = getattr(cfg, 'relations_parquet', None)
+        if relations_path:
+            try:
+                self.naics_hierarchy = load_naics_hierarchy(relations_path)
+            except FileNotFoundError:
+                logger.warning(
+                    'NAICS relations parquet not found at %s; hierarchy diagnostics disabled',
+                    relations_path,
+                )
+        self._full_val_metrics: Dict[str, float] = {}
+        self._full_eval_done = False
 
     def _current_temperature(self) -> float:
         if self.cfg.num_epochs <= 1:
@@ -401,6 +447,33 @@ class HGCNLightningModule(pyl.LightningModule):
                 return json.load(f)
         except (OSError, json.JSONDecodeError):
             return {}
+
+    def _extract_node_codes(self, node_metadata: Optional[pl.DataFrame]) -> Optional[List[str]]:
+        if node_metadata is None or 'code' not in node_metadata.columns:
+            return None
+
+        try:
+            return node_metadata['code'].to_list()
+        except Exception as exc:  # pragma: no cover - defensive safeguard
+            logger.warning('Failed to extract node codes from metadata: %s', exc)
+            return None
+
+    def _normalize_ndcg_k_values(self, values: List[int]) -> List[int]:
+        normalized = sorted({int(v) for v in values if int(v) > 0})
+        return normalized or [10]
+
+    def _load_tree_distance_tensor(self, node_codes: Optional[List[str]]) -> Optional[torch.Tensor]:
+        path = getattr(self.cfg, 'distance_matrix_parquet', None)
+        if not path or node_codes is None:
+            if path and node_codes is None:
+                logger.warning('Skipping hierarchy metrics: node codes unavailable')
+            return None
+
+        try:
+            return load_distance_submatrix(path, node_codes)
+        except (FileNotFoundError, ValueError) as exc:
+            logger.warning('Skipping hierarchy metrics: %s', exc)
+            return None
 
     def _threshold_value(
         self,
@@ -760,8 +833,120 @@ class HGCNLightningModule(pyl.LightningModule):
 
         return loss
 
+    def _should_run_full_eval(self, batch_idx: int) -> bool:
+        if (
+            self.tree_distances is None or self.embedding_evaluator is None
+            or self.hierarchy_metrics is None
+        ):
+            return False
+
+        if self.cfg.full_eval_frequency <= 0 or self._full_eval_done:
+            return False
+
+        trainer = getattr(self, '_trainer', None)
+        if trainer is not None and getattr(trainer, 'sanity_checking', False):
+            return False
+
+        if batch_idx != 0:
+            return False
+
+        step = int(getattr(self, 'global_step', 0))
+        return (step % self.cfg.full_eval_frequency) == 0
+
+    def _compute_full_validation_metrics(self, embeddings: torch.Tensor
+                                         ) -> Optional[Dict[str, torch.Tensor]]:
+        if (
+            self.tree_distances is None or self.embedding_evaluator is None
+            or self.hierarchy_metrics is None
+        ):
+            return None
+
+        evaluator = self.embedding_evaluator
+        hierarchy = self.hierarchy_metrics
+        evaluator.device = str(self.device)
+        hierarchy.device = str(self.device)
+
+        try:
+            with torch.no_grad():
+                emb_dists = evaluator.compute_pairwise_distances(
+                    embeddings.detach(), metric='lorentz', curvature=1.0
+                )
+                tree_dists = self.tree_distances
+                if emb_dists.shape != tree_dists.shape:
+                    logger.warning(
+                        'Skipping hierarchy metrics: embedding distance shape %s != '
+                        'tree distance shape %s',
+                        emb_dists.shape,
+                        tree_dists.shape,
+                    )
+                    return None
+
+                cophenetic = hierarchy.cophenetic_correlation(emb_dists, tree_dists)
+                spearman = hierarchy.spearman_correlation(emb_dists, tree_dists)
+                ndcg = hierarchy.ndcg_ranking(emb_dists, tree_dists, k_values=self._ndcg_k_values)
+                distortion = hierarchy.distortion(emb_dists, tree_dists)
+        except RuntimeError as err:
+            logger.warning('Skipping hierarchy metrics due to runtime error: %s', err)
+            return None
+
+        metrics: Dict[str, torch.Tensor] = {}
+        cophenetic_corr = cast(torch.Tensor, cophenetic['correlation'])
+        metrics['cophenetic_correlation'] = cophenetic_corr.detach()
+        metrics['cophenetic_n_pairs'] = torch.tensor(
+            float(cophenetic['n_pairs']), device=metrics['cophenetic_correlation'].device
+        )
+        spearman_corr = cast(torch.Tensor, spearman['correlation'])
+        metrics['spearman_correlation'] = spearman_corr.detach()
+        metrics['spearman_n_pairs'] = torch.tensor(
+            float(spearman['n_pairs']), device=metrics['spearman_correlation'].device
+        )
+
+        for key, value in distortion.items():
+            metrics[key] = cast(torch.Tensor, value).detach()
+
+        for k in self._ndcg_k_values:
+            ndcg_value = cast(torch.Tensor, ndcg[f'ndcg@{k}'])
+            metrics[f'ndcg@{k}'] = ndcg_value.detach()
+            n_queries = ndcg.get(f'ndcg@{k}_n_queries', 0)
+            metrics[f'ndcg@{k}_n_queries'] = torch.tensor(
+                float(n_queries), device=metrics[f'ndcg@{k}'].device
+            )
+
+        if (
+            self.naics_hierarchy is not None and self.node_codes is not None and len(
+                self.node_codes
+            ) == embeddings.size(0)
+        ):
+            radius_metrics = compute_radius_structure_metrics(
+                embeddings.detach(),
+                self.node_codes,
+                self.naics_hierarchy,
+            )
+            for name, value in radius_metrics.items():
+                metrics[name] = torch.tensor(value, device=embeddings.device)
+
+            retrieval_metrics = compute_hierarchy_retrieval_metrics(
+                emb_dists,
+                self.node_codes,
+                self.naics_hierarchy,
+                parent_top_k=self.parent_eval_top_k,
+                child_top_k=self.child_eval_top_k,
+            )
+            for name, value in retrieval_metrics.items():
+                metrics[name] = torch.tensor(value, device=embeddings.device)
+        elif self.naics_hierarchy is not None:
+            logger.warning(
+                'Skipping hierarchy diagnostics: code count mismatch (%s codes, %s embeddings)',
+                len(self.node_codes) if self.node_codes is not None else 0,
+                embeddings.size(0),
+            )
+
+        return metrics
+
     def on_validation_epoch_start(self) -> None:
         self._val_epoch_metrics.clear()
+        self._full_val_metrics.clear()
+        self._full_eval_done = False
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         anchors = batch['anchor_idx'].to(self.device)
@@ -810,6 +995,29 @@ class HGCNLightningModule(pyl.LightningModule):
 
         self._val_epoch_metrics.append(processed_metrics)
 
+        if self._should_run_full_eval(batch_idx):
+            full_metrics = self._compute_full_validation_metrics(emb_upd)
+            if full_metrics:
+                self._full_eval_done = True
+                for name, value in full_metrics.items():
+                    tensor_value: torch.Tensor = (
+                        value if isinstance(value, torch.Tensor) else torch.tensor(
+                            value, device=self.device
+                        )
+                    )
+                    should_prog_bar = (
+                        name == 'cophenetic_correlation' or name == f'ndcg@{self._primary_ndcg}'
+                    )
+                    self.log(
+                        f'val/{name}',
+                        tensor_value,
+                        on_step=False,
+                        on_epoch=True,
+                        prog_bar=should_prog_bar,
+                    )
+                    scalar_value = float(tensor_value.detach().cpu())
+                    self._full_val_metrics[f'val_{name}'] = scalar_value
+
     def on_train_epoch_end(self) -> None:
         if not self._train_losses:
             return
@@ -838,6 +1046,8 @@ class HGCNLightningModule(pyl.LightningModule):
             for k in self._val_epoch_metrics[0].keys()
         }
         self.history[-1].update(avg_metrics)
+        if self._full_val_metrics:
+            self.history[-1].update(self._full_val_metrics)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(
@@ -1077,7 +1287,7 @@ def main(config_file: str = 'conf/config.yaml') -> None:
 
     datamodule = HGCNDataModule(base_cfg)
     lit_module = HGCNLightningModule(
-        base_cfg, emb, levels, edge_index, edge_types, edge_weights, edge_meta
+        base_cfg, emb, levels, edge_index, edge_types, edge_weights, edge_meta, node_metadata=df
     )
 
     accelerator = base_cfg.device if base_cfg.device != 'auto' else 'auto'

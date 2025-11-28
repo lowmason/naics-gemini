@@ -1,0 +1,8 @@
+/* Match MkDocs Material aesthetic */
+.quarto-title-banner {
+    background: linear-gradient(135deg, #009688 0%, #00796b 100%);
+  }
+  
+  code {
+    font-family: 'Fira Code', monospace;
+  }

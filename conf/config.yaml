@@ -88,6 +88,8 @@ model:
 
   eval_sample_size: 300
   eval_every_n_epochs: 1
+  parent_eval_top_k: 1
+  child_eval_top_k: 5
 
 # Loss configuration
 loss:
