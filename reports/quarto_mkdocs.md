@@ -310,7 +310,7 @@ print(f'Lorentzian distance: {d.item():.4f}')
 **2.3 Additional tutorials to create:**
 
 | File | Content Focus |
-|---------------------|---------------------------------------------------|
+|----------------------|--------------------------------------------------|
 | `01-quickstart.qmd` | Minimal training example, loading pretrained embeddings |
 | `03-training-walkthrough.qmd` | SADC curriculum phases, loss curves, checkpointing |
 | `04-embedding-visualization.qmd` | Poincaré projection, t-SNE, hierarchy heatmaps |
@@ -412,7 +412,7 @@ Example addition to `docs/api/hyperbolic.md`:
 ### High-Value Tutorials for Your Project
 
 | Priority | Tutorial | Why Valuable |
-|---------------------|---------------------|-----------------------------|
+|----------------------|----------------------|-----------------------------|
 | 🔴 High | Embedding Visualization | Users need to see what hyperbolic embeddings look like |
 | 🔴 High | Training Walkthrough | SADC curriculum is complex; visual loss curves help |
 | 🟡 Medium | Quickstart | Reduces barrier to entry |

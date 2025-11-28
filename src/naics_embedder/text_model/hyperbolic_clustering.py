@@ -101,7 +101,8 @@ class HyperbolicKMeans:
                 # Compute distances to all existing centers
                 point_distances = []
                 for center in centers:
-                    dist = self.lorentz_distance(point.unsqueeze(0), center.unsqueeze(0))
+                    center_point = center if center.dim() == 1 else center.squeeze(0)
+                    dist = self.lorentz_distance(point.unsqueeze(0), center_point.unsqueeze(0))
                     point_distances.append(dist.item())
                 # Distance to nearest center
                 min_dist = min(point_distances)
