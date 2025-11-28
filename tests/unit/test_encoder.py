@@ -134,7 +134,7 @@ class TestEncoderInitialization:
 
         assert hasattr(encoder, 'hyperbolic_proj')
         assert encoder.hyperbolic_proj.input_dim == encoder.embedding_dim
-        assert encoder.hyperbolic_proj.curvature == encoder.curvature
+        assert encoder.hyperbolic_proj.c == encoder.curvature
 
     def test_trainable_parameters(self, encoder):
         '''Test that LoRA reduces trainable parameters significantly.'''
@@ -157,7 +157,7 @@ class TestEncoderInitialization:
             encoder_config['curvature'] = curvature
             encoder = MultiChannelEncoder(**encoder_config).to(test_device)
             assert encoder.curvature == curvature
-            assert encoder.hyperbolic_proj.curvature == curvature
+            assert encoder.hyperbolic_proj.c == curvature
 
 # -------------------------------------------------------------------------------------------------
 # Test: Forward Pass

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.26">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>readme</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="README_files/libs/clipboard/clipboard.min.js"></script>
+<script src="README_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="README_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="README_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="README_files/libs/quarto-html/popper.min.js"></script>
+<script src="README_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="README_files/libs/quarto-html/anchor.min.js"></script>
+<link href="README_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="README_files/libs/quarto-html/quarto-syntax-highlighting-587c61ba64f3a5504c4d52d930310e48.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="README_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="README_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="README_files/libs/bootstrap/bootstrap-d6a003b94517c951b2d65075d42fb01b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+
+
+
+<section id="naics-hyperbolic-embedding-system" class="level1">
+<h1>NAICS Hyperbolic Embedding System</h1>
+<!-- markdownlint-disable MD013 -->
+<p><a href="https://github.com/lowmason/naics-embedder/blob/main/LICENSE"><img src="https://img.shields.io/github/license/lowmason/naics-embedder.png" class="img-fluid" alt="License"></a> <a href="https://github.com/lowmason/naics-embedder/actions/workflows/docs.yml"><img src="https://github.com/lowmason/naics-embedder/actions/workflows/docs.yml/badge.svg" class="img-fluid" alt="Documentation"></a> <a href="https://github.com/lowmason/naics-embedder/actions/workflows/tests.yml"><img src="https://github.com/lowmason/naics-embedder/actions/workflows/tests.yml/badge.svg" class="img-fluid" alt="Tests"></a> <a href="https://github.com/lowmason/naics-embedder/issues"><img src="https://img.shields.io/github/issues/lowmason/naics-embedder.png" class="img-fluid" alt="Issues"></a> <a href="https://github.com/lowmason/naics-embedder/commits/main"><img src="https://img.shields.io/github/last-commit/lowmason/naics-embedder.png" class="img-fluid" alt="Last Commit"></a> <a href="https://github.com/lowmason/naics-embedder/graphs/contributors"><img src="https://img.shields.io/github/contributors/lowmason/naics-embedder.png" class="img-fluid" alt="Contributors"></a> <a href="https://github.com/lowmason/naics-embedder"><img src="https://img.shields.io/github/repo-size/lowmason/naics-embedder.png" class="img-fluid" alt="Repo size"></a> <a href="https://github.com/lowmason/naics-embedder"><img src="https://img.shields.io/github/languages/top/lowmason/naics-embedder.png" class="img-fluid" alt="Top language"></a></p>
+<hr>
+<p>This project implements a unified hyperbolic representation learning framework for the <strong>North American Industry Classification System (NAICS)</strong>. The system combines multi-channel text encoding, Mixture-of-Experts fusion, hyperbolic contrastive learning, and a hyperbolic graph refinement stage to produce geometry-aware embeddings aligned with the hierarchical structure of the NAICS taxonomy.</p>
+<p>The final output is a set of <strong>Lorentz-model hyperbolic embeddings</strong> suitable for similarity search, hierarchical modeling, graph-based reasoning, and downstream machine learning applications.</p>
+<section id="system-architecture-overview" class="level2">
+<h2 class="anchored" data-anchor-id="system-architecture-overview">1. System Architecture Overview</h2>
+<p>The system consists of four sequential stages:</p>
+<ol type="1">
+<li><strong>Multi-channel text encoding</strong> – independent transformer-based encoders for title, description, examples, and exclusions.</li>
+<li><strong>Mixture-of-Experts (MoE) fusion</strong> – adaptive fusion of the four embeddings using Top-2 gating.</li>
+<li><strong>Hyperbolic contrastive learning</strong> – projection into Lorentz space and optimization with Decoupled Contrastive Learning (DCL).</li>
+<li><strong>Hyperbolic Graph Convolutional Refinement (HGCN)</strong> – structure-aware refinement using the explicit NAICS parent–child graph.</li>
+</ol>
+<p>Each stage is designed to preserve or enhance the hierarchical geometry of NAICS codes.</p>
+<hr>
+</section>
+<section id="stage-1-multi-channel-text-encoding" class="level2">
+<h2 class="anchored" data-anchor-id="stage-1-multi-channel-text-encoding">2. Stage 1 — Multi-Channel Text Encoding</h2>
+<p>Each NAICS code includes four distinct text fields:</p>
+<ul>
+<li>Title: Short code name (concise category identification)</li>
+<li>Description: Detailed explanation of what the code encompasses (Rich semantic content)</li>
+<li>Examples: Representative businesses in this category (Concrete instantiations)</li>
+<li>Excluded: Codes explicitly NOT in this category (Disambiguation and boundaries)</li>
+</ul>
+<p>Each field is processed independently using a transformer encoder (LoRA-adapted). This produces four Euclidean embeddings:</p>
+<ul>
+<li>(E_title)</li>
+<li>(E_desc)</li>
+<li>(E_examples)</li>
+<li>(E_excluded)</li>
+</ul>
+<p>These embeddings serve as inputs to the fusion stage.</p>
+<hr>
+</section>
+<section id="stage-2-mixture-of-experts-fusion-top-2-gating" class="level2">
+<h2 class="anchored" data-anchor-id="stage-2-mixture-of-experts-fusion-top-2-gating">3. Stage 2 — Mixture-of-Experts Fusion (Top-2 Gating)</h2>
+<p>The four channel embeddings are concatenated and passed into a <strong>Mixture-of-Experts (MoE)</strong> module. Key components include:</p>
+<ul>
+<li>Top-2 gating to route each input to the two most relevant experts.</li>
+<li>Feed-forward expert networks that learn specialized fusion behaviors.</li>
+<li>Auxiliary load-balancing loss to ensure even expert utilization across batches.</li>
+</ul>
+<p>This produces a single fused Euclidean embedding (E_fused) per NAICS code.</p>
+<hr>
+</section>
+<section id="stage-3-hyperbolic-contrastive-learning-lorentz-model" class="level2">
+<h2 class="anchored" data-anchor-id="stage-3-hyperbolic-contrastive-learning-lorentz-model">4. Stage 3 — Hyperbolic Contrastive Learning (Lorentz Model)</h2>
+<p>To align the latent space with the hierarchical structure of NAICS, embeddings are projected into <strong>Lorentz-model hyperbolic space</strong> via the exponential map.</p>
+<section id="hyperbolic-projection" class="level3">
+<h3 class="anchored" data-anchor-id="hyperbolic-projection">4.1 Hyperbolic Projection</h3>
+<p>The fused Euclidean vector is mapped onto the hyperboloid:</p>
+<ul>
+<li>Uses exponential map at the origin</li>
+<li>Supports learned or fixed curvature</li>
+<li>Ensures numerical stability</li>
+</ul>
+<p>The result is a Lorentz embedding (E_hyp).</p>
+</section>
+<section id="decoupled-contrastive-learning-dcl-loss" class="level3">
+<h3 class="anchored" data-anchor-id="decoupled-contrastive-learning-dcl-loss">4.2 Decoupled Contrastive Learning (DCL) Loss</h3>
+<p>Contrastive learning is performed using <strong>Decoupled Contrastive Learning (DCL)</strong> with <strong>Lorentzian geodesic distances</strong>:</p>
+<p>d(u, v) = arcosh(-&lt;u, v&gt;_L)</p>
+<p>The DCL loss decouples the positive and negative terms:</p>
+<p>L = (-pos_sim + logsumexp(neg_sims)).mean()</p>
+<p>This formulation provides better gradient flow and numerical stability compared to standard InfoNCE.</p>
+<p>Negatives include:</p>
+<ul>
+<li>unrelated codes,</li>
+<li>hierarchically distant codes,</li>
+<li>false negatives detected via periodic clustering (masked with -inf).</li>
+</ul>
+</section>
+<section id="false-negative-mitigation" class="level3">
+<h3 class="anchored" data-anchor-id="false-negative-mitigation">4.3 False Negative Mitigation</h3>
+<p>A curriculum-based procedure removes semantically similar negatives once the embedding space stabilizes:</p>
+<ol type="1">
+<li>Generate embeddings for the dataset.</li>
+<li>Cluster embeddings (e.g., via KMeans).</li>
+<li>Identify negatives sharing the cluster label with the anchor.</li>
+<li>Exclude these from the contrastive denominator.</li>
+</ol>
+<p>This prevents the model from incorrectly separating close hierarchical neighbors.</p>
+<hr>
+</section>
+</section>
+<section id="stage-4-hyperbolic-graph-convolutional-refinement-hgcn" class="level2">
+<h2 class="anchored" data-anchor-id="stage-4-hyperbolic-graph-convolutional-refinement-hgcn">5. Stage 4 — Hyperbolic Graph Convolutional Refinement (HGCN)</h2>
+<p>To fully integrate the explicit hierarchical relationships of NAICS, the system applies a <strong>Hyperbolic Graph Convolutional Network</strong> as a refinement stage.</p>
+<section id="graph-structure" class="level3">
+<h3 class="anchored" data-anchor-id="graph-structure">5.1 Graph Structure</h3>
+<p>Nodes represent NAICS codes, and edges represent parent–child relationships in the taxonomy.</p>
+</section>
+<section id="hgcn-layers" class="level3">
+<h3 class="anchored" data-anchor-id="hgcn-layers">5.2 HGCN Layers</h3>
+<p>The refinement module includes:</p>
+<ul>
+<li>Two hyperbolic graph convolutional layers</li>
+<li>Tangent-space aggregation and message passing</li>
+<li>Learnable curvature shared across layers</li>
+<li>Exponential and logarithmic maps for manifold transitions</li>
+</ul>
+</section>
+<section id="refinement-objectives" class="level3">
+<h3 class="anchored" data-anchor-id="refinement-objectives">5.3 Refinement Objectives</h3>
+<p>The model optimizes a combined loss:</p>
+<section id="a.-hyperbolic-triplet-loss" class="level4">
+<h4 class="anchored" data-anchor-id="a.-hyperbolic-triplet-loss">a. Hyperbolic Triplet Loss</h4>
+<p>Ensures that:</p>
+<ul>
+<li>anchor–positive distance &lt; anchor–negative distance</li>
+<li>distances use Lorentz geodesics</li>
+</ul>
+</section>
+<section id="b.-per-level-radial-regularization" class="level4">
+<h4 class="anchored" data-anchor-id="b.-per-level-radial-regularization">b. Per-Level Radial Regularization</h4>
+<p>Encourages embeddings at the same hierarchical level to maintain similar hyperbolic radii.</p>
+<p>This aligns global and local geometric structure with the NAICS taxonomy.</p>
+<hr>
+</section>
+</section>
+</section>
+<section id="final-output" class="level2">
+<h2 class="anchored" data-anchor-id="final-output">6. Final Output</h2>
+<p>Upon completion of all four stages, the system produces:</p>
+<ul>
+<li>High-fidelity hyperbolic embeddings in Lorentz space</li>
+<li>Representations consistent with both text semantics and hierarchical relationships</li>
+<li>Embeddings suitable for:
+<ul>
+<li>hierarchical search and retrieval</li>
+<li>clustering and visualization</li>
+<li>downstream machine learning tasks</li>
+<li>graph-based analytics</li>
+</ul></li>
+</ul>
+<hr>
+<p>This README provides a formal overview of the architecture, methodology, and geometric principles underlying the NAICS embedding system. Further implementation details are available within the project modules.</p>
+<hr>
+</section>
+<section id="architecture-diagram-textual" class="level2">
+<h2 class="anchored" data-anchor-id="architecture-diagram-textual">7. Architecture Diagram (Textual)</h2>
+<pre class="text"><code>+-------------------------------+
+|  Multi-Channel Text Encoder   |
+|  (Title / Desc / Examples /   |
+|   Excluded via Transformer)   |
++---------------+---------------+
+                |
+                v
++-------------------------------+
+|     Mixture-of-Experts        |
+|  Top-2 Gating + Expert MLPs   |
+|  Load-Balanced Fusion Layer   |
++---------------+---------------+
+                |
+                v
++-------------------------------+
+|   Hyperbolic Projection       |
+|   (Lorentz Exponential Map)   |
++---------------+---------------+
+                |
+                v
++-------------------------------+
+| Hyperbolic Contrastive Loss   |
+| (DCL + Lorentz Distance +    |
+|  False Negative Masking)     |
++---------------+---------------+
+                |
+                v
++-------------------------------+
+|          HGCN Refinement      |
+|  (Tangent-Space GNN + Curv.)  |
++---------------+---------------+
+                |
+                v
++-------------------------------+
+| Final Lorentz Hyperbolic Emb. |
++-------------------------------+</code></pre>
+<hr>
+</section>
+<section id="onboarding-guide" class="level2">
+<h2 class="anchored" data-anchor-id="onboarding-guide">8. Onboarding Guide</h2>
+<section id="initial-setup" class="level3">
+<h3 class="anchored" data-anchor-id="initial-setup">8.0 Initial Setup</h3>
+<ol type="1">
+<li><p>Clone the repository:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/lowmason/naics-embedder.git</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> naics-embedder</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>Install uv:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip3</span> install uv</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>Install dependencies:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> synv</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+</ol>
+</section>
+<section id="download-and-preprocess-naics-data" class="level3">
+<h3 class="anchored" data-anchor-id="download-and-preprocess-naics-data">8.1 Download and preprocess NAICS data</h3>
+<ol type="1">
+<li><p>Prepare the NAICS dataset with four text channels.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder data preprocess</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder data relations</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder data distances</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder data triplets</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder data all</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+</ol>
+</section>
+<section id="training-the-contrastive-model" class="level3">
+<h3 class="anchored" data-anchor-id="training-the-contrastive-model">8.2 Training the Contrastive Model</h3>
+<p>The text encoder now uses the Structure-Aware Dynamic Curriculum (SADC) scheduler by default. It progresses through three phases in a single run—structural initialization, geometric refinement, and false-negative mitigation—activating the appropriate sampling flags automatically.</p>
+<p>Need a simpler curriculum for ablations? Set <code>curriculum.phase_mode=two_phase</code> to merge Phase 3 into Phase 2, or enable the new annealing schedule from <a href="https://github.com/lowmason/naics-embedder/issues/44">Issue #44</a> via:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">curriculum</span><span class="kw">:</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">anneal</span><span class="kw">:</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">enabled</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">alpha_start</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.5</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">alpha_end</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.8</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">epochs</span><span class="kw">:</span><span class="at"> </span><span class="dv">40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This gradually reduces the tree-distance exponent and increases router-guided mixing, and can optionally be triggered by the logged <code>adaptive_margin_mean</code> metric.</p>
+<p>Run training with your base config and optional overrides:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder train <span class="at">--config</span> conf/config.yaml <span class="dt">\</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  training.learning_rate=1e-4 training.trainer.max_epochs=15</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To compare against the static SANS baseline proposed in <a href="https://github.com/lowmason/naics-embedder/issues/43">Issue #43</a>, switch the data-layer sampler via:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder train sampling.strategy=sans_static <span class="dt">\</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  sampling.sans_static.near_bucket_weight=0.7</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This keeps the model-side curriculum intact while replacing Phase 1 tree-distance weighting with fixed near/far probabilities.</p>
+<p>To experiment with alternative false-negative treatments from <a href="https://github.com/lowmason/naics-embedder/issues/45">Issue #45</a>, tweak the new block:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">false_negatives</span><span class="kw">:</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">strategy</span><span class="kw">:</span><span class="at"> hybrid</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">attraction_weight</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.2</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">attraction_metric</span><span class="kw">:</span><span class="at"> l2</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>eliminate</code> (default) masks suspected false negatives, <code>attract</code> keeps them but adds an auxiliary attraction loss, and <code>hybrid</code> does both.</p>
+<p>Key flags managed by SADC during training:</p>
+<ul>
+<li>Tree-distance weighting and sibling masking during structural initialization</li>
+<li>Router-guided and hard-negative mining during geometric refinement</li>
+<li>Clustering-driven false-negative elimination in the final phase</li>
+</ul>
+<p><strong>Migrating from legacy stage files:</strong> The old multi-file curriculum chains are retired. Use the single <code>train</code> command with overrides instead of stage-by-stage invocations. The deprecated <code>train-seq --legacy</code> remains for backward compatibility but is no longer required for SADC.</p>
+</section>
+<section id="running-hgcn-refinement" class="level3">
+<h3 class="anchored" data-anchor-id="running-hgcn-refinement">8.3 Running HGCN Refinement</h3>
+<ol type="1">
+<li><p>Construct the NAICS parent–child graph.</p></li>
+<li><p>Load hyperbolic embeddings from 8.1.2.</p></li>
+<li><p>Train the refinement model:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run naics-embedder train-hgcn <span class="at">--config</span> configs/hgcn.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>Save refined embeddings for downstream tasks.</p></li>
+</ol>
+<hr>
+</section>
+</section>
+<section id="using-the-final-embeddings" class="level2">
+<h2 class="anchored" data-anchor-id="using-the-final-embeddings">9. Using the Final Embeddings</h2>
+<section id="similarity-search" class="level3">
+<h3 class="anchored" data-anchor-id="similarity-search">9.1 Similarity Search</h3>
+<p>Use Lorentzian distance:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>dist <span class="op">=</span> lorentz_distance(x, y)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Lower values indicate closer hierarchical or semantic similarity.</p>
+</section>
+<section id="visualization" class="level3">
+<h3 class="anchored" data-anchor-id="visualization">9.2 Visualization</h3>
+<p>Project to tangent space or Poincaré ball for plotting.</p>
+</section>
+<section id="downstream-ml" class="level3">
+<h3 class="anchored" data-anchor-id="downstream-ml">9.3 Downstream ML</h3>
+<p>Final embeddings can be used as features for:</p>
+<ul>
+<li>classification models,</li>
+<li>clustering algorithms (in hyperbolic or tangent space),</li>
+<li>retrieval and recommendation systems.</li>
+</ul>
+<hr>
+</section>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

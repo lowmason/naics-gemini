@@ -314,13 +314,18 @@ class TestTrainingStep:
         assert loss.item() > 0
 
     @patch('naics_embedder.text_model.naics_model.gather_embeddings_global')
+    @patch('torch.distributed.all_reduce')
     def test_training_step_global_batch_sampling(
-        self, mock_gather, naics_model, sample_training_batch
+        self, mock_all_reduce, mock_gather, naics_model, sample_training_batch
     ):
         '''Test training step with global batch sampling (mocked).'''
 
         # Mock distributed environment
         mock_gather.side_effect = lambda x, *args, **kwargs: x  # Return input unchanged
+
+        # Mock trainer
+        naics_model.trainer = Mock()
+        naics_model.trainer.is_global_zero = True
 
         # Enable hard negative mining
         naics_model.current_curriculum_flags = {'enable_hard_negative_mining': True}
@@ -527,7 +532,8 @@ class TestCurriculumIntegration:
         )
 
         # Set epoch to phase 2
-        naics_model.current_epoch = 7
+        naics_model.trainer = Mock()
+        naics_model.trainer.current_epoch = 7
 
         naics_model.train()
         naics_model.training_step(sample_training_batch, batch_idx=0)
@@ -545,7 +551,8 @@ class TestCurriculumIntegration:
         )
 
         # Transition from phase 1 to phase 2
-        naics_model.current_epoch = 5
+        naics_model.trainer = Mock()
+        naics_model.trainer.current_epoch = 5
         naics_model.previous_phase = 1
 
         naics_model.train()
@@ -664,7 +671,9 @@ class TestLoggingAndMetrics:
         # Mock logger with log_dir
         mock_logger = Mock()
         mock_logger.log_dir = str(tmp_path / 'logs')
-        naics_model.logger = mock_logger
+
+        naics_model.trainer = Mock()
+        naics_model.trainer.logger = mock_logger
 
         metrics_path = naics_model._get_metrics_file_path()
 

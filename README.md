@@ -1,42 +1,29 @@
 # NAICS Hyperbolic Embedding System
 
 <!-- markdownlint-disable MD013 -->
-[![CI](https://github.com/lowmason/naics-embedder/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lowmason/naics-embedder/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/releases)
 [![License](https://img.shields.io/github/license/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/blob/main/LICENSE)
-[![Tests](https://github.com/lowmason/naics-embedder/actions/workflows/tests.yml/badge.svg)](https://github.com/lowmason/naics-embedder/actions/workflows/tests.yml)
-[![codecov](https://codecov.io/gh/lowmason/naics-embedder/branch/main/graph/badge.svg)](https://codecov.io/gh/lowmason/naics-embedder)
-[![Issues](https://img.shields.io/github/issues/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/issues)
 [![Documentation](https://github.com/lowmason/naics-embedder/actions/workflows/docs.yml/badge.svg)](https://github.com/lowmason/naics-embedder/actions/workflows/docs.yml)
+[![Tests](https://github.com/lowmason/naics-embedder/actions/workflows/tests.yml/badge.svg)](https://github.com/lowmason/naics-embedder/actions/workflows/tests.yml)
+[![Issues](https://img.shields.io/github/issues/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder/graphs/contributors)
 [![Repo size](https://img.shields.io/github/repo-size/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder)
 [![Top language](https://img.shields.io/github/languages/top/lowmason/naics-embedder)](https://github.com/lowmason/naics-embedder)
-<!-- markdownlint-enable MD013 -->
 
 ---
 
-This project implements a unified hyperbolic representation learning framework for the
-**North American Industry Classification System (NAICS)**. The system combines multi-channel text
-encoding, Mixture-of-Experts fusion, hyperbolic contrastive learning, and a hyperbolic graph
-refinement stage to produce geometry-aware embeddings aligned with the hierarchical structure of
-the NAICS taxonomy.
+This project implements a unified hyperbolic representation learning framework for the **North American Industry Classification System (NAICS)**. The system combines multi-channel text encoding, Mixture-of-Experts fusion, hyperbolic contrastive learning, and a hyperbolic graph refinement stage to produce geometry-aware embeddings aligned with the hierarchical structure of the NAICS taxonomy.
 
-The final output is a set of **Lorentz-model hyperbolic embeddings** suitable for similarity
-search, hierarchical modeling, graph-based reasoning, and downstream machine learning applications.
+The final output is a set of **Lorentz-model hyperbolic embeddings** suitable for similarity search, hierarchical modeling, graph-based reasoning, and downstream machine learning applications.
 
 ## 1. System Architecture Overview
 
 The system consists of four sequential stages:
 
-1. **Multi-channel text encoding** – independent transformer-based encoders for title,
-   description, examples, and exclusions.
-2. **Mixture-of-Experts (MoE) fusion** – adaptive fusion of the four embeddings using
-   Top-2 gating.
-3. **Hyperbolic contrastive learning** – projection into Lorentz space and optimization with
-   Decoupled Contrastive Learning (DCL).
-4. **Hyperbolic Graph Convolutional Refinement (HGCN)** – structure-aware refinement using the
-   explicit NAICS parent–child graph.
+1. **Multi-channel text encoding** – independent transformer-based encoders for title, description, examples, and exclusions.
+2. **Mixture-of-Experts (MoE) fusion** – adaptive fusion of the four embeddings using Top-2 gating.
+3. **Hyperbolic contrastive learning** – projection into Lorentz space and optimization with Decoupled Contrastive Learning (DCL).
+4. **Hyperbolic Graph Convolutional Refinement (HGCN)** – structure-aware refinement using the explicit NAICS parent–child graph.
 
 Each stage is designed to preserve or enhance the hierarchical geometry of NAICS codes.
 
@@ -46,18 +33,18 @@ Each stage is designed to preserve or enhance the hierarchical geometry of NAICS
 
 Each NAICS code includes four distinct text fields:
 
-- Title
-- Description
-- Examples
-- Excluded codes
+- Title: Short code name (Concise category identification)
+- Description: Detailed explanation of what the code encompasses (Rich semantic content)
+- Examples: Representative businesses in this category (Concrete instantiations)
+- Excluded: Codes explicitly NOT in this category (Disambiguation and boundaries)
 
 Each field is processed independently using a transformer encoder (LoRA-adapted). This produces
 four Euclidean embeddings:
 
-- (E_title)
-- (E_desc)
-- (E_examples)
-- (E_excluded)
+- Title: (Embedding_title)
+- Description: (Embedding_description)
+- Examples: Embedding_examples)
+- Excluded: (Embedding_excluded)
 
 These embeddings serve as inputs to the fusion stage.
 
@@ -65,8 +52,7 @@ These embeddings serve as inputs to the fusion stage.
 
 ## 3. Stage 2 — Mixture-of-Experts Fusion (Top-2 Gating)
 
-The four channel embeddings are concatenated and passed into a **Mixture-of-Experts (MoE)**
-module. Key components include:
+The four channel embeddings are concatenated and passed into a **Mixture-of-Experts (MoE)** module. Key components include:
 
 - Top-2 gating to route each input to the two most relevant experts.
 - Feed-forward expert networks that learn specialized fusion behaviors.
@@ -78,8 +64,7 @@ This produces a single fused Euclidean embedding (E_fused) per NAICS code.
 
 ## 4. Stage 3 — Hyperbolic Contrastive Learning (Lorentz Model)
 
-To align the latent space with the hierarchical structure of NAICS, embeddings are projected into
-**Lorentz-model hyperbolic space** via the exponential map.
+To align the latent space with the hierarchical structure of NAICS, embeddings are projected into **Lorentz-model hyperbolic space** via the exponential map.
 
 ### 4.1 Hyperbolic Projection
 
