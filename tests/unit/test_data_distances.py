@@ -12,6 +12,8 @@ from naics_embedder.data.compute_distances import (
     _compute_tree_metadata,
     _find_common_ancestor,
     _get_distance,
+    _get_distance_matrix,
+    _get_exclusions,
     _join_sectors,
     _sector_codes,
     _sector_tree,
@@ -446,3 +448,78 @@ class TestDistanceEdgeCases:
         # Parent-child distance
         d = _get_distance('11', '111', depths, ancestors)
         assert d == 0.5  # Lineal relationship
+
+# -------------------------------------------------------------------------------------------------
+# Distance Outputs
+# -------------------------------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestDistanceOutputs:
+    '''Additional tests covering exported artifacts.'''
+
+    def test_distance_matrix_is_symmetric_with_named_columns(self):
+        '''_get_distance_matrix should build symmetric matrix and preserve code ordering.'''
+
+        df = pl.DataFrame(
+            {
+                'code_i': ['111111', '111111', '222222'],
+                'code_j': ['222222', '333333', '333333'],
+                'distance': [1.0, 2.0, 3.0],
+            }
+        )
+
+        matrix = _get_distance_matrix(df)
+
+        assert matrix.shape == (3, 3)
+        cols = matrix.columns
+        assert cols == [
+            'idx_0-code_111111',
+            'idx_1-code_222222',
+            'idx_2-code_333333',
+        ]
+
+        values = matrix.to_numpy()
+        assert values[0, 1] == pytest.approx(1.0)
+        assert values[1, 0] == pytest.approx(1.0)
+        assert values[0, 2] == pytest.approx(2.0)
+        assert values[2, 0] == pytest.approx(2.0)
+        # Diagonal entries should remain zero unless explicitly populated
+        assert values[0, 0] == pytest.approx(0.0)
+
+    def test_get_exclusions_filters_pairs_not_in_descriptions(self, monkeypatch):
+        '''_get_exclusions should only keep valid code pairs present in descriptions parquet.'''
+
+        descriptions_df = pl.DataFrame(
+            {
+                'code': ['111111', '222222', '333333'],
+                'excluded': ['desc', None, 'other'],
+                'excluded_codes': [
+                    ['222222', '999999'],
+                    None,
+                    ['111111'],
+                ],
+            }
+        )
+
+        monkeypatch.setattr(
+            'naics_embedder.data.compute_distances.pl.read_parquet',
+            lambda *_args, **_kwargs: descriptions_df,
+        )
+
+        distances_df = pl.DataFrame(
+            {
+                'code_i': ['111111', '333333'],
+                'code_j': ['222222', '444444'],
+                'idx_i': [0, 1],
+                'idx_j': [1, 2],
+                'distance': [0.5, 1.0],
+            }
+        )
+
+        exclusions = _get_exclusions(distances_df)
+
+        assert exclusions.height == 1
+        row = exclusions.row(0, named=True)
+        assert row['code_i'] == '111111'
+        assert row['code_j'] == '222222'
+        assert row['excluded'] is True

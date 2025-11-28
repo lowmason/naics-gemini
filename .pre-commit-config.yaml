@@ -1,0 +1,41 @@
+# Pre-commit hooks configuration
+# Install: uv pip install pre-commit
+# Setup: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # Ruff linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.6
+    hooks:
+      - id: ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+      - id: ruff-format
+
+  # Code coverage check
+  # Set COVERAGE_THRESHOLD environment variable to enforce minimum coverage (e.g., 80)
+  # Default: 0 (reports coverage but doesn't fail)
+  - repo: local
+    hooks:
+      - id: coverage-check
+        name: Coverage Check
+        entry: bash -c 'THRESHOLD=${COVERAGE_THRESHOLD:-0}; uv run pytest --cov=src/naics_embedder --cov-report=term-missing --cov-fail-under=$THRESHOLD || exit 1'
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 'Run pytest with coverage and optionally fail if coverage drops below threshold'
+
