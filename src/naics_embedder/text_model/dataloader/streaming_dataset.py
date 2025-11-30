@@ -2,210 +2,25 @@
 # Imports and settings
 # -------------------------------------------------------------------------------------------------
 
+import hashlib
+import json
 import logging
-from collections import defaultdict
+import pickle
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 
 import numpy as np
 import polars as pl
 
+from naics_embedder.data.positive_sampling import create_positive_sampler
 from naics_embedder.utils.config import SamplingConfig, SansStaticConfig, StreamingConfig
 from naics_embedder.utils.utilities import get_indices_codes
 
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------------------------------------
-# Utility functions
-# -------------------------------------------------------------------------------------------------
-
-def _taxonomy(codes_parquet: str) -> pl.DataFrame:
-    return (
-        pl.read_parquet(codes_parquet).filter(pl.col('level').eq(6)).select('code').sort(
-            pl.col('code').cast(pl.UInt32)
-        ).unique(maintain_order=True).select(
-            code_2=pl.col('code').str.slice(0, 2),
-            code_3=pl.col('code').str.slice(0, 3),
-            code_4=pl.col('code').str.slice(0, 4),
-            code_5=pl.col('code').str.slice(0, 5),
-            code_6=pl.col('code').str.slice(0, 6),
-        ).with_columns(
-            code_2=pl.when(pl.col('code_2').is_in(['31', '32', '33'])).then(pl.lit('31')).when(
-                pl.col('code_2').is_in(['44', '45'])
-            ).then(pl.lit('44')).when(pl.col('code_2').is_in(['48', '49'])
-                                      ).then(pl.lit('48')).otherwise(pl.col('code_2'))
-        ).with_columns(
-            code=pl.concat_str(pl.col('code_2'), pl.col('code_6').str.slice(2, 4), separator='')
-        )
-    )
-
-def _anchors(triplets_parquet: str) -> pl.DataFrame:
-    return (
-        pl.read_parquet(triplets_parquet).select(
-            level=pl.col('anchor_level'),
-            anchor=pl.col('anchor_code'),
-        ).unique().sort(
-            pl.col('level'),
-            pl.col('anchor').cast(pl.UInt32),
-        )
-    )
-
-def _linear_skip(anchor: str, taxonomy: pl.DataFrame) -> List[str]:
-    lvl = len(anchor)
-    anchor_code = f'code_{lvl}'
-    codes = [f'code_{i}' for i in range(lvl + 1, 7)]
-
-    for code in codes:
-        candidate = taxonomy.filter(pl.col(anchor_code).eq(anchor)
-                                    ).get_column(code).unique().to_list()
-
-        if lvl == 5:
-            return candidate
-        elif len(candidate) > 1:
-            return sorted(set(candidate))
-
-    return taxonomy.filter(pl.col(anchor_code).eq(anchor)).get_column('code_6').unique().to_list()
-
-# -------------------------------------------------------------------------------------------------
-# Descendants
-# -------------------------------------------------------------------------------------------------
-
-def _descendants(anchors: pl.DataFrame, taxonomy: pl.DataFrame) -> pl.DataFrame:
-    parent_anchors = anchors.filter(pl.col('level').lt(6)
-                                    ).get_column('anchor').unique().sort().to_list()
-
-    parent_stratum = []
-    for anchor in parent_anchors:
-        parent_stratum.append({'anchor': anchor, 'stratum': _linear_skip(anchor, taxonomy)})
-
-    return (
-        pl.DataFrame(data=parent_stratum, schema={
-            'anchor': pl.Utf8,
-            'stratum': pl.List(pl.Utf8)
-        }).filter(pl.col('stratum').is_not_null()).select(
-            level=pl.col('anchor').str.len_chars(),
-            anchor=pl.col('anchor'),
-            positive=pl.col('stratum'),
-        )
-    )
-
-# -------------------------------------------------------------------------------------------------
-# Ancestors
-# -------------------------------------------------------------------------------------------------
-
-def _ancestors(anchors: pl.DataFrame, taxonomy: pl.DataFrame) -> pl.DataFrame:
-    return (
-        anchors.filter(pl.col('level').eq(6)).join(
-            taxonomy, left_on='anchor', right_on='code_6', how='inner'
-        ).select(
-            level=pl.col('level'),
-            anchor=pl.col('anchor'),
-            code_5=pl.col('code_5'),
-            code_4=pl.col('code_4'),
-            code_3=pl.col('code_3'),
-            code_2=pl.col('code_2'),
-        ).unpivot(
-            ['code_5', 'code_4', 'code_3', 'code_2'],
-            index=['level', 'anchor'],
-            variable_name='ancestor_level',
-            value_name='ancestor',
-        ).with_columns(
-            ancestor_level=pl.col('ancestor_level').str.slice(5, 1).cast(pl.Int8).add(-6).mul(-1)
-        ).sort('level', 'anchor', 'ancestor_level').group_by(
-            'level', 'anchor', maintain_order=True
-        ).agg(positive=pl.col('ancestor'), )
-    )
-
-def sample_positives(
-    descriptions_path: str = './data/naics_descriptions.parquet',
-    triplets_path: str = './data/naics_training_pairs/*/*.parquet',
-) -> pl.DataFrame:
-    taxonomy = _taxonomy(descriptions_path)
-    anchors = _anchors(triplets_path)
-    code_to_idx = get_indices_codes('code_to_idx')
-    descendants = _descendants(anchors, taxonomy)
-    ancestors = _ancestors(anchors, taxonomy)
-
-    return (
-        pl.concat([descendants, ancestors]).explode('positive').select(
-            anchor_idx=pl.col('anchor').replace(code_to_idx).cast(pl.UInt32),
-            positive_idx=pl.col('positive').replace(code_to_idx).cast(pl.UInt32),
-            anchor_code=pl.col('anchor'),
-            positive_code=pl.col('positive'),
-            anchor_level=pl.col('level'),
-            positive_level=pl.col('positive').str.len_chars(),
-        ).sort('anchor_idx', 'positive_idx')
-    )
-
-# -------------------------------------------------------------------------------------------------
 # Phase 1 Sampling Utilities
 # -------------------------------------------------------------------------------------------------
-
-def _load_relation_matrix(
-    relation_matrix_path: str, code_to_idx: Dict[str, int], idx_to_code: Dict[int, str]
-) -> Dict[Tuple[str, str], float]:
-    '''
-    Load relation matrix and create a lookup dictionary.
-
-    The distarelationnce matrix has columns like 'idx_0-code_11', 'idx_1-code_111', etc.
-    where the column name format is 'idx_{matrix_idx}-code_{code}'.
-    Each row corresponds to an anchor code in sorted order.
-
-    Note: The relation matrix uses sorted code order for indices, which may differ
-    from the 'index' column in descriptions.parquet. We use code strings as keys.
-
-    Args:
-        relation_matrix_path: Path to relation matrix parquet file
-        code_to_idx: Mapping from code to index (from descriptions parquet)
-        idx_to_code: Mapping from index to code (from descriptions parquet)
-
-    Returns:
-        Dictionary mapping (anchor_code, negative_code) -> relation_distance
-    '''
-
-    logger.info('Loading relation matrix for Phase 1 sampling...')
-
-    df = pl.read_parquet(relation_matrix_path)
-
-    # Create lookup dictionary using code strings as keys
-    relation_lookup = {}
-
-    # Build mapping from column name to negative code
-    col_to_negative_code = {}
-    for col in df.columns:
-        # Column format: 'idx_{matrix_idx}-code_{code}'
-        parts = col.split('-')
-        if len(parts) != 2:
-            continue
-
-        # Extract code from second part (e.g., 'code_111' -> '111')
-        code_str = parts[1].replace('code_', '')
-
-        if code_str in code_to_idx:
-            col_to_negative_code[col] = code_str
-
-    # Get all codes sorted by code string (matching relation matrix row order)
-    # The relation matrix rows are in sorted code order
-    codes_sorted = sorted(code_to_idx.keys())
-
-    # Build lookup: (anchor_code, negative_code) -> relation
-    for row_idx, anchor_code in enumerate(codes_sorted):
-        if row_idx >= df.height:
-            break
-
-        # For each column (negative)
-        for col, negative_code in col_to_negative_code.items():
-            if col not in df.columns:
-                continue
-
-            # Get relation value from the row and column
-            relation_val = df.select(pl.col(col)).row(row_idx)[0]
-
-            if relation_val is not None:
-                relation_lookup[(anchor_code, negative_code)] = float(relation_val)
-
-    logger.info(f'Loaded {len(relation_lookup):,} distance entries')
-    return relation_lookup
 
 def _load_distance_matrix(
     distance_matrix_path: str, code_to_idx: Dict[str, int], idx_to_code: Dict[int, str]
@@ -234,7 +49,7 @@ def _load_distance_matrix(
     df = pl.read_parquet(distance_matrix_path)
 
     # Create lookup dictionary using code strings as keys
-    distance_lookup = {}
+    distance_lookup: Dict[Tuple[str, str], float] = {}
 
     # Build mapping from column name to negative code
     col_to_negative_code = {}
@@ -292,13 +107,13 @@ def _load_excluded_codes(descriptions_path: str,
         )
     )
 
-    excluded_map = {}
+    excluded_map: Dict[str, Set[str]] = {}
     unknown_codes = 0
     for row in df.iter_rows(named=True):
         code = row['code']
         excluded_list = row['excluded_codes']
         if excluded_list:
-            filtered = set()
+            filtered: Set[str] = set()
             for ex_code in excluded_list:
                 if code_to_idx is not None and ex_code not in code_to_idx:
                     unknown_codes += 1
@@ -439,7 +254,7 @@ def _sample_negatives_phase1(
     excluded_chosen = excluded_mask[sampled_indices].sum()
     if n_sample > 0:
         exclusion_ratio = excluded_chosen / n_sample
-        logger.info(
+        logger.debug(
             f'Anchor {anchor_code}: {exclusion_ratio:.2%} negatives from explicit exclusions '
             f'({excluded_chosen}/{n_sample})'
         )
@@ -546,37 +361,101 @@ def _sample_negatives_sans_static(
     return sampled, metadata
 
 # -------------------------------------------------------------------------------------------------
+# Negative candidate loading
+# -------------------------------------------------------------------------------------------------
+
+def _load_negative_candidates(triplets_parquet: str,
+                              ) -> Dict[Tuple[int, int], List[Dict[str, Any]]]:
+    '''Load all candidate negatives from triplets parquet files.
+
+    Returns a dictionary mapping (anchor_idx, positive_idx) -> list of negative dicts.
+    Each negative dict has: negative_idx, negative_code, relation_margin, distance_margin.
+    '''
+    logger.info('Loading negative candidates from triplets parquet...')
+
+    dataset_files = [str(p) for p in Path(triplets_parquet).glob('**/*.parquet')]
+    if not dataset_files:
+        logger.warning(f'No parquet files found in {triplets_parquet}')
+        return {}
+
+    df = (
+        pl.scan_parquet(dataset_files).select(
+            'anchor_idx',
+            'positive_idx',
+            'negative_idx',
+            'negative_code',
+            'relation_margin',
+            'distance_margin',
+        ).collect()
+    )
+
+    logger.info(f'Loaded {len(df):,} negative candidate rows')
+
+    # Group by (anchor, positive)
+    result: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
+    for row in df.iter_rows(named=True):
+        key = (row['anchor_idx'], row['positive_idx'])
+        if key not in result:
+            result[key] = []
+        result[key].append(
+            {
+                'negative_idx': row['negative_idx'],
+                'negative_code': row['negative_code'],
+                'relation_margin': row['relation_margin'],
+                'distance_margin': row['distance_margin'],
+            }
+        )
+
+    logger.info(f'Grouped into {len(result):,} (anchor, positive) pairs')
+    return result
+
+# -------------------------------------------------------------------------------------------------
 # Cache utilities
 # -------------------------------------------------------------------------------------------------
 
 def _get_final_cache_path(cfg: StreamingConfig) -> Path:
     '''Get the cache file path for streaming query cache.'''
-    import hashlib
-    import json
 
     cache_dict = {
         'descriptions_parquet': str(cfg.descriptions_parquet),
-        'triplets_parquet': str(cfg.triplets_parquet),
-        'anchor_level': cfg.anchor_level,
-        'n_positives': cfg.n_positives,
+        'relations_parquet': str(cfg.relations_parquet),
         'n_negatives': cfg.n_negatives,
         'seed': cfg.seed,
-        'relation_margin': cfg.relation_margin,
-        'distance_margin': cfg.distance_margin,
-        'positive_level': cfg.positive_level,
-        'positive_relation': cfg.positive_relation,
-        'positive_distance': cfg.positive_distance,
-        'negative_level': cfg.negative_level,
-        'negative_relation': cfg.negative_relation,
-        'negative_distance': cfg.negative_distance,
     }
 
     config_str = json.dumps(cache_dict, sort_keys=True)
     cache_key = hashlib.sha256(config_str.encode()).hexdigest()[:16]
-    triplets_path = Path(cfg.triplets_parquet)
-    cache_dir = triplets_path.parent / 'streaming_cache'
+    descriptions_path = Path(cfg.descriptions_parquet)
+    cache_dir = descriptions_path.parent / 'streaming_cache'
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / f'streaming_final_{cache_key}.pkl'
+
+def _load_final_cache(cfg: StreamingConfig) -> Optional[List[Dict[str, Any]]]:
+    '''Load cached streaming data if available.'''
+    cache_path = _get_final_cache_path(cfg)
+    if not cache_path.exists():
+        return None
+
+    try:
+        with open(cache_path, 'rb') as f:
+            data = pickle.load(f)
+        logger.info(f'Loaded streaming cache from {cache_path}')
+        return data
+    except Exception as e:
+        logger.warning(f'Failed to load cache: {e}')
+        return None
+
+def _save_final_cache(data: List[Dict[str, Any]], cfg: StreamingConfig) -> None:
+    '''Save streaming data to cache.'''
+    cache_path = _get_final_cache_path(cfg)
+    try:
+        temp_path = cache_path.with_suffix('.tmp')
+        with open(temp_path, 'wb') as f:
+            pickle.dump(data, f)
+        temp_path.replace(cache_path)
+        logger.info(f'Saved streaming cache to {cache_path}')
+    except Exception as e:
+        logger.warning(f'Failed to save cache: {e}')
 
 # -------------------------------------------------------------------------------------------------
 # Triplet batch generator
@@ -584,7 +463,15 @@ def _get_final_cache_path(cfg: StreamingConfig) -> Path:
 
 def create_streaming_generator(cfg: StreamingConfig, sampling_cfg: Optional[SamplingConfig] = None
                                ) -> Iterator[Dict[str, Any]]:
-    '''Create a generator that yields triplets for training.'''
+    '''Create a generator that yields triplets for training.
+
+    Uses taxonomy-based stratified positive sampling:
+    - Stratum 0 (descendants): for levels 2-5, next-level descendants
+    - Stratum 1 (ancestors): for levels 3-6, parent codes up to level 2
+    - Stratum 2 (siblings): codes sharing the same parent
+
+    Samples up to 4 positives per stratum, then samples negatives for each.
+    '''
 
     # Identify worker process
     worker_info = None
@@ -629,163 +516,95 @@ def create_streaming_generator(cfg: StreamingConfig, sampling_cfg: Optional[Samp
         logger.info(f'{worker_id} Loading excluded codes for Phase 1 sampling...')
         excluded_map = _load_excluded_codes(cfg.descriptions_parquet, code_to_idx)
 
-    # Organize codes by level
-    level_dict = defaultdict(list)
-    for code in code_to_idx.keys():
-        if isinstance(code, str):
-            level_dict[len(code)].append(code)
-
-    # Get list of dataset files
-    if cfg.anchor_level is not None:
-        dataset_files = []
-        for level in cfg.anchor_level:
-            for code in level_dict[level]:
-                idx = code_to_idx[code]
-                for pq_path in Path(f'{cfg.triplets_parquet}/anchor={idx}/').glob('*.parquet'):
-                    dataset_files.append(pq_path.as_posix())
-    else:
-        dataset_files = [str(p) for p in Path(cfg.triplets_parquet).glob('**/*.parquet')]
-
-    # Build filters
-    filters = []
-    if cfg.relation_margin is not None:
-        filters.append(pl.col('relation_margin').is_in(cfg.relation_margin))
-    if cfg.distance_margin is not None:
-        filters.append(pl.col('distance_margin').is_in(cfg.distance_margin))
-    if cfg.positive_level is not None:
-        filters.append(pl.col('positive_level').is_in(cfg.positive_level))
-    if cfg.positive_relation is not None:
-        filters.append(pl.col('positive_relation').is_in(cfg.positive_relation))
-    if cfg.positive_distance is not None:
-        filters.append(pl.col('positive_distance').is_in(cfg.positive_distance))
-    if cfg.negative_level is not None:
-        filters.append(pl.col('negative_level').is_in(cfg.negative_level))
-    if cfg.negative_relation is not None:
-        filters.append(pl.col('negative_relation').is_in(cfg.negative_relation))
-    if cfg.negative_distance is not None:
-        filters.append(pl.col('negative_distance').is_in(cfg.negative_distance))
-
-    if not filters:
-        filters = [pl.col('anchor_idx').ge(0)]
-
-    import operator
-    from functools import reduce
-
-    filter_expr = reduce(operator.and_, filters)
-
-    # Build lazy query
-    logger.debug(f'{worker_id} Scanning {len(dataset_files)} parquet files...')
-    df_0 = pl.scan_parquet(dataset_files).filter(filter_expr)
-
-    # Group by anchor and positive, collect negatives
-    df_1 = (
-        df_0.select(
-            'anchor_idx',
-            'anchor_code',
-            'positive_idx',
-            'positive_code',
-            'negative_idx',
-            'negative_code',
-            'relation_margin',
-            'distance_margin',
-        ).group_by(
-            'anchor_idx', 'anchor_code', 'positive_idx', 'positive_code', maintain_order=True
-        ).agg(
-            negatives=pl.struct(
-                [
-                    pl.col('negative_idx'),
-                    pl.col('negative_code'),
-                    pl.col('relation_margin'),
-                    pl.col('distance_margin'),
-                ]
-            )
-        ).with_columns(positives_count=pl.col('negatives').list.len()).filter(
-            pl.col('positives_count').gt(0)
-        ).with_columns(
-            positives_count=pl.min_horizontal(pl.col('positives_count'), pl.lit(cfg.n_positives))
-        ).with_columns(
-            negatives=pl.col('negatives').list.sample(
-                pl.col('positives_count'), shuffle=True, seed=cfg.seed
-            )
-        ).drop('positives_count').explode('negatives').unnest('negatives')
+    # Create positive sampler using taxonomy-based stratification
+    logger.info(f'{worker_id} Creating positive sampler...')
+    positive_sampler = create_positive_sampler(
+        descriptions_parquet=cfg.descriptions_parquet,
+        relations_parquet=cfg.relations_parquet,
+        max_per_stratum=4,
+        seed=cfg.seed,
     )
 
-    # Execute query
-    logger.info(f'{worker_id} Executing Polars query...')
-    df_1 = df_1.collect()
-    logger.info(f'{worker_id} Query complete: {len(df_1)} rows')
+    # Load negative candidates from triplets
+    logger.info(f'{worker_id} Loading negative candidates...')
+    negative_candidates = _load_negative_candidates(cfg.triplets_parquet)
 
-    # Group by (anchor, positive) for negative sampling
-    df_2 = df_1.group_by(
-        'anchor_idx', 'anchor_code', 'positive_idx', 'positive_code', maintain_order=True
-    ).agg(
-        candidate_negatives=pl.struct(
-            [
-                pl.col('negative_idx'),
-                pl.col('negative_code'),
-                pl.col('relation_margin'),
-                pl.col('distance_margin'),
-            ]
-        )
-    )
+    # Iterate over anchors and sample positives + negatives
+    for anchor_idx in positive_sampler.anchors:
+        anchor_code = idx_to_code.get(anchor_idx)
+        if anchor_code is None:
+            continue
 
-    # Convert to list of dicts for iteration
-    rows = df_2.to_dicts()
+        # Sample positives across strata
+        positives = positive_sampler.sample_positives(anchor_idx)
+        if not positives:
+            continue
 
-    # Sample negatives for each (anchor, positive) pair
-    for row in rows:
-        anchor_idx = row['anchor_idx']
-        anchor_code = row['anchor_code']
-        positive_idx = row['positive_idx']
-        positive_code = row['positive_code']
-        candidate_negatives = row['candidate_negatives']
+        # For each positive, sample negatives
+        for positive in positives:
+            positive_idx = positive['positive_idx']
+            positive_code = positive['positive_code']
 
-        sampling_metadata: Optional[Dict[str, Any]] = None
+            # Get candidate negatives for this (anchor, positive) pair
+            key = (anchor_idx, positive_idx)
+            candidates = negative_candidates.get(key, [])
 
-        # Apply sampling strategy
-        if sampling_strategy == 'sans_static' and distance_lookup is not None:
-            sampled_negatives, sampling_metadata = _sample_negatives_sans_static(
-                anchor_code=anchor_code,
-                candidate_negatives=candidate_negatives,
-                n_negatives=cfg.n_negatives,
-                distance_lookup=distance_lookup,
-                sans_cfg=sans_cfg,
-                seed=cfg.seed,
-            )
-        elif cfg.use_phase1_sampling and distance_lookup is not None and excluded_map is not None:
-            sampled_negatives = _sample_negatives_phase1(
-                anchor_code=anchor_code,
-                anchor_idx=anchor_idx,
-                candidate_negatives=candidate_negatives,
-                n_negatives=cfg.n_negatives,
-                distance_lookup=distance_lookup,
-                excluded_map=excluded_map,
-                code_to_idx=code_to_idx,
-                alpha=cfg.phase1_alpha,
-                exclusion_weight=cfg.phase1_exclusion_weight,
-                seed=cfg.seed,
-            )
-        else:
-            # Default: sample uniformly
-            import random
+            if not candidates:
+                # Try reverse lookup or skip
+                continue
 
-            rng = random.Random(cfg.seed)
-            n_sample = min(cfg.n_negatives, len(candidate_negatives))
-            sampled_negatives = rng.sample(candidate_negatives, n_sample)
-            if sampling_strategy == 'sans_static':
-                logger.warning(
-                    'SANS static sampling requested but tree distances were unavailable; '
-                    'falling back to uniform sampling.'
+            # Apply sampling strategy
+            sampling_metadata: Optional[Dict[str, Any]] = None
+
+            if sampling_strategy == 'sans_static' and distance_lookup is not None:
+                sampled_negatives, sampling_metadata = _sample_negatives_sans_static(
+                    anchor_code=anchor_code,
+                    candidate_negatives=candidates,
+                    n_negatives=cfg.n_negatives,
+                    distance_lookup=distance_lookup,
+                    sans_cfg=sans_cfg,
+                    seed=cfg.seed,
                 )
+            elif cfg.use_phase1_sampling and distance_lookup is not None and excluded_map is not None:
+                sampled_negatives = _sample_negatives_phase1(
+                    anchor_code=anchor_code,
+                    anchor_idx=anchor_idx,
+                    candidate_negatives=candidates,
+                    n_negatives=cfg.n_negatives,
+                    distance_lookup=distance_lookup,
+                    excluded_map=excluded_map,
+                    code_to_idx=code_to_idx,
+                    alpha=cfg.phase1_alpha,
+                    exclusion_weight=cfg.phase1_exclusion_weight,
+                    seed=cfg.seed,
+                )
+            else:
+                # Default: sample uniformly
+                import random
 
-        yield {
-            'anchor_idx': anchor_idx,
-            'anchor_code': anchor_code,
-            'positive_idx': positive_idx,
-            'positive_code': positive_code,
-            'negatives': sampled_negatives,
-            'sampling_metadata': sampling_metadata,
-        }
+                rng = random.Random(cfg.seed)
+                n_sample = min(cfg.n_negatives, len(candidates))
+                sampled_negatives = rng.sample(candidates, n_sample)
+                if sampling_strategy == 'sans_static':
+                    logger.warning(
+                        'SANS static sampling requested but tree distances were unavailable; '
+                        'falling back to uniform sampling.'
+                    )
+
+            if not sampled_negatives:
+                continue
+
+            yield {
+                'anchor_idx': anchor_idx,
+                'anchor_code': anchor_code,
+                'positive_idx': positive_idx,
+                'positive_code': positive_code,
+                'positive_level': positive['positive_level'],
+                'stratum_id': positive['stratum_id'],
+                'stratum_wgt': positive['stratum_wgt'],
+                'negatives': sampled_negatives,
+                'sampling_metadata': sampling_metadata,
+            }
 
 # -------------------------------------------------------------------------------------------------
 # Streaming dataset generator
@@ -798,22 +617,13 @@ def create_streaming_dataset(
 ) -> Iterator[Dict[str, Any]]:
     '''Create streaming dataset that yields triplets with tokenized embeddings.
 
-    For multi-level supervision (Issue #18):
-    - For 6-digit anchors, yields all ancestor positives (levels 5, 4, 3, 2)
-    - Each positive uses the same set of negatives
-    - Gradients are accumulated across all positive levels in training_step
+    Uses taxonomy-based stratified positive sampling:
+    - Samples positives from descendants (stratum 0), ancestors (stratum 1), siblings (stratum 2)
+    - Up to 4 positives per stratum
+    - Negatives sampled per positive using Phase 1 / SANS / uniform strategies
 
-    Sampling responsibilities:
-    - Applies Phase 1 sampling (inverse tree-distance weighting, sibling masking,
-      explicit exclusion prioritization) when `cfg.use_phase1_sampling` is enabled.
-    - Emits negatives with an `explicit_exclusion` flag for downstream logging/analysis.
-    - Model layer performs Phase 2/3 tasks (hard negative mining, router-guided sampling,
-      false-negative masking) after this iterator provides candidate negatives.
+    Yields anchor-level samples with all positives grouped together.
     '''
-
-    # Load taxonomy and code mappings for ancestor lookup
-    code_to_idx = get_indices_codes('code_to_idx')
-    taxonomy = _taxonomy(cfg.descriptions_parquet)
 
     # Get triplets iterator
     triplets_iterator = create_streaming_generator(cfg, sampling_cfg)
@@ -822,8 +632,9 @@ def create_streaming_dataset(
     current_anchor: Optional[Tuple[int, str]] = None
     buffered_triplets: List[Dict[str, Any]] = []
 
-    def yield_anchor_group(anchor_key: Tuple[int, str], triplets_list: List[Dict[str, Any]]):
-        '''Yield grouped triplets with all ancestor positives for an anchor.'''
+    def yield_anchor_group(anchor_key: Tuple[int, str],
+                           triplets_list: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
+        '''Yield grouped triplets for an anchor.'''
         anchor_idx, anchor_code = anchor_key
 
         try:
@@ -832,101 +643,76 @@ def create_streaming_dataset(
             logger.error(f'KeyError accessing token_cache[{anchor_idx}]: {e}')
             raise
 
-        # For 6-digit anchors, get all ancestor positives (levels 5, 4, 3, 2)
-        anchor_level = len(anchor_code)
+        # Build positives list with embeddings
         positives_list = []
+        all_negatives: Dict[int, Dict[str, Any]] = {}  # Dedupe negatives by idx
+        sampling_metadata = None
 
-        if anchor_level == 6:
-            # Get all ancestor codes using taxonomy
-            anchor_row = taxonomy.filter(pl.col('code_6').eq(anchor_code))
-            if anchor_row.height > 0:
-                row = anchor_row.row(0, named=True)
-                ancestor_codes = [row['code_5'], row['code_4'], row['code_3'], row['code_2']]
+        for triplet in triplets_list:
+            positive_idx = triplet['positive_idx']
+            positive_code = triplet['positive_code']
 
-                # For each ancestor level, find matching positives from triplets_list
-                for ancestor_code in ancestor_codes:
-                    if ancestor_code in code_to_idx:
-                        ancestor_idx = code_to_idx[ancestor_code]
-                        # Find triplets with this positive
-                        matching_triplets = [
-                            t for t in triplets_list if t['positive_idx'] == ancestor_idx
-                        ]
-                        if matching_triplets:
-                            # Use the first matching triplet's positive
-                            triplet = matching_triplets[0]
-                            # Ensure ancestor_idx is an int for token_cache access
-                            if not isinstance(ancestor_idx, int):
-                                ancestor_idx_int = int(ancestor_idx)
-                            else:
-                                ancestor_idx_int = ancestor_idx
-                            positive_embedding = {
-                                k: v
-                                for k, v in token_cache[ancestor_idx_int].items() if k != 'code'
-                            }
-                            positives_list.append(
-                                {
-                                    'positive_idx': ancestor_idx,
-                                    'positive_code': ancestor_code,
-                                    'positive_embedding': positive_embedding,
-                                    'negatives': triplet['negatives'],
-                                }
-                            )
+            # Get positive embedding
+            if not isinstance(positive_idx, int):
+                positive_idx_int = int(positive_idx)
+            else:
+                positive_idx_int = positive_idx
 
-        # If no ancestor positives found (or anchor is not 6-digit), use the original triplets
-        if not positives_list:
-            # Fall back to original behavior: use first triplet
-            if triplets_list:
-                triplet = triplets_list[0]
-                positive_idx = triplet['positive_idx']
-                positive_code = triplet['positive_code']
-                # Ensure positive_idx is an int for token_cache access
-                if not isinstance(positive_idx, int):
-                    positive_idx_int = int(positive_idx)
-                else:
-                    positive_idx_int = positive_idx
+            try:
                 positive_embedding = {
                     k: v
                     for k, v in token_cache[positive_idx_int].items() if k != 'code'
                 }
-                positives_list.append(
-                    {
-                        'positive_idx': positive_idx,
-                        'positive_code': positive_code,
-                        'positive_embedding': positive_embedding,
-                        'negatives': triplet['negatives'],
-                    }
-                )
+            except KeyError:
+                logger.warning(f'Missing token_cache for positive {positive_idx_int}, skipping')
+                continue
 
-        # Process negatives for all positives (use the same negatives for all)
-        # Get negatives from the first positive (they should be the same for all ancestor levels)
-        negatives = []
-        sampling_metadata = triplets_list[0].get('sampling_metadata') if triplets_list else None
-        if positives_list:
-            for negative in positives_list[0]['negatives']:
-                negative_idx = negative['negative_idx']
-                negative_code = negative['negative_code']
-                negative_embedding = {
-                    k: v
-                    for k, v in token_cache[negative_idx].items() if k != 'code'
+            positives_list.append(
+                {
+                    'positive_idx': positive_idx,
+                    'positive_code': positive_code,
+                    'positive_level': triplet.get('positive_level', len(positive_code)),
+                    'stratum_id': triplet.get('stratum_id', 0),
+                    'stratum_wgt': triplet.get('stratum_wgt', 1.0),
+                    'positive_embedding': positive_embedding,
                 }
+            )
 
-                negatives.append(
-                    {
-                        'negative_idx': negative_idx,
-                        'negative_code': negative_code,
-                        'negative_embedding': negative_embedding,
-                        'relation_margin': negative['relation_margin'],
-                        'distance_margin': negative['distance_margin'],
-                        'explicit_exclusion': negative.get('explicit_exclusion', False),
+            # Collect negatives (dedupe across positives)
+            for neg in triplet.get('negatives', []):
+                neg_idx = neg['negative_idx']
+                if neg_idx not in all_negatives:
+                    try:
+                        neg_embedding = {
+                            k: v
+                            for k, v in token_cache[neg_idx].items() if k != 'code'
+                        }
+                    except KeyError:
+                        logger.warning(f'Missing token_cache for negative {neg_idx}, skipping')
+                        continue
+
+                    all_negatives[neg_idx] = {
+                        'negative_idx': neg_idx,
+                        'negative_code': neg['negative_code'],
+                        'negative_embedding': neg_embedding,
+                        'relation_margin': neg.get('relation_margin', 0),
+                        'distance_margin': neg.get('distance_margin', 0),
+                        'explicit_exclusion': neg.get('explicit_exclusion', False),
                     }
-                )
 
-        result = {
+            # Capture sampling metadata from first triplet
+            if sampling_metadata is None:
+                sampling_metadata = triplet.get('sampling_metadata')
+
+        if not positives_list:
+            return
+
+        result: Dict[str, Any] = {
             'anchor_idx': anchor_idx,
             'anchor_code': anchor_code,
             'anchor_embedding': anchor_embedding,
-            'positives': positives_list,  # List of positives (one per ancestor level)
-            'negatives': negatives,
+            'positives': positives_list,
+            'negatives': list(all_negatives.values()),
         }
 
         if sampling_metadata:
@@ -935,20 +721,20 @@ def create_streaming_dataset(
         yield result
 
     # Iterate through triplets and group by anchor
-    for triplets in triplets_iterator:
-        anchor_key = (triplets['anchor_idx'], triplets['anchor_code'])
+    for triplet in triplets_iterator:
+        anchor_key = (triplet['anchor_idx'], triplet['anchor_code'])
 
         if current_anchor is None:
             current_anchor = anchor_key
-            buffered_triplets = [triplets]
+            buffered_triplets = [triplet]
         elif current_anchor == anchor_key:
             # Same anchor, add to buffer
-            buffered_triplets.append(triplets)
+            buffered_triplets.append(triplet)
         else:
             # New anchor, yield previous group
             yield from yield_anchor_group(current_anchor, buffered_triplets)
             current_anchor = anchor_key
-            buffered_triplets = [triplets]
+            buffered_triplets = [triplet]
 
     # Yield final group
     if current_anchor is not None:

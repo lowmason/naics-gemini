@@ -20,27 +20,16 @@ logger = logging.getLogger(__name__)
 class Config:
     '''Configuration for training data loader.'''
 
-    training_pairs_path: str = './data/naics_training_pairs.parquet'
+    training_pairs_path: str = './data/naics_training_pairs'
     descriptions_parquet: str = './data/naics_descriptions.parquet'
+    relations_parquet: str = './data/naics_relations.parquet'
 
     batch_size: int = 64
     shuffle: bool = True
     num_workers: int = 4
     pin_memory: bool = True
 
-    n_positive_samples: int = 2048
-    n_negatives: int = 32
-
-    # Curriculum filtering parameters
-    anchor_level: Optional[List[int]] = None
-    relation_margin: Optional[List[int]] = None
-    distance_margin: Optional[List[int]] = None
-    positive_level: Optional[List[int]] = None
-    positive_relation: Optional[List[int]] = None
-    positive_distance: Optional[List[int]] = None
-    negative_level: Optional[List[int]] = None
-    negative_relation: Optional[List[int]] = None
-    negative_distance: Optional[List[int]] = None
+    n_negatives: int = 24
 
     allowed_relations: Optional[List[str]] = None
     min_code_level: Optional[int] = None
@@ -63,21 +52,12 @@ def _loader_cfg_from_graph(
     return Config(
         training_pairs_path=cfg.training_pairs_path,
         descriptions_parquet=descriptions_path,
+        relations_parquet=cfg.relations_parquet,
         batch_size=cfg.batch_size,
         shuffle=cfg.shuffle,
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
-        n_positive_samples=cfg.n_positive_samples,
         n_negatives=cfg.k_total,
-        anchor_level=None,
-        relation_margin=None,
-        distance_margin=None,
-        positive_level=None,
-        positive_relation=None,
-        positive_distance=None,
-        negative_level=None,
-        negative_relation=None,
-        negative_distance=None,
         allowed_relations=cfg.allowed_relations,
         min_code_level=cfg.min_code_level,
         max_code_level=cfg.max_code_level,
@@ -88,17 +68,8 @@ def _streaming_cfg_from_loader(cfg: Config) -> StreamingConfig:
     '''Convert loader config into a StreamingConfig for cache materialization.'''
     return StreamingConfig(
         descriptions_parquet=cfg.descriptions_parquet,
+        relations_parquet=cfg.relations_parquet,
         triplets_parquet=cfg.training_pairs_path,
-        anchor_level=cfg.anchor_level,
-        relation_margin=cfg.relation_margin,
-        distance_margin=cfg.distance_margin,
-        positive_level=cfg.positive_level,
-        positive_relation=cfg.positive_relation,
-        positive_distance=cfg.positive_distance,
-        negative_level=cfg.negative_level,
-        negative_relation=cfg.negative_relation,
-        negative_distance=cfg.negative_distance,
-        n_positives=cfg.n_positive_samples,
         n_negatives=cfg.n_negatives,
         seed=cfg.seed,
     )
@@ -119,8 +90,13 @@ class TripletDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         row = self.data[idx]
 
-        anchor_idx = row['anchors']['anchor_idx']
-        positive_idx = row['positives']['positive_idx']
+        # Support both old nested format and new flat format
+        if 'anchors' in row:
+            anchor_idx = row['anchors']['anchor_idx']
+            positive_idx = row['positives']['positive_idx']
+        else:
+            anchor_idx = row['anchor_idx']
+            positive_idx = row['positive_idx']
 
         negatives = row['negatives']
         negative_indices = torch.tensor(

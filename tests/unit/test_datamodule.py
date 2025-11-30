@@ -684,7 +684,6 @@ class TestNAICSDataModuleSetup:
         from naics_embedder.text_model.dataloader.datamodule import NAICSDataModule
 
         streaming_config = {
-            'n_positives': 2,
             'n_negatives': 8,
             'seed': 123,
         }
@@ -698,7 +697,6 @@ class TestNAICSDataModuleSetup:
             seed=100,  # Explicit seed for validation config
         )
 
-        assert datamodule.train_streaming_cfg.n_positives == 2
         assert datamodule.train_streaming_cfg.n_negatives == 8
         assert datamodule.train_streaming_cfg.seed == 123
         # Validation config uses (seed + 1) from NAICSDataModule.__init__ seed param

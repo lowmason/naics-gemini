@@ -442,43 +442,9 @@ class StreamingConfig(BaseModel):
     max_length: int = Field(default=512, description='Maximum sequence length for tokenization')
     seed: int = Field(default=42, ge=0, description='Random seed for sampling')
 
-    # Anchor parameters
-    anchor_level: Optional[List[int]] = Field(
-        default=None, description='Filter anchor codes by hierarchy level'
-    )
-    relation_margin: Optional[List[int]
-                              ] = Field(default=None, description='Filter by relation margin')
-    distance_margin: Optional[List[int]
-                              ] = Field(default=None, description='Filter by distance margin')
-
-    # Margin parameters
-    positive_level: Optional[List[int]] = Field(
-        default=None, description='Filter positive codes by hierarchy level'
-    )
-    positive_relation: Optional[List[int]] = Field(
-        default=None, description='Filter positive pairs by relation'
-    )
-    positive_distance: Optional[List[int]] = Field(
-        default=None, description='Filter positive pairs by distance'
-    )
-
-    # Margin parameters
-    negative_level: Optional[List[int]] = Field(
-        default=None, description='Filter negative codes by hierarchy level'
-    )
-    negative_relation: Optional[List[int]] = Field(
-        default=None, description='Filter negative pairs by relation'
-    )
-    negative_distance: Optional[List[int]] = Field(
-        default=None, description='Filter negative pairs by distance'
-    )
-
     # Sampling parameters
-    n_positives: int = Field(
-        default=2125, gt=0, description='Maximum number of positives per anchor'
-    )
     n_negatives: int = Field(
-        default=2125, gt=0, description='Maximum number of negatives per positive'
+        default=24, gt=0, description='Maximum number of negatives per positive'
     )
 
     # Phase 1 sampling parameters

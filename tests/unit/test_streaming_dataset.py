@@ -2,28 +2,27 @@
 Unit tests for streaming dataset functions.
 
 Tests cover:
-- Taxonomy utilities (_taxonomy, _anchors, _linear_skip)
-- Ancestor/descendant generation (_descendants, _ancestors)
-- Matrix loading (_load_distance_matrix, _load_excluded_codes)
+- Phase 1 sampling utilities (_load_distance_matrix, _load_excluded_codes)
 - Sampling weight computation (_compute_phase1_weights)
+- SANS static sampling (_sample_negatives_sans_static)
 - Cache path generation (_get_final_cache_path)
 '''
 
 import polars as pl
 import pytest
 
+from naics_embedder.data.positive_sampling import (
+    build_anchor_list,
+    build_taxonomy,
+    create_positive_sampler,
+)
 from naics_embedder.text_model.dataloader.streaming_dataset import (
-    _ancestors,
-    _anchors,
     _compute_phase1_weights,
-    _descendants,
     _get_final_cache_path,
-    _linear_skip,
     _load_distance_matrix,
     _load_excluded_codes,
     _sample_negatives_phase1,
     _sample_negatives_sans_static,
-    _taxonomy,
 )
 from naics_embedder.utils.config import SansStaticConfig, StreamingConfig
 
@@ -49,6 +48,8 @@ def mock_codes_parquet(tmp_path):
             '321111',
         ],
         'level': [2, 3, 4, 5, 6, 6, 2, 3, 4, 5, 6],
+        'index':
+        list(range(11)),
     }
     df = pl.DataFrame(data)
     path = tmp_path / 'codes.parquet'
@@ -56,14 +57,15 @@ def mock_codes_parquet(tmp_path):
     return str(path)
 
 @pytest.fixture
-def mock_triplets_parquet(tmp_path):
-    '''Create minimal triplets data.'''
+def mock_relations_parquet(tmp_path):
+    '''Create minimal relations data for sibling sampling.'''
     data = {
-        'anchor_level': [6, 6, 3],
-        'anchor_code': ['311111', '321111', '311'],
+        'code_i': ['311111', '311112'],
+        'code_j': ['311112', '311111'],
+        'relation_id': [2, 2],  # siblings
     }
     df = pl.DataFrame(data)
-    path = tmp_path / 'triplets.parquet'
+    path = tmp_path / 'relations.parquet'
     df.write_parquet(path)
     return str(path)
 
@@ -93,12 +95,12 @@ def mock_descriptions_with_exclusions(tmp_path):
     return str(path)
 
 # -------------------------------------------------------------------------------------------------
-# Taxonomy Utilities Tests
+# Taxonomy Utilities Tests (from positive_sampling module)
 # -------------------------------------------------------------------------------------------------
 
 def test_taxonomy_returns_six_digit_codes(mock_codes_parquet):
-    '''_taxonomy should extract all 6-digit codes with ancestor columns.'''
-    result = _taxonomy(mock_codes_parquet)
+    '''build_taxonomy should extract all 6-digit codes with ancestor columns.'''
+    result = build_taxonomy(mock_codes_parquet)
 
     assert 'code_6' in result.columns
     assert 'code_5' in result.columns
@@ -110,7 +112,7 @@ def test_taxonomy_returns_six_digit_codes(mock_codes_parquet):
 
 def test_taxonomy_normalizes_manufacturing_sectors(mock_codes_parquet):
     '''Sectors 31, 32, 33 should normalize to '31' in code_2.'''
-    result = _taxonomy(mock_codes_parquet)
+    result = build_taxonomy(mock_codes_parquet)
 
     code_2_values = result.get_column('code_2').unique().to_list()
     # Both 31xxx and 32xxx codes should have code_2 = '31' (normalized)
@@ -120,7 +122,7 @@ def test_taxonomy_normalizes_manufacturing_sectors(mock_codes_parquet):
 
 def test_taxonomy_preserves_code_hierarchy(mock_codes_parquet):
     '''Each row should have consistent code hierarchy.'''
-    result = _taxonomy(mock_codes_parquet)
+    result = build_taxonomy(mock_codes_parquet)
 
     for row in result.iter_rows(named=True):
         code_6 = row['code_6']
@@ -133,76 +135,14 @@ def test_taxonomy_preserves_code_hierarchy(mock_codes_parquet):
         assert code_5.startswith(code_4) or code_5[2:].startswith(code_4[2:])
         assert code_4.startswith(code_3) or code_4[2:].startswith(code_3[2:])
 
-def test_anchors_extracts_unique_anchor_level_pairs(mock_triplets_parquet):
-    '''_anchors should return unique (level, anchor) pairs.'''
-    result = _anchors(mock_triplets_parquet)
+def test_anchor_list_extracts_all_codes(mock_codes_parquet):
+    '''build_anchor_list should return all codes with level >= 2.'''
+    result = build_anchor_list(mock_codes_parquet)
 
     assert 'level' in result.columns
     assert 'anchor' in result.columns
-    # Should have 3 unique anchors: 311111, 321111, 311
-    assert result.height == 3
-
-def test_linear_skip_returns_descendants(mock_codes_parquet):
-    '''_linear_skip should return next-level descendants for an anchor.'''
-    taxonomy = _taxonomy(mock_codes_parquet)
-
-    # From level 5, should get level 6 descendants
-    result = _linear_skip('31111', taxonomy)
-    assert '311111' in result
-    assert '311112' in result
-
-def test_linear_skip_handles_leaf_level(mock_codes_parquet):
-    '''_linear_skip at level 5 should return level 6 codes.'''
-    taxonomy = _taxonomy(mock_codes_parquet)
-
-    result = _linear_skip('31111', taxonomy)
-    # Should return 6-digit descendants
-    assert all(len(code) == 6 for code in result)
-
-# -------------------------------------------------------------------------------------------------
-# Ancestor/Descendant Generation Tests
-# -------------------------------------------------------------------------------------------------
-
-def test_ancestors_for_six_digit_anchor(mock_codes_parquet, mock_triplets_parquet):
-    '''6-digit anchors should return all ancestor levels (5, 4, 3, 2).'''
-    taxonomy = _taxonomy(mock_codes_parquet)
-    anchors = _anchors(mock_triplets_parquet)
-
-    result = _ancestors(anchors, taxonomy)
-
-    # Should have entries for 6-digit anchors
-    six_digit_results = result.filter(pl.col('level').eq(6))
-    assert six_digit_results.height > 0
-
-    # Each 6-digit anchor should have 4 ancestor positives
-    for row in six_digit_results.iter_rows(named=True):
-        assert len(row['positive']) == 4
-
-def test_ancestors_returns_correct_ancestor_codes(mock_codes_parquet, mock_triplets_parquet):
-    '''Ancestor codes should match expected hierarchy.'''
-    taxonomy = _taxonomy(mock_codes_parquet)
-    anchors = _anchors(mock_triplets_parquet)
-
-    result = _ancestors(anchors, taxonomy)
-
-    # Find 311111's ancestors
-    anchor_311111 = result.filter(pl.col('anchor').eq('311111'))
-    if anchor_311111.height > 0:
-        positives = anchor_311111.row(0, named=True)['positive']
-        # Should contain 31111, 3111, 311, and sector code
-        assert '31111' in positives
-        assert '3111' in positives
-        assert '311' in positives
-
-def test_descendants_for_parent_anchor(mock_codes_parquet, mock_triplets_parquet):
-    '''Parent anchors should return descendant positives.'''
-    taxonomy = _taxonomy(mock_codes_parquet)
-    anchors = _anchors(mock_triplets_parquet)
-
-    result = _descendants(anchors, taxonomy)
-
-    # Should have entries for non-6-digit anchors (level 3 anchor '311')
-    assert result.height > 0
+    # Should have all 11 codes
+    assert result.height == 11
 
 # -------------------------------------------------------------------------------------------------
 # Matrix Loading Tests
@@ -680,8 +620,8 @@ def test_sans_empty_candidates():
 
 def test_cache_key_deterministic():
     '''Same config should always produce same cache key.'''
-    cfg1 = StreamingConfig(seed=42, n_positives=3, n_negatives=5)
-    cfg2 = StreamingConfig(seed=42, n_positives=3, n_negatives=5)
+    cfg1 = StreamingConfig(seed=42, n_negatives=5)
+    cfg2 = StreamingConfig(seed=42, n_negatives=5)
 
     path1 = _get_final_cache_path(cfg1)
     path2 = _get_final_cache_path(cfg2)
@@ -700,408 +640,101 @@ def test_cache_key_changes_with_config():
 
 def test_cache_path_in_streaming_cache_dir():
     '''Cache path should be in streaming_cache directory.'''
-    cfg = StreamingConfig(triplets_parquet='./data/naics_training_pairs')
+    cfg = StreamingConfig(descriptions_parquet='./data/naics_descriptions.parquet')
 
     path = _get_final_cache_path(cfg)
 
     assert 'streaming_cache' in str(path)
     assert path.name.startswith('streaming_final_')
-    assert path.suffix == '.pkl'
 
 # -------------------------------------------------------------------------------------------------
-# Streaming Dataset Iteration Tests
+# Positive Sampler Tests
 # -------------------------------------------------------------------------------------------------
 
-class TestStreamingDatasetIteration:
-    '''Test suite for streaming dataset full iteration.
+class TestPositiveSampler:
+    '''Tests for PositiveSampler class.'''
 
-    Tests the complete pipeline of create_streaming_dataset including
-    tokenization lookup and triplet generation.
-    '''
-
-    @pytest.fixture
-    def full_mock_setup(self, tmp_path):
-        '''Create a complete mock setup for streaming dataset testing.'''
-        # Create descriptions with all required fields
-        desc_data = {
-            'index': [0, 1, 2, 3, 4],
-            'code': ['31', '311', '3111', '31111', '311111'],
-            'level': [2, 3, 4, 5, 6],
-            'title': ['Manuf', 'Food Manuf', 'Animal Food', 'Animal Food', 'Dog Food'],
-            'description': ['Manufacturing', 'Food', 'Animal', 'Animal Food', 'Dog Food'],
-            'excluded': ['', '', '', '', ''],
-            'examples': ['', '', '', '', ''],
-            'excluded_codes': [None, None, None, None, None],
+    def test_sampler_initialization(self, mock_codes_parquet, mock_relations_parquet, monkeypatch):
+        '''PositiveSampler should initialize with anchor list.'''
+        # Mock get_indices_codes
+        code_to_idx = {
+            '31': 0,
+            '311': 1,
+            '3111': 2,
+            '31111': 3,
+            '311111': 4,
+            '311112': 5,
+            '32': 6,
+            '321': 7,
+            '3211': 8,
+            '32111': 9,
+            '321111': 10,
         }
-        desc_df = pl.DataFrame(desc_data)
-        desc_path = tmp_path / 'descriptions.parquet'
-        desc_df.write_parquet(desc_path)
+        idx_to_code = {v: k for k, v in code_to_idx.items()}
 
-        # Create triplets directory structure
-        triplets_dir = tmp_path / 'triplets'
-        triplets_dir.mkdir()
+        def mock_get_indices_codes(key):
+            if key == 'code_to_idx':
+                return code_to_idx
+            elif key == 'idx_to_code':
+                return idx_to_code
+            return None
 
-        # Create triplets for anchor at index 4 (311111)
-        anchor_dir = triplets_dir / 'anchor=4'
-        anchor_dir.mkdir()
-
-        triplet_data = {
-            'anchor_idx': [4, 4],
-            'anchor_code': ['311111', '311111'],
-            'anchor_level': [6, 6],
-            'positive_idx': [3, 2],
-            'positive_code': ['31111', '3111'],
-            'positive_level': [5, 4],
-            'negative_idx': [0, 1],
-            'negative_code': ['31', '311'],
-            'negative_level': [2, 3],
-            'relation_margin': [0, 0],
-            'distance_margin': [4, 4],
-            'positive_relation': [1, 2],
-            'positive_distance': [1, 2],
-            'negative_relation': [3, 3],
-            'negative_distance': [6, 5],
-        }
-        triplet_df = pl.DataFrame(triplet_data)
-        triplet_path = anchor_dir / 'part0.parquet'
-        triplet_df.write_parquet(triplet_path)
-
-        return {
-            'descriptions_path': str(desc_path),
-            'triplets_path': str(triplets_dir),
-        }
-
-    @pytest.fixture
-    def mock_token_cache(self):
-        '''Create mock token cache with all required fields.'''
-        import torch
-
-        def make_tokens(seq_len):
-            return {
-                'input_ids': torch.randint(0, 1000, (seq_len, )),
-                'attention_mask': torch.ones(seq_len, dtype=torch.long),
-            }
-
-        return {
-            0: {
-                'code': '31',
-                'title': make_tokens(24),
-                'description': make_tokens(128),
-                'excluded': make_tokens(128),
-                'examples': make_tokens(128),
-            },
-            1: {
-                'code': '311',
-                'title': make_tokens(24),
-                'description': make_tokens(128),
-                'excluded': make_tokens(128),
-                'examples': make_tokens(128),
-            },
-            2: {
-                'code': '3111',
-                'title': make_tokens(24),
-                'description': make_tokens(128),
-                'excluded': make_tokens(128),
-                'examples': make_tokens(128),
-            },
-            3: {
-                'code': '31111',
-                'title': make_tokens(24),
-                'description': make_tokens(128),
-                'excluded': make_tokens(128),
-                'examples': make_tokens(128),
-            },
-            4: {
-                'code': '311111',
-                'title': make_tokens(24),
-                'description': make_tokens(128),
-                'excluded': make_tokens(128),
-                'examples': make_tokens(128),
-            },
-        }
-
-    def test_streaming_generator_yields_triplets(self, full_mock_setup):
-        '''Test that streaming generator yields triplet dictionaries.'''
-        from unittest.mock import patch
-
-        from naics_embedder.text_model.dataloader.streaming_dataset import (
-            create_streaming_generator,
+        monkeypatch.setattr(
+            'naics_embedder.data.positive_sampling.get_indices_codes', mock_get_indices_codes
         )
 
-        cfg = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=1,
-            n_negatives=2,
+        sampler = create_positive_sampler(
+            descriptions_parquet=mock_codes_parquet,
+            relations_parquet=mock_relations_parquet,
+            max_per_stratum=4,
             seed=42,
         )
 
-        # Mock get_indices_codes to return our test data
-        code_to_idx = {'31': 0, '311': 1, '3111': 2, '31111': 3, '311111': 4}
-        idx_to_code = {v: k for k, v in code_to_idx.items()}
+        assert len(sampler.anchors) > 0
 
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-
-            generator = create_streaming_generator(cfg)
-            triplets = list(generator)
-
-        # Should yield at least one triplet
-        assert len(triplets) > 0
-
-        # Check triplet structure
-        triplet = triplets[0]
-        assert 'anchor_idx' in triplet
-        assert 'anchor_code' in triplet
-        assert 'positive_idx' in triplet
-        assert 'positive_code' in triplet
-        assert 'negatives' in triplet
-
-    def test_streaming_generator_respects_n_negatives(self, full_mock_setup):
-        '''Test that generator respects n_negatives parameter.'''
-        from unittest.mock import patch
-
-        from naics_embedder.text_model.dataloader.streaming_dataset import (
-            create_streaming_generator,
-        )
-
-        cfg = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=1,
-            n_negatives=1,  # Request only 1 negative
-            seed=42,
-        )
-
-        code_to_idx = {'31': 0, '311': 1, '3111': 2, '31111': 3, '311111': 4}
-        idx_to_code = {v: k for k, v in code_to_idx.items()}
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-
-            generator = create_streaming_generator(cfg)
-            triplets = list(generator)
-
-        if triplets:
-            # Each triplet should have at most n_negatives
-            for triplet in triplets:
-                assert len(triplet['negatives']) <= 1
-
-    def test_streaming_dataset_with_token_cache(self, full_mock_setup, mock_token_cache):
-        '''Test full streaming dataset iteration with token cache.'''
-        from unittest.mock import patch
-
-        from naics_embedder.text_model.dataloader.streaming_dataset import (
-            create_streaming_dataset,
-        )
-
-        cfg = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=1,
-            n_negatives=2,
-            seed=42,
-        )
-
-        code_to_idx = {'31': 0, '311': 1, '3111': 2, '31111': 3, '311111': 4}
-        idx_to_code = {v: k for k, v in code_to_idx.items()}
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-
-            dataset = create_streaming_dataset(mock_token_cache, cfg)
-            items = list(dataset)
-
-        # Should yield items
-        assert len(items) > 0
-
-        # Check item structure includes embeddings
-        item = items[0]
-        assert 'anchor_idx' in item
-        assert 'anchor_code' in item
-        assert 'anchor_embedding' in item
-        assert 'positives' in item or 'positive_embedding' in item
-        assert 'negatives' in item
-
-    def test_streaming_dataset_anchor_embedding_structure(self, full_mock_setup, mock_token_cache):
-        '''Test that anchor embedding has correct structure.'''
-        from unittest.mock import patch
-
-        from naics_embedder.text_model.dataloader.streaming_dataset import (
-            create_streaming_dataset,
-        )
-
-        cfg = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=1,
-            n_negatives=2,
-            seed=42,
-        )
-
-        code_to_idx = {'31': 0, '311': 1, '3111': 2, '31111': 3, '311111': 4}
-        idx_to_code = {v: k for k, v in code_to_idx.items()}
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-
-            dataset = create_streaming_dataset(mock_token_cache, cfg)
-            items = list(dataset)
-
-        if items:
-            anchor_embedding = items[0]['anchor_embedding']
-            # Should have all four channels
-            assert 'title' in anchor_embedding
-            assert 'description' in anchor_embedding
-            assert 'excluded' in anchor_embedding
-            assert 'examples' in anchor_embedding
-            # Code should not be in embedding (filtered out)
-            assert 'code' not in anchor_embedding
-
-    def test_streaming_dataset_negative_embedding_structure(
-        self, full_mock_setup, mock_token_cache
+    def test_sample_positives_returns_list(
+        self, mock_codes_parquet, mock_relations_parquet, monkeypatch
     ):
-        '''Test that negative embeddings have correct structure.'''
-        from unittest.mock import patch
+        '''sample_positives should return list of positive dicts.'''
+        code_to_idx = {
+            '31': 0,
+            '311': 1,
+            '3111': 2,
+            '31111': 3,
+            '311111': 4,
+            '311112': 5,
+            '32': 6,
+            '321': 7,
+            '3211': 8,
+            '32111': 9,
+            '321111': 10,
+        }
+        idx_to_code = {v: k for k, v in code_to_idx.items()}
 
-        from naics_embedder.text_model.dataloader.streaming_dataset import (
-            create_streaming_dataset,
+        def mock_get_indices_codes(key):
+            if key == 'code_to_idx':
+                return code_to_idx
+            elif key == 'idx_to_code':
+                return idx_to_code
+            return None
+
+        monkeypatch.setattr(
+            'naics_embedder.data.positive_sampling.get_indices_codes', mock_get_indices_codes
         )
 
-        cfg = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=1,
-            n_negatives=2,
+        sampler = create_positive_sampler(
+            descriptions_parquet=mock_codes_parquet,
+            relations_parquet=mock_relations_parquet,
+            max_per_stratum=4,
             seed=42,
         )
 
-        code_to_idx = {'31': 0, '311': 1, '3111': 2, '31111': 3, '311111': 4}
-        idx_to_code = {v: k for k, v in code_to_idx.items()}
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-
-            dataset = create_streaming_dataset(mock_token_cache, cfg)
-            items = list(dataset)
-
-        if items and items[0]['negatives']:
-            negative = items[0]['negatives'][0]
-            # Should have expected fields
-            assert 'negative_idx' in negative
-            assert 'negative_code' in negative
-            assert 'negative_embedding' in negative
-            assert 'relation_margin' in negative
-            assert 'distance_margin' in negative
-
-            # Embedding should have all channels
-            neg_embedding = negative['negative_embedding']
-            assert 'title' in neg_embedding
-            assert 'description' in neg_embedding
-
-    def test_streaming_dataset_deterministic_with_seed(self, full_mock_setup, mock_token_cache):
-        '''Test that streaming dataset is deterministic with same seed.'''
-        from unittest.mock import patch
-
-        from naics_embedder.text_model.dataloader.streaming_dataset import (
-            create_streaming_dataset,
-        )
-
-        cfg1 = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=1,
-            n_negatives=2,
-            seed=42,
-        )
-
-        cfg2 = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=1,
-            n_negatives=2,
-            seed=42,  # Same seed
-        )
-
-        code_to_idx = {'31': 0, '311': 1, '3111': 2, '31111': 3, '311111': 4}
-        idx_to_code = {v: k for k, v in code_to_idx.items()}
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-
-            dataset1 = create_streaming_dataset(mock_token_cache, cfg1)
-            items1 = list(dataset1)
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-
-            dataset2 = create_streaming_dataset(mock_token_cache, cfg2)
-            items2 = list(dataset2)
-
-        # Same seed should produce same results
-        assert len(items1) == len(items2)
-        if items1:
-            assert items1[0]['anchor_code'] == items2[0]['anchor_code']
-
-    def test_streaming_dataset_different_with_different_seed(
-        self, full_mock_setup, mock_token_cache
-    ):
-        '''Test that different seeds produce different shuffling.'''
-        from unittest.mock import patch
-
-        from naics_embedder.text_model.dataloader.streaming_dataset import (
-            create_streaming_generator,
-        )
-
-        cfg1 = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=10,
-            n_negatives=10,
-            seed=42,
-        )
-
-        cfg2 = StreamingConfig(
-            descriptions_parquet=full_mock_setup['descriptions_path'],
-            triplets_parquet=full_mock_setup['triplets_path'],
-            n_positives=10,
-            n_negatives=10,
-            seed=123,  # Different seed
-        )
-
-        code_to_idx = {'31': 0, '311': 1, '3111': 2, '31111': 3, '311111': 4}
-        idx_to_code = {v: k for k, v in code_to_idx.items()}
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-            gen1 = create_streaming_generator(cfg1)
-            items1 = list(gen1)
-
-        with patch(
-            'naics_embedder.text_model.dataloader.streaming_dataset.get_indices_codes'
-        ) as mock_get:
-            mock_get.side_effect = lambda x: code_to_idx if x == 'code_to_idx' else idx_to_code
-            gen2 = create_streaming_generator(cfg2)
-            items2 = list(gen2)
-
-        # With different seeds and sufficient data, some sampling variation expected
-        # (though this depends on the data - with very small datasets, may be identical)
-        # At minimum, both should produce valid output
-        assert isinstance(items1, list)
-        assert isinstance(items2, list)
+        # Sample positives for first anchor
+        if sampler.anchors:
+            positives = sampler.sample_positives(sampler.anchors[0])
+            assert isinstance(positives, list)
+            for p in positives:
+                assert 'positive_idx' in p
+                assert 'positive_code' in p
+                assert 'stratum_id' in p
+                assert 'stratum_wgt' in p

@@ -5,41 +5,37 @@
 import hashlib
 import json
 import logging
-import operator
 import pickle
-import time
-from collections import defaultdict
-from functools import reduce
+import random
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import numpy as np
 import polars as pl
 
+from naics_embedder.data.positive_sampling import create_positive_sampler
 from naics_embedder.utils.config import StreamingConfig
+from naics_embedder.utils.utilities import get_indices_codes
 
 logger = logging.getLogger(__name__)
 
 # Track which configurations have already been logged
-_logged_configs = set()
+_logged_configs: set = set()
 
-def _log_dataset_stats(cfg: StreamingConfig, df_list: List[Dict], *, worker_id: str) -> None:
+def _log_dataset_stats(df_list: List[Dict], *, worker_id: str, cfg: StreamingConfig) -> None:
     '''Log dataset statistics once per unique configuration.'''
-    config_id = (
-        f'{cfg.descriptions_parquet}_{cfg.triplets_parquet}_{cfg.anchor_level}_'
-        f'{cfg.n_positives}_{cfg.n_negatives}_{cfg.seed}'
-    )
+    config_id = f'{cfg.descriptions_parquet}_{cfg.relations_parquet}_{cfg.n_negatives}_{cfg.seed}'
 
     if config_id in _logged_configs:
         return
 
-    num_anchors = len(set(row['anchors']['anchor_idx'] for row in df_list))
+    num_anchors = len(set(row['anchor_idx'] for row in df_list))
     num_positives = len(df_list)
-    num_negatives = sum(len(row['negatives']) for row in df_list)
+    num_negatives = sum(len(row.get('negatives', [])) for row in df_list)
 
     logger.info(
-        f'{worker_id} Dataset stats — anchors: {num_anchors: ,}, '
-        f'positives: {num_positives: ,}, negatives: {num_negatives: ,}'
+        f'{worker_id} Dataset stats — anchors: {num_anchors:,}, '
+        f'positives: {num_positives:,}, negatives: {num_negatives:,}'
     )
     _logged_configs.add(config_id)
 
@@ -51,19 +47,9 @@ def _get_cache_key(cfg: StreamingConfig) -> str:
     '''Generate a cache key from StreamingConfig.'''
     cache_dict = {
         'descriptions_parquet': str(cfg.descriptions_parquet),
-        'triplets_parquet': str(cfg.triplets_parquet),
-        'anchor_level': cfg.anchor_level,
-        'n_positives': cfg.n_positives,
+        'relations_parquet': str(cfg.relations_parquet),
         'n_negatives': cfg.n_negatives,
         'seed': cfg.seed,
-        'relation_margin': cfg.relation_margin,
-        'distance_margin': cfg.distance_margin,
-        'positive_level': cfg.positive_level,
-        'positive_relation': cfg.positive_relation,
-        'positive_distance': cfg.positive_distance,
-        'negative_level': cfg.negative_level,
-        'negative_relation': cfg.negative_relation,
-        'negative_distance': cfg.negative_distance,
     }
     config_str = json.dumps(cache_dict, sort_keys=True)
     return hashlib.sha256(config_str.encode()).hexdigest()[:16]
@@ -71,8 +57,8 @@ def _get_cache_key(cfg: StreamingConfig) -> str:
 def _get_final_cache_path(cfg: StreamingConfig) -> Path:
     '''Get the cache file path for the final processed data (after weighted sampling).'''
     cache_key = _get_cache_key(cfg)
-    triplets_path = Path(cfg.triplets_parquet)
-    cache_dir = triplets_path.parent / 'streaming_cache'
+    descriptions_path = Path(cfg.descriptions_parquet)
+    cache_dir = descriptions_path.parent / 'streaming_cache'
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / f'streaming_final_{cache_key}.pkl'
 
@@ -86,6 +72,7 @@ def _load_final_cache(cfg: StreamingConfig) -> Optional[List[Dict]]:
     try:
         with open(cache_path, 'rb') as f:
             data_list = pickle.load(f)
+        logger.info(f'Loaded streaming cache from {cache_path}')
         return data_list
     except Exception as e:
         logger.warning(f'Failed to load final cache: {e}, will recompute')
@@ -103,36 +90,13 @@ def _save_final_cache(data: List[Dict], cfg: StreamingConfig) -> None:
 
         # Atomic rename
         temp_path.replace(cache_path)
-        logger.debug(f'Final cache saved successfully ({len(data)} rows)')
+        logger.info(f'Saved streaming cache to {cache_path}')
     except Exception as e:
         logger.warning(f'Failed to save final cache: {e}')
 
 # -------------------------------------------------------------------------------------------------
 # Utility functions
 # -------------------------------------------------------------------------------------------------
-
-def _get_config_dict(cfg: StreamingConfig) -> Dict[str, Any]:
-    '''Extract relevant config values for filtering.'''
-    keep = [
-        'anchor_level',
-        'relation_margin',
-        'distance_margin',
-        'positive_level',
-        'positive_relation',
-        'positive_distance',
-        'negative_level',
-        'negative_relation',
-        'negative_distance',
-        'n_positives',
-        'n_negatives',
-    ]
-
-    cfg_dict: Dict[str, Any] = {}
-    for k, v in cfg.model_dump().items():
-        if k in keep and v is not None:
-            cfg_dict[k] = v
-
-    return cfg_dict
 
 def _get_weighted_sample(
     df: pl.DataFrame,
@@ -173,112 +137,49 @@ def _load_codes_and_indices(descriptions_parquet: str,
         code_to_idx = {row['code']: row['index'] for row in df_codes.iter_rows(named=True)}
         return codes, code_to_idx
 
-def _build_polars_query(
-    cfg: StreamingConfig, codes: List[str], code_to_idx: Dict[str, int], worker_id: str
-) -> pl.DataFrame:
-    '''Build and execute the Polars query to get triplets.'''
-    # Organize codes by level
-    level_dict = defaultdict(list)
-    for code in codes:
-        level_dict[len(code)].append(code)  # type: ignore
+def _load_negative_candidates(triplets_parquet: str,
+                              ) -> Dict[tuple[int, int], List[Dict[str, Any]]]:
+    '''Load all candidate negatives from triplets parquet files.
 
-    # Get list of dataset files
-    if cfg.anchor_level is not None:
-        dataset_files = []
-        for level in cfg.anchor_level:
-            for code in level_dict[level]:
-                idx = code_to_idx[code]
-                for pq_path in Path(f'{cfg.triplets_parquet}/anchor={idx}/').glob('*.parquet'):
-                    dataset_files.append(pq_path.as_posix())
-    else:
-        dataset_files = [str(p) for p in Path(cfg.triplets_parquet).glob('**/*.parquet')]
+    Returns a dictionary mapping (anchor_idx, positive_idx) -> list of negative dicts.
+    '''
+    logger.info('Loading negative candidates from triplets parquet...')
 
-    # Build filters
-    cfg_dict = _get_config_dict(cfg)
-    exprs = []
-    for k, v in cfg_dict.items():
-        if isinstance(v, list):
-            exprs.append(pl.col(k).is_in(v))
-        elif isinstance(v, bool):
-            exprs.append(pl.col(k).eq(v))
+    dataset_files = [str(p) for p in Path(triplets_parquet).glob('**/*.parquet')]
+    if not dataset_files:
+        logger.warning(f'No parquet files found in {triplets_parquet}')
+        return {}
 
-    if not exprs:
-        exprs = [pl.col('anchor_idx').ge(0)]
-
-    filters = reduce(operator.and_, exprs)
-
-    # Build lazy query
-    logger.debug(f'{worker_id} Scanning {len(dataset_files)} parquet files...')
-    df_0 = pl.scan_parquet(dataset_files).filter(filters)
-
-    # Build query with sampled positives
-    df_1 = (
-        df_0.with_columns(
-            relation_margin=pl.when(pl.col('excluded')).then(pl.col('relation_margin').add(1)
-                                                             ).otherwise(pl.col('relation_margin')),
-            distance_margin=pl.when(pl.col('excluded')).then(pl.col('distance_margin').add(1)
-                                                             ).otherwise(pl.col('distance_margin')),
-        ).with_columns(sample_wgt=pl.mean_horizontal('relation_margin', 'distance_margin').pow(-1)
-                       ).select(
-                           anchors=pl.struct(pl.col('anchor_idx'), pl.col('anchor_code')),
-                           positives=pl.struct(pl.col('positive_idx'), pl.col('positive_code')),
-                           negatives=pl.struct(
-                               pl.struct(
-                                   pl.col('negative_idx'),
-                                   pl.col('negative_code'),
-                                   pl.col('negative_relation'),
-                                   pl.col('negative_distance'),
-                                   pl.col('relation_margin'),
-                                   pl.col('distance_margin'),
-                               ).alias('negatives'),
-                               pl.col('sample_wgt'),
-                           ),
-                       ).group_by('anchors', 'positives').agg(negatives=pl.col('negatives')).select(
-                           anchors=pl.col('anchors'),
-                           positives_negatives=pl.struct(pl.col('positives'), pl.col('negatives')),
-                       ).group_by('anchors').agg(
-                           positives_negatives_len=pl.col('positives_negatives').len(),
-                           positives_negatives=pl.col('positives_negatives'),
-                       ).with_columns(
-                           positives_negatives_len=pl.min_horizontal(
-                               pl.col('positives_negatives_len'), pl.lit(cfg.n_positives)
-                           )
-                       ).with_columns(
-                           positives_negatives=pl.col('positives_negatives').list.sample(
-                               pl.col('positives_negatives_len'), shuffle=True, seed=cfg.seed
-                           )
-                       ).drop('positives_negatives_len').explode('positives_negatives').unnest(
-                           'positives_negatives'
-                       ).explode('negatives').unnest('negatives')
-    )
-
-    # Execute query
-    logger.info(
-        f'{worker_id} Executing Polars query (this may take 30-60 seconds for large datasets)...'
-    )
-    start_time = time.time()
-    df_1 = df_1.collect()
-    query_time = time.time() - start_time
-    logger.info(f'{worker_id} ✓ Polars query complete in {query_time:.2f}s: {len(df_1)} rows')
-
-    return df_1
-
-def _apply_weighted_sampling(df_1: pl.DataFrame, cfg: StreamingConfig, worker_id: str) -> List[Dict]:
-    '''Apply weighted sampling and convert to list of dicts.'''
     df = (
-        _get_weighted_sample(
-            df_1, ['anchors', 'positives'], 'sample_wgt', cfg.n_negatives, seed=cfg.seed
-        ).group_by('anchors', 'positives').agg(
-            negatives=pl.col('negatives'), negatives_len=pl.col('negatives').len()
-        ).select(
-            anchors=pl.col('anchors'),
-            positives=pl.col('positives'),
-            negatives=pl.col('negatives'),
-            negatives_len=pl.col('negatives_len'),
-        )
+        pl.scan_parquet(dataset_files).select(
+            'anchor_idx',
+            'positive_idx',
+            'negative_idx',
+            'negative_code',
+            'relation_margin',
+            'distance_margin',
+        ).collect()
     )
 
-    return df.to_dicts()
+    logger.info(f'Loaded {len(df):,} negative candidate rows')
+
+    # Group by (anchor, positive)
+    result: Dict[tuple[int, int], List[Dict[str, Any]]] = {}
+    for row in df.iter_rows(named=True):
+        key = (row['anchor_idx'], row['positive_idx'])
+        if key not in result:
+            result[key] = []
+        result[key].append(
+            {
+                'negative_idx': row['negative_idx'],
+                'negative_code': row['negative_code'],
+                'relation_margin': row['relation_margin'],
+                'distance_margin': row['distance_margin'],
+            }
+        )
+
+    logger.info(f'Grouped into {len(result):,} (anchor, positive) pairs')
+    return result
 
 # -------------------------------------------------------------------------------------------------
 # Triplet batch generator
@@ -294,28 +195,89 @@ def load_streaming_triplets(
     '''
     Materialize the cached streaming triplets for reuse outside of DataLoader workers.
 
-    This helper ensures a single source of truth for the heavy Polars query so that
-    Lightning DataModules and legacy streaming generators share the same cache.
+    Uses taxonomy-based stratified positive sampling:
+    - Stratum 0 (descendants): for levels 2-5, next-level descendants
+    - Stratum 1 (ancestors): for levels 3-6, parent codes up to level 2
+    - Stratum 2 (siblings): codes sharing the same parent
+
+    Samples up to 4 positives per stratum, then samples negatives for each.
     '''
     df_list = _load_final_cache(cfg)
 
-    if df_list is None:
-        logger.info(f'{worker_id} Final cache not found, building from scratch...')
+    if df_list is not None:
+        if log_stats:
+            _log_dataset_stats(df_list, worker_id=worker_id, cfg=cfg)
+        return df_list
 
-        # Load codes and indices
-        codes, code_to_idx = _load_codes_and_indices(cfg.descriptions_parquet, worker_id)
+    logger.info(f'{worker_id} Final cache not found, building from scratch...')
 
-        # Build Polars query
-        df_1 = _build_polars_query(cfg, codes, code_to_idx, worker_id)
+    # Load codes and indices
+    idx_to_code_raw = get_indices_codes('idx_to_code')
+    assert isinstance(idx_to_code_raw, dict), 'idx_to_code must be a dict'
+    idx_to_code: Dict[int, str] = idx_to_code_raw  # type: ignore
 
-        # Apply weighted sampling
-        df_list = _apply_weighted_sampling(df_1, cfg, worker_id)
+    # Create positive sampler
+    logger.info(f'{worker_id} Creating positive sampler...')
+    positive_sampler = create_positive_sampler(
+        descriptions_parquet=cfg.descriptions_parquet,
+        relations_parquet=cfg.relations_parquet,
+        max_per_stratum=4,
+        seed=cfg.seed,
+    )
 
-        if allow_cache_save:
-            _save_final_cache(df_list, cfg)
+    # Load negative candidates
+    logger.info(f'{worker_id} Loading negative candidates...')
+    negative_candidates = _load_negative_candidates(cfg.triplets_parquet)
+
+    # Build triplet list
+    df_list = []
+    rng = random.Random(cfg.seed)
+
+    for anchor_idx in positive_sampler.anchors:
+        anchor_code = idx_to_code.get(anchor_idx)
+        if anchor_code is None:
+            continue
+
+        # Sample positives across strata
+        positives = positive_sampler.sample_positives(anchor_idx)
+        if not positives:
+            continue
+
+        for positive in positives:
+            positive_idx = positive['positive_idx']
+            positive_code = positive['positive_code']
+
+            # Get candidate negatives
+            key = (anchor_idx, positive_idx)
+            candidates = negative_candidates.get(key, [])
+
+            if not candidates:
+                continue
+
+            # Sample negatives uniformly
+            n_sample = min(cfg.n_negatives, len(candidates))
+            sampled_negatives = rng.sample(candidates, n_sample)
+
+            df_list.append(
+                {
+                    'anchor_idx': anchor_idx,
+                    'anchor_code': anchor_code,
+                    'positive_idx': positive_idx,
+                    'positive_code': positive_code,
+                    'positive_level': positive['positive_level'],
+                    'stratum_id': positive['stratum_id'],
+                    'stratum_wgt': positive['stratum_wgt'],
+                    'negatives': sampled_negatives,
+                }
+            )
+
+    logger.info(f'{worker_id} Built {len(df_list):,} triplet rows')
+
+    if allow_cache_save:
+        _save_final_cache(df_list, cfg)
 
     if log_stats:
-        _log_dataset_stats(cfg, df_list, worker_id=worker_id)
+        _log_dataset_stats(df_list, worker_id=worker_id, cfg=cfg)
 
     return df_list
 
@@ -349,10 +311,13 @@ def create_streaming_generator(cfg: StreamingConfig) -> Iterator[Dict[str, Any]]
         ]
 
         yield {
-            'anchor_idx': row['anchors']['anchor_idx'],
-            'anchor_code': row['anchors']['anchor_code'],
-            'positive_idx': row['positives']['positive_idx'],
-            'positive_code': row['positives']['positive_code'],
+            'anchor_idx': row['anchor_idx'],
+            'anchor_code': row['anchor_code'],
+            'positive_idx': row['positive_idx'],
+            'positive_code': row['positive_code'],
+            'positive_level': row.get('positive_level'),
+            'stratum_id': row.get('stratum_id'),
+            'stratum_wgt': row.get('stratum_wgt'),
             'negatives': negatives,
         }
 
@@ -403,5 +368,8 @@ def create_streaming_dataset(token_cache: Dict[int, Dict[str, Any]],
             'positive_idx': positive_idx,
             'positive_code': positive_code,
             'positive_embedding': positive_embedding,
+            'positive_level': triplets.get('positive_level'),
+            'stratum_id': triplets.get('stratum_id'),
+            'stratum_wgt': triplets.get('stratum_wgt'),
             'negatives': negatives,
         }

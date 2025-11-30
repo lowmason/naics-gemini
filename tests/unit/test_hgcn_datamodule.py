@@ -14,12 +14,12 @@ def _graph_cfg(**overrides) -> GraphConfig:
         'num_workers': 0,
         'shuffle': False,
         'k_total': 2,
-        'n_positive_samples': 4,
     }
     defaults.update(overrides)
     return GraphConfig(**defaults)
 
 def _make_triplet(anchor_idx: int, positive_idx: int, n_negatives: int = 2) -> Dict[str, Any]:
+    '''Create a triplet in the new flat format.'''
     negatives = []
     for offset in range(n_negatives):
         neg_idx = positive_idx * 10 + offset
@@ -35,14 +35,13 @@ def _make_triplet(anchor_idx: int, positive_idx: int, n_negatives: int = 2) -> D
         )
 
     return {
-        'anchors': {
-            'anchor_idx': anchor_idx,
-            'anchor_code': f'A{anchor_idx}'
-        },
-        'positives': {
-            'positive_idx': positive_idx,
-            'positive_code': f'P{positive_idx}'
-        },
+        'anchor_idx': anchor_idx,
+        'anchor_code': f'A{anchor_idx}',
+        'positive_idx': positive_idx,
+        'positive_code': f'P{positive_idx}',
+        'positive_level': 6,
+        'stratum_id': 0,
+        'stratum_wgt': 0.5,
         'negatives': negatives,
     }
 
@@ -104,8 +103,8 @@ class TestHGCNDataModule:
         # Padding should duplicate the final element for rows with fewer negatives.
         assert batch['negative_indices'][0, -1].item() == batch['negative_indices'][0, 0].item()
 
-    def test_curriculum_filtering(self, monkeypatch: pytest.MonkeyPatch):
-        '''Loader config filters should be forwarded into the streaming config.'''
+    def test_streaming_config_from_loader(self, monkeypatch: pytest.MonkeyPatch):
+        '''Loader config should be correctly converted to StreamingConfig.'''
         sample_data = [_make_triplet(0, 10)]
         captured_cfg: Dict[str, StreamingConfig] = {}
 
@@ -116,20 +115,21 @@ class TestHGCNDataModule:
         monkeypatch.setattr(hgcn_module, 'load_streaming_triplets', fake_loader)
 
         dm = HGCNDataModule(_graph_cfg())
-        dm.loader_cfg.anchor_level = [3]
-        dm.loader_cfg.relation_margin = [1]
-        dm.loader_cfg.positive_relation = [5]
-        dm.loader_cfg.negative_relation = [7]
-        dm.loader_cfg.n_positive_samples = 5
-        dm.loader_cfg.n_negatives = 2
+        dm.loader_cfg.n_negatives = 12
         dm._streaming_cfg = hgcn_module._streaming_cfg_from_loader(dm.loader_cfg)
 
         dm.prepare_data()
 
         cfg = captured_cfg['value']
-        assert cfg.anchor_level == [3]
-        assert cfg.relation_margin == [1]
-        assert cfg.positive_relation == [5]
-        assert cfg.negative_relation == [7]
-        assert cfg.n_positives == 5
-        assert cfg.n_negatives == 2
+        assert cfg.n_negatives == 12
+        assert cfg.seed == dm.loader_cfg.seed
+
+    def test_datamodule_with_different_seeds(self, monkeypatch: pytest.MonkeyPatch):
+        '''Different seeds should produce different streaming configs.'''
+        sample_data = [_make_triplet(0, 10)]
+        monkeypatch.setattr(hgcn_module, 'load_streaming_triplets', lambda *_, **__: sample_data)
+
+        dm1 = HGCNDataModule(_graph_cfg(seed=42))
+        dm2 = HGCNDataModule(_graph_cfg(seed=43))
+
+        assert dm1._streaming_cfg.seed != dm2._streaming_cfg.seed
